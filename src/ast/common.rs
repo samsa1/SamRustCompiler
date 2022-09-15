@@ -47,3 +47,8 @@ pub enum BuildinType {
     Int(bool /* signed */, Sizes),
     Bool,
 }
+
+pub enum Projector {
+    Int(usize),
+    Name(Ident),
+}

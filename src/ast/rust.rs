@@ -75,4 +75,7 @@ pub enum ExprInner {
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
+    Tuple(Vec<Expr>),
+    BuildStruct(common::Ident, Vec<Expr>),
+    Proj(Expr, common::Projector),
 }

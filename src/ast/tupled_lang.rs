@@ -13,52 +13,47 @@ pub enum Decl {
 
 pub struct DeclFun {
     pub name : common::Ident,
-    pub args : Vec<(common::Ident, bool, PostType)>,
-    pub output : PostType,
+    pub args : Vec<(common::Ident, bool, Type)>,
+    pub output : Type,
     pub content : Bloc,
 }
 
-pub struct DeclStruct {
-    pub name : common::Ident,
-    pub args : Vec<(common::Ident, PostType)>,
-}
-
 #[derive(Clone, Debug, PartialEq)]
-pub struct PostType {
-    pub content : PostTypeInner,
+pub struct Type {
+    pub content : TypeInner,
     pub mutable : bool,
 }
 
-impl PostType {
+impl Type {
     pub fn unit() -> Self {
         Self {
-            content : PostTypeInner::Tuple(Vec::new()),
+            content : TypeInner::Tuple(Vec::new()),
             mutable : false,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum PostTypeInner {
+pub enum TypeInner {
     BuildIn(common::BuildinType),
     Struct(common::Ident),
     Enum(common::Ident),
-    IdentParametrized(common::Ident, Vec<PostType>),
-    Ref(Box<PostType>),
-    Tuple(Vec<PostType>),
-    Fun(Vec<PostType>, Box<PostType>),
+    IdentParametrized(common::Ident, Vec<Type>),
+    Ref(Box<Type>),
+    Tuple(Vec<Type>),
+    Fun(Vec<Type>, Box<Type>),
 }
 
-impl PostTypeInner {
-    pub fn to_nonmut(self) -> PostType {
-        PostType {
+impl TypeInner {
+    pub fn to_nonmut(self) -> Type {
+        Type {
             content : self,
             mutable : false,
         }
     }
 
-    pub fn to_mut(self) -> PostType {
-        PostType {
+    pub fn to_mut(self) -> Type {
+        Type {
             content : self,
             mutable : true,
         }
@@ -67,7 +62,7 @@ impl PostTypeInner {
 
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub values : HashMap<common::Ident, PostType>
+    pub values : HashMap<common::Ident, Type>
 }
 
 pub enum Instr {
@@ -79,8 +74,7 @@ pub enum Instr {
 
 pub struct Expr {
     pub content : Box<ExprInner>,
-    pub loc : common::Location,
-    pub typed : PostType,
+    pub typed : Type,
 }
 
 pub enum ExprInner {
@@ -88,13 +82,14 @@ pub enum ExprInner {
     Bool(bool),
     Int(usize),
     Var(common::Ident),
-    /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(Expr, Vec<Expr>),
-    Constructor(common::Ident, Vec<Expr>),
+    Constructor(usize, Vec<Expr>),
+    Box(Expr),
+    Free(Expr),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
     Tuple(Vec<Expr>),
     BuildStruct(common::Ident, Vec<Expr>),
-    Proj(Vec<Expr>, common::Projector),
+    Proj(Expr, usize),
 }
