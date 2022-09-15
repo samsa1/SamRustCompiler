@@ -63,10 +63,12 @@ impl PreTypeInner {
     }
 }
 
+#[derive(Debug)]
 pub struct Bloc {
     pub content : Vec<Instr>
 }
 
+#[derive(Debug)]
 pub enum Instr {
     Expr(Expr),
     Binding(bool, common::Ident, Expr),
@@ -74,6 +76,7 @@ pub enum Instr {
     Return(Option<Expr>),
 }
 
+#[derive(Debug)]
 pub struct Expr {
     pub content : Box<ExprInner>,
     pub loc : common::Location,
@@ -90,6 +93,7 @@ impl Expr {
     }
 }
 
+#[derive(Debug)]
 pub enum ExprInner {
     If(Expr, Expr, Expr),
     Bool(bool),
@@ -104,6 +108,8 @@ pub enum ExprInner {
     Tuple(Vec<Expr>),
     BuildStruct(common::Ident, Vec<Expr>),
     Proj(Expr, common::Projector),
+    String(String),
+    Array(Vec<Expr>),
 }
 
 impl ExprInner {

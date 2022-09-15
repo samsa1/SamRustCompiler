@@ -35,6 +35,7 @@ impl Ident {
     }
 }
 
+#[derive(Debug)]
 pub struct Location {
 
 }
@@ -60,6 +61,7 @@ pub enum BuildinType {
     Bool,
 }
 
+#[derive(Debug)]
 pub enum Projector {
     Int(usize),
     Name(Ident),
