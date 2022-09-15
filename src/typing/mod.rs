@@ -127,13 +127,11 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                     }
 
                     let mut args2 = Vec::new();
-                    let mut i = 0;
-                    for expr in args {
+                    for (expr, arg) in args.into_iter().zip(args_typ.iter()) {
                         let expr = type_checker(ctxt, expr, loc_ctxt);
-                        if &expr.typed == &args_typ[i] {
+                        if &expr.typed == arg {
                             args2.push(expr)
                         };
-                        i += 1;
                     }
                     (*output.clone(),
                     typed_rust::ExprInner::FunCall(expr, args2))
@@ -165,6 +163,8 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                     panic!("incompatible types")
                 }
             },
+
+            _ => todo!(),
         };
     typed_rust::Expr {
         content : Box::new(content),
