@@ -41,7 +41,8 @@ peg::parser!{
         pub rule file() -> Vec<Decl> =
             space() d:decl()* { d }
 
-        rule spaces() -> () = [' ' | '\n']+ { () }
+        rule spaces() -> () = (quiet!{[' ' | '\n']+} / expected!("space")) { () }
+        rule _spaces() -> () = [' ' | '\n']+ { () }
 
         rule space() -> () = [' ' | '\n']* { () }
 
@@ -107,15 +108,26 @@ peg::parser!{
         }
         
         rule bloc() -> Bloc =
-            "{" is:instr()* e:expr()? "}" { todo!() }
+            "{" v:instr()* e:expr_ws()? "}" { Bloc {
+                content : Vec::new()
+            } }
+
+        rule bloc_inner() -> (Vec<Instr>, Option<Expr>) = precedence! {
+            i:instr() "}" { (vec![i], None) }
+            e:expr_ws() "}" { (Vec::new(), Some(e)) }
+            i:instr() t:@
+                { let (mut v, opt) = t; v.push(i); (v, opt)}
+        } 
 
         rule instr() -> Instr = precedence! {
-            e : expr_ws() ";" { Instr::Expr(e) }
-            ";" { Instr::Expr(Expr::unit()) }
+            e : expr_ws() (quiet!{";"} / expected!("end of expr")) { println!("parsed Instr"); Instr::Expr(e) }
+            ";" { println!("parsed Instr"); Instr::Expr(Expr::unit()) }
             "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";"
-                { Instr::Binding(b != None, n, e) }
-            "while" space() e:expr() space() b:bloc() { Instr::While(e, b) }
-            "return" spaces() e:expr()? ";" { Instr::Return(e) }
+                { println!("parsed Instr"); Instr::Binding(b != None, n, e) }
+            "while" space() e:expr() space() b:bloc()
+                { println!("parsed Instr"); Instr::While(e, b) }
+            "return" spaces() e:expr()? ";"
+                { println!("parsed Instr"); Instr::Return(e) }
             i:if() ";"? { println!("parsed Instr if"); Instr::Expr(i) }
         }
 
@@ -130,16 +142,16 @@ peg::parser!{
 
         // expression starting with spaces
         rule expr_ws() -> Expr =
-            spaces() e:expr() spaces() { println!("parsed {:?}", e); e }
+            spaces() e:expr() spaces() { println!("parsed 135 {:?}", e); e }
 
         rule expr() -> Expr = precedence! {
-            "(" spaces() e:expr() spaces() ")" { println!("parsed {:?}", e); e }
-            e:expr_in() { println!("parsed {:?}", e); to_expr(e) }
+            "(" spaces() e:expr() spaces() ")" { println!("parsed 138 {:?}", e); e }
+            e:expr_in() { println!("parsed expr_in : 139 {:?}", e); to_expr(e) }
         }
 
         rule small_expr() -> Expr = precedence! {
-            "(" e:expr_ws() ")" { println!("parsed {:?}", e); e }
-            e:small_expr_i() { println!("parsed {:?}", e); to_expr(e) }
+            "(" e:expr_ws() ")" { println!("parsed 143 {:?}", e); e }
+            e:small_expr_i() { println!("parsed 144 {:?}", e); to_expr(e) }
         }
 
         rule small_expr_i() -> ExprInner = precedence! {
@@ -204,6 +216,9 @@ pub fn parse_file(name : String) -> File {
 
     match list_parser::file(&contents) {
         Ok(content) => File {content, name},
-        Err(err) => panic!("error {:?} in file {}", err, name),
+        Err(err) => {
+                println!("error {:?} in file {}", err, name);
+                std::process::exit(1)
+            }
     }
 }

@@ -7,6 +7,8 @@ mod frontend;
 fn main() {
 
     for name in env::args().skip(1) {
-        frontend::parser::parse_file(name);
+        if name.bytes().next() != Some(b'-') {
+            frontend::parser::parse_file(name);
+        }
     }
 }
