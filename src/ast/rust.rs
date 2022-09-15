@@ -2,8 +2,8 @@ use super::common;
 
 
 pub struct File {
-    name : common::Ident,
-    content : Vec<Decl>,
+    pub name : String,
+    pub content : Vec<Decl>,
 }
 
 pub enum Decl {
@@ -14,7 +14,7 @@ pub enum Decl {
 pub struct DeclFun {
     pub name : common::Ident,
     pub args : Vec<(common::Ident, bool, PreType)>,
-    pub output : Option<PreType>,
+    pub output : PreType,
     pub content : Bloc,
 }
 
@@ -47,6 +47,22 @@ pub enum PreTypeInner {
     Fun(Vec<PreType>, Box<PreType>),
 }
 
+impl PreTypeInner {
+    pub fn to_nonmut(self) -> PreType {
+        PreType {
+            content : self,
+            mutable : false,
+        }
+    }
+
+    pub fn to_mut(self) -> PreType {
+        PreType {
+            content : self,
+            mutable : true,
+        }
+    }
+}
+
 pub struct Bloc {
     pub content : Vec<Instr>
 }
@@ -64,13 +80,23 @@ pub struct Expr {
     pub typed : Option<PreType>,
 }
 
+impl Expr {
+    pub fn unit() -> Self {
+        Self {
+            loc:common::Location::default(),
+            typed:None,
+            content:Box::new(ExprInner::unit()),
+        }
+    }
+}
+
 pub enum ExprInner {
     If(Expr, Expr, Expr),
     Bool(bool),
     Int(usize),
     Var(common::Ident),
     Method(Expr, common::Ident, Vec<Expr>),
-    FunCall(Expr, Vec<Expr>),
+    FunCall(common::Ident, Vec<Expr>),
     MacroCall(common::Ident, Vec<Expr>),
     Bloc(Bloc),
     Ref(bool, Expr),
@@ -78,4 +104,10 @@ pub enum ExprInner {
     Tuple(Vec<Expr>),
     BuildStruct(common::Ident, Vec<Expr>),
     Proj(Expr, common::Projector),
+}
+
+impl ExprInner {
+    pub fn unit() -> Self {
+        Self::Tuple(Vec::new())
+    }
 }

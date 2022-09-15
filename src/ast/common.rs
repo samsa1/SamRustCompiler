@@ -29,10 +29,22 @@ impl Ident {
     pub fn get_content(&self) -> &str {
         &self.0
     }
+
+    pub fn from_str(s : &str) -> Self {
+        Self(s.to_string())
+    }
 }
 
 pub struct Location {
 
+}
+
+impl Location {
+    pub fn default() -> Self {
+        Self {
+
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

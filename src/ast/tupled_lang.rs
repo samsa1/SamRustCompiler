@@ -82,7 +82,7 @@ pub enum ExprInner {
     Bool(bool),
     Int(usize),
     Var(common::Ident),
-    FunCall(Expr, Vec<Expr>),
+    FunCall(common::Ident, Vec<Expr>),
     Constructor(usize, Vec<Expr>),
     Box(Expr),
     Free(Expr),

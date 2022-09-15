@@ -120,7 +120,8 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
             },
 
             rust::ExprInner::FunCall(expr, args) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt);
+                todo!()
+          /*      let expr = type_checker(ctxt, expr, loc_ctxt);
                 if let typed_rust::PostTypeInner::Fun(args_typ, output) = &expr.typed.content {
                     if args.len() != args_typ.len() {
                         panic!("not allowed")
@@ -138,7 +139,7 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
 
                 } else {
                     panic!("not allowed")
-                }
+                }*/
             },
 
             rust::ExprInner::MacroCall(_, _) => panic!("should not occur"),
