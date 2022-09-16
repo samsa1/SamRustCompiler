@@ -110,6 +110,7 @@ pub enum ExprInner {
     Proj(Expr, common::Projector),
     String(String),
     Array(Vec<Expr>),
+    Parenthesis(Expr),
 }
 
 impl ExprInner {
