@@ -125,6 +125,55 @@ percent=`expr 100 \* $score / $max`;
 
 echo -n "Syntaxe : $score/$max : $percent%"; }
 
+partie1_debug () {
+
+score=0
+max=0
+
+echo "Partie 1"
+
+# les bons
+echo -n "bons "
+for f in tests/syntax/good/*.rs tests/typing/bad/*.rs tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
+    echo -n ".";
+    max=`expr $max + 1`;
+    compile --parse-only $f;
+    case $? in
+	"1")
+	echo "";
+    verbose=1;
+    compile --parse-only $f;
+	echo "ECHEC sur "$f" (devrait reussir)";
+    exit 1;;
+	"0") score=`expr $score + 1`;;
+	*)
+	echo
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+    esac
+done
+echo
+
+# les mauvais
+echo -n "mauvais "
+for f in tests/syntax/bad/*.rs; do
+    echo -n ".";
+    max=`expr $max + 1`;
+    compile --parse-only $f;
+    case $a in
+	"0")
+	echo
+	echo "ECHEC sur "$f" (devrait �chouer)";;
+	"1") score=`expr $score + 1`;;
+	*)
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+    esac
+done
+echo
+
+percent=`expr 100 \* $score / $max`;
+
+echo -n "Syntaxe : $score/$max : $percent%"; }
+
 # partie 2 : tests d'analyse s�mantique
 
 
@@ -307,6 +356,8 @@ echo "Comportement du code : $score_test/$max : $percent%";}
 case $option in
     "-1" )
         partie1;;
+    "-1d" )
+        partie1_debug;;
     "-2" )
         partie2;;
     "-2b" )

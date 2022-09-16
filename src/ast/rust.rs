@@ -106,7 +106,7 @@ pub enum ExprInner {
     Ref(bool, Expr),
     Deref(Expr),
     Tuple(Vec<Expr>),
-    BuildStruct(common::Ident, Vec<Expr>),
+    BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
     Proj(Expr, common::Projector),
     String(String),
     Array(Vec<Expr>),
