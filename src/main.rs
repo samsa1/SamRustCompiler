@@ -6,9 +6,35 @@ mod frontend;
 
 fn main() {
 
-    for name in env::args().skip(1) {
-        if name.bytes().next() != Some(b'-') {
-            frontend::parser::parse_file(name);
+    let mut filenames = Vec::new();
+    let mut parse_only = false;
+    let mut type_only = false;
+
+    let mut args = env::args().skip(1);
+//    println!("{:?}", args);
+    while let Some(t) = args.next() {
+        if t.len() == 0 {
+            panic!("should never happen")
+        } else {
+            if t.bytes().next() == Some(b'-') {
+                match t.as_str() {
+                    "--parse-only" => parse_only = true,
+                    "--typing-only" => type_only = true,
+                    _ => panic!("unkown option"),
+                }
+            } else {
+                filenames.push(t)
+            }
         }
     }
+//    println!("{:?}", filenames);
+
+    if filenames.len() != 1 {
+        panic!("must give exactly one file to compile")
+    }
+
+    let parsed_file = frontend::parser::parse_file(filenames.pop().unwrap());
+    if parse_only { std::process::exit(0)}
+
+    todo!()
 }
