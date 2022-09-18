@@ -63,7 +63,7 @@ impl PostTypeInner {
 
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub values : HashMap<common::Ident, PostType>
+    pub values : HashMap<String, PostType>
 }
 
 pub enum Instr {

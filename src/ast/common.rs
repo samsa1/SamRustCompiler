@@ -22,28 +22,76 @@ pub enum UnOp {
     Deref,
 }
 
-#[derive(Clone, Debug, PartialEq, Hash, Eq)]
-pub struct Ident(String);
+#[derive(Clone, Debug)]
+pub struct Ident {
+    name : String,
+    loc : Location,
+}
 
 impl Ident {
     pub fn get_content(&self) -> &str {
-        &self.0
+        &self.name
+    }
+
+    pub fn content(self) -> String {
+        self.name
     }
 
     pub fn from_str(s : &str) -> Self {
-        Self(s.to_string())
+        Self {
+            name : s.to_string(),
+            loc : Location::default(),
+        }
+    }
+
+    pub fn new(s:&str, loc:Location) -> Self {
+        Self {
+            name : s.to_string(),
+            loc : loc,
+        }
+    }
+
+    pub fn get_loc(&self) -> &Location {
+        &self.loc
     }
 }
 
-#[derive(Debug)]
-pub struct Location {
+impl PartialEq for Ident {
+    fn eq(&self, other : &Self) -> bool {
+        self.name == other.name
+    }
 
+    fn ne(&self, other : &Self) -> bool {
+        self.name != other.name
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Location {
+    start : usize,
+    end : usize,
 }
 
 impl Location {
     pub fn default() -> Self {
         Self {
+            start : usize::MAX,
+            end : usize::MAX,
+        }
+    }
 
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    pub fn new(start : usize, end : usize) -> Self {
+        Self {
+            start,
+            end,
         }
     }
 }

@@ -2,20 +2,24 @@ use crate::ast::{common::*, rust::*};
 use std::fs;
 
 
-fn to_expr(e : ExprInner) -> Expr {
+fn to_expr(start : usize, end : usize, e : ExprInner) -> Expr {
     Expr {
         content : Box::new(e),
         typed : None,
-        loc : Location::default(),
+        loc : Location::new(start, end),
     }
 }
 
 fn expr_of_bloc(b : Bloc) -> Expr {
-    to_expr(ExprInner::Bloc(b))
+    Expr {
+        loc : b.loc,
+        content : Box::new(ExprInner::Bloc(b)),
+        typed : None,
+    }
 }
 
-fn test_no_cmp(e: &ExprInner) {
-    match e {
+fn test_no_cmp(e: &Expr) {
+    match &*e.content {
         | ExprInner::Method(_, id, _) => {
             if id.get_content() == "eq"
                 || id.get_content() == "neq"
@@ -33,8 +37,8 @@ fn test_no_cmp(e: &ExprInner) {
 
 peg::parser!{
     grammar list_parser() for str {
-        rule number() -> u64
-            = n:$(['0'..='9']+) {println!("number {}", n); n.parse().unwrap() }
+        rule number() -> ((usize, usize), u64)
+            = p1:position!() n:$(['0'..='9']+) p2:position!() { ((p1, p2), n.parse().unwrap()) }
 
         rule special_chars() -> Vec<char> = precedence! {
             "\\n"   {vec!['\\', '\\', 'n']}
@@ -42,9 +46,9 @@ peg::parser!{
             "\\\\"  {vec!['\\', '\\']}
         }
 
-        rule string() -> String
-            = "\"" n:((['\t'|'\n'|' '|'!'|'#'..='['|']'..='~']+ / special_chars())*) "\""
-                { n.into_iter().flatten().collect() }
+        rule string() -> ((usize, usize), String)
+            = p1:position!() "\"" n:((['\t'|'\n'|' '|'!'|'#'..='['|']'..='~']+ / special_chars())*) "\"" p2:position!()
+                { ((p1, p2), n.into_iter().flatten().collect()) }
 
         rule char() -> char =
             n:['a'..='z' | 'A'..='Z' | '_'] { n }
@@ -56,10 +60,6 @@ peg::parser!{
             n:char() { n }
             n:num() { n }
         }
-
-
-        pub rule list() -> Vec<u64> =
-            "[" l:(number() ** ",") "]" { l }
 
         pub rule file() -> Vec<Decl> =
             space() d:decl()* { d }
@@ -167,17 +167,19 @@ peg::parser!{
             space() b:bloc() space() { b }
 
         rule bloc() -> Bloc = precedence! {
-            lbracket() space() b:bloc_inner() { Bloc {
-                content : Vec::new()
+            start:position!() "{" space() b:bloc_inner() { Bloc {
+                content : b.0.into_iter().rev().collect(),
+                expr : b.1,
+                loc : Location::new(start, b.2),
             } }
         }
 
-        rule bloc_inner() -> (Vec<Instr>, Option<Expr>) = precedence! {
-            i:instr() space() "}" { (vec![i], None) }
-            e:expr() space() "}" { (Vec::new(), Some(e)) }
+        rule bloc_inner() -> (Vec<Instr>, Option<Expr>, usize) = precedence! {
+            i:instr() space() "}" end:position!() { (vec![i], None, end) }
+            e:expr() space() "}" end:position!() { (Vec::new(), Some(e), end) }
             i:instr() space() t:@
-                { let (mut v, opt) = t; v.push(i); (v, opt)}
-            "}" { (Vec::new(), None) }
+                { let (mut v, opt, end) = t; v.push(i); (v, opt, end)}
+            "}" end:position!() { (Vec::new(), None, end) }
         } 
 
         rule instr() -> Instr = precedence! {
@@ -193,37 +195,38 @@ peg::parser!{
         }
 
         rule if() -> Expr = precedence! {
-            "if" !char_num() space() e1:expr() e2:bloc_ws() "else" spaces() e3:@
-                { println!("parsed if 2"); to_expr(ExprInner::If(e1, expr_of_bloc(e2), e3)) }
-            "if" !char_num() space() e1:expr() e2:bloc_ws() "else" e3:bloc_ws()
-                { println!("parsed if 3"); to_expr(ExprInner::If(e1, expr_of_bloc(e2), expr_of_bloc(e3))) }
-            "if" !char_num() space() e1:expr() e2:bloc_ws()
-                { println!("parsed if 1"); to_expr(ExprInner::If(e1, expr_of_bloc(e2), Expr::unit())) }
+            start:position!() "if" !char_num() space() e1:expr() e2:bloc_ws() "else" spaces() e3:@
+                { println!("parsed if 2"); to_expr(start, e3.loc.end(), ExprInner::If(e1, expr_of_bloc(e2), e3)) }
+            start:position!() "if" !char_num() space() e1:expr() e2:bloc_ws() "else" e3:bloc_ws()
+                { println!("parsed if 3"); to_expr(start, e3.loc.end(), ExprInner::If(e1, expr_of_bloc(e2), expr_of_bloc(e3))) }
+            start:position!() "if" !char_num() space() e1:expr() e2:bloc_ws()
+                { println!("parsed if 1"); to_expr(start, e2.loc.end(), ExprInner::If(e1, expr_of_bloc(e2), Expr::unit())) }
         }
 
         // expression starting with spaces
         rule expr_ws() -> Expr =
             space() e:(quiet!{expr()} / expected!("expr")) space() { println!("parsed 135 {:?}", e); e }
 
-        rule expr() -> Expr = precedence! {
+/*        rule expr() -> Expr = precedence! {
             e:expr_in() { println!("parsed expr_in : 139 {:?}", e); to_expr(e) }
-        }
+        }*/
+
+        rule true_expr() -> Expr =
+            start:position!() "true" end:position!() { to_expr(start, end, ExprInner::Bool(true)) }
+
+        rule false_expr() -> Expr =
+            start:position!() "false" end:position!() { to_expr(start, end, ExprInner::Bool(false)) }
 
         rule small_expr() -> Expr = precedence! {
-            "(" e:expr_ws() ")" { println!("parsed 143 {:?}", e); e }
-            e:small_expr_i() { println!("parsed 144 {:?}", e); to_expr(e) }
-        }
-
-        rule small_expr_i() -> ExprInner = precedence! {
-            n:number() { println!("parsed small_expr_i {:?}", n); ExprInner::Int(n as usize) }
-            "true" { println!("true"); ExprInner::Bool(true) }
-            "false" { println!("false"); ExprInner::Bool(false) }
-            n:name() { ExprInner::Var(n) }
-            b:bloc() { println!("bloc {:?}", b); ExprInner::Bloc(b) }
-            s:string() { println!("string {}", s); ExprInner::String(s) }
-            "(" e:expr_ws() ")" { println!("parsed (expr) {:?}", e); *e.content }
-            e:@ space() "." space() n:name() space() "(" v:opt_expr_list() ")" { println!("{:?}", e); ExprInner::Method(to_expr(e), n, v)}
-            e:@ space() "." space() n:proj() { println!("{:?}", e); ExprInner::Proj(to_expr(e), n) }
+            n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1 as usize)) }
+            t:true_expr()   { t }
+            f:false_expr()  { f }
+            n:name() { to_expr(n.get_loc().start(), n.get_loc().end(), ExprInner::Var(n)) }
+            b:bloc() { expr_of_bloc(b) }
+            s:string() { to_expr(s.0.0, s.0.1, ExprInner::String(s.1)) }
+            start:position!() "(" e:expr_ws() ")" end:position!() { to_expr(start, end, ExprInner::Parenthesis(e)) }
+            e:@ space() "." space() n:name() space() "(" v:opt_expr_list() ")" end:position!() { to_expr(e.loc.start(), end, ExprInner::Method(e, n, v))}
+            e:@ space() "." space() n:proj() end:position!() { to_expr(e.loc.start(), end, ExprInner::Proj(e, n)) }
         }
 
         rule opt_expr_list() -> Vec<Expr> = precedence! {
@@ -237,55 +240,68 @@ peg::parser!{
         rule expr_decl() -> (Ident, Expr) =
             space() n:name() space() ":" space() e:expr() space() {(n, e)}
 
-        rule expr_in() -> ExprInner = precedence! {
-            e1:small_expr() space() lsbracket() e2:expr_ws() "]" { println!("{:?}", e1); ExprInner::Method(e1, Ident::from_str("index"), vec![e2]) }
-            n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}"
-                { println!("build struct {:?} {:?}", n, args); ExprInner::BuildStruct(n, args) }
-            n:name() space() "(" v:opt_expr_list() ")" { println!("call {:?}", n); ExprInner::FunCall(n, v)}
-            n:name() space() "!" space() "(" v:opt_expr_list() ")" { println!("{:?} ! {:?}", n, v); ExprInner::MacroCall(n, v) }
-            "vec" space() "!" space() "[" v:opt_expr_list() "]" { println!("vec {:?}", v); ExprInner::MacroCall(Ident::from_str("vec"), v) }
-            e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@) { println!("{:?} = {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("set"), vec![to_expr(e2)]) }
+        rule expr() -> Expr = precedence! {
+            e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
+                { to_expr(e1.loc.start(), end,
+                    ExprInner::Method(e1, Ident::from_str("index"), vec![e2])) }
+            n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
+                { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
+            n:name() space() "(" v:opt_expr_list() ")" end:position!()
+                { to_expr(n.get_loc().start(), end, ExprInner::FunCall(n, v)) }
+            n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
+                { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
+            start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
+                { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec"), v)) }
+            e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("set"), vec![e2])) }
             --
-            e1:(@) space() (quiet!{"||"}/ expected!("infix operator")) space() e2:@ { println!("{:?} || {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("or"), vec![to_expr(e2)]) }
+            e1:(@) space() (quiet!{"||"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("or"), vec![e2])) }
             --
-            e1:(@) space() (quiet!{"&&"}/ expected!("infix operator")) space() e2:@ { println!("{:?} && {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("and"), vec![to_expr(e2)]) }
+            e1:(@) space() (quiet!{"&&"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("and"), vec![e2])) }
             --
             e1:(@) space() (quiet!{"=="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                println!("{:?} == {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("eq"), vec![to_expr(e2)]) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("eq"), vec![e2])) }
             e1:(@) space() (quiet!{"!="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                println!("{:?} != {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("neq"), vec![to_expr(e2)]) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("neq"), vec![e2])) }
             e1:(@) space() (quiet!{"<"}/ expected!("infix operator")) space() e2:@  {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                println!("{:?} < {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("lower"), vec![to_expr(e2)]) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("lower"), vec![e2])) }
             e1:(@) space() (quiet!{"<="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                println!("{:?} <= {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("lower_eq"), vec![to_expr(e2)]) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("lower_eq"), vec![e2])) }
             e1:(@) space() (quiet!{">"}/ expected!("infix operator")) space() e2:@  {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                println!("{:?} > {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("greater"), vec![to_expr(e2)]) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("greater"), vec![e2])) }
             e1:(@) space() (quiet!{">="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                println!("{:?} >= {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("greater_eq"), vec![to_expr(e2)]) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("greater_eq"), vec![e2])) }
             --
-            e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@ { println!("{:?} + {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("add"), vec![to_expr(e2)]) }
-            e1:(@) space() (quiet!{"-"}/ expected!("infix operator")) space() e2:@ { println!("{:?} - {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("sub"), vec![to_expr(e2)]) }
+            e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("and"), vec![e2])) }
+            e1:(@) space() (quiet!{"-"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("sub"), vec![e2])) }
             --
-            e1:(@) space() (quiet!{"*"}/ expected!("infix operator")) space() e2:@ { println!("{:?} * {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("times"), vec![to_expr(e2)]) }
-            e1:(@) space() (quiet!{"/"}/ expected!("infix operator")) space() e2:@ { println!("{:?} / {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("div"), vec![to_expr(e2)]) }
-            e1:(@) space() (quiet!{"%"}/ expected!("infix operator")) space() e2:@ { println!("{:?} % {:?}", e1, e2); ExprInner::Method(to_expr(e1), Ident::from_str("mod"), vec![to_expr(e2)]) }
+            e1:(@) space() (quiet!{"*"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("times"), vec![e2])) }
+            e1:(@) space() (quiet!{"/"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("div"), vec![e2])) }
+            e1:(@) space() (quiet!{"%"}/ expected!("infix operator")) space() e2:@
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("mod"), vec![e2])) }
             --
-            "&" space() b:("mut" space())? e:@ { println!("&{:?}", e); ExprInner::Ref(b != None, to_expr(e))}
-            "*" space() e:@ { println!("&{:?}", e); ExprInner::Deref(to_expr(e)) }
-            "!" space() e:@ { println!("&{:?}", e); ExprInner::Method(to_expr(e), Ident::from_str("not"), Vec::new()) }
-            "-" space() e:@ { println!("&{:?}", e); ExprInner::Method(to_expr(e), Ident::from_str("neg"), Vec::new()) }
-            e:(quiet!{small_expr_i()} / expected!("value")) { println!("{:?}", e); e }
+            start:position!() "&" space() b:("mut" space())? e:@ { to_expr(start, e.loc.end(), ExprInner::Ref(b != None, e)) }
+            start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
+            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Method(e, Ident::from_str("not"), Vec::new())) }
+            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Method(e, Ident::from_str("neg"), Vec::new())) }
+            e:(quiet!{small_expr()} / expected!("value")) { println!("{:?}", e); e }
         }
 
         rule proj() -> Projector = precedence! {
             n:name()    { Projector::Name(n) }
-            n:number()  { Projector::Int(n as usize) }
+            n:number()  { Projector::Int(n.1 as usize) }
         }
 
     }

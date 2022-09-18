@@ -23,7 +23,7 @@ pub struct DeclStruct {
     pub args : Vec<(common::Ident, PreType)>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct PreType {
     pub content : PreTypeInner,
     pub mutable : bool,
@@ -38,7 +38,7 @@ impl PreType {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum PreTypeInner {
     Ident(common::Ident),
     IdentParametrized(common::Ident, Vec<PreType>),
@@ -65,7 +65,9 @@ impl PreTypeInner {
 
 #[derive(Debug)]
 pub struct Bloc {
-    pub content : Vec<Instr>
+    pub content : Vec<Instr>,
+    pub expr : Option<Expr>,
+    pub loc : common::Location,
 }
 
 #[derive(Debug)]
@@ -79,7 +81,7 @@ pub enum Instr {
 #[derive(Debug)]
 pub struct Expr {
     pub content : Box<ExprInner>,
-    pub loc : common::Location,
+    pub loc : common::Location,    
     pub typed : Option<PreType>,
 }
 

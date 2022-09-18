@@ -12,7 +12,7 @@ pub struct GlobalContext {
 
 #[derive(Clone, Debug)]
 pub struct LocalContext {
-    vars : Vec<HashMap<Ident, PostType>>,
+    vars : Vec<HashMap<String, PostType>>,
 }
 
 impl LocalContext {
@@ -20,13 +20,13 @@ impl LocalContext {
         self.vars.push(HashMap::new())
     }
 
-    pub fn pop_layer(&mut self) -> Option<HashMap<Ident, PostType>> {
+    pub fn pop_layer(&mut self) -> Option<HashMap<String, PostType>> {
         self.vars.pop()
     }
 
     pub fn get_typ(&self, var_name : &Ident) -> Option<&PostType> {
         for hashmap in self.vars.iter().rev() {
-            if let Some(typ) = hashmap.get(var_name) {
+            if let Some(typ) = hashmap.get(var_name.get_content()) {
                 return Some(typ)
             }
         }
@@ -35,7 +35,7 @@ impl LocalContext {
 
     pub fn add_var(&mut self, ident : &Ident, typ : &PostType) {
         if let Some(last) = self.vars.last_mut() {
-           last.insert(ident.clone(), typ.clone());
+           last.insert(ident.get_content().to_string(), typ.clone());
         } else {
             panic!("should never happend")
         }
