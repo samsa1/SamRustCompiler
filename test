@@ -160,7 +160,7 @@ for f in tests/syntax/bad/*.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --parse-only $f;
-    case $a in
+    case $? in
 	"0")
 	echo
 	echo "ECHEC sur "$f" (devrait �chouer)";
