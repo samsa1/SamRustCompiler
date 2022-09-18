@@ -148,7 +148,8 @@ for f in tests/syntax/good/*.rs tests/typing/bad/*.rs tests/typing/good/*.rs tes
 	"0") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+    exit 1;;
     esac
 done
 echo
@@ -162,10 +163,12 @@ for f in tests/syntax/bad/*.rs; do
     case $a in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait �chouer)";;
+	echo "ECHEC sur "$f" (devrait �chouer)";
+    exit 1;;
 	"1") score=`expr $score + 1`;;
 	*)
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+    exit 1;;
     esac
 done
 echo
