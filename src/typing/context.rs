@@ -24,7 +24,7 @@ impl LocalContext {
         self.vars.pop()
     }
 
-    pub fn get_typ(&self, var_name : &Ident) -> Option<&(PostType)> {
+    pub fn get_typ(&self, var_name : &Ident) -> Option<&PostType> {
         for hashmap in self.vars.iter().rev() {
             if let Some(typ) = hashmap.get(var_name) {
                 return Some(typ)
@@ -34,14 +34,14 @@ impl LocalContext {
     }
 
     pub fn add_var(&mut self, ident : &Ident, typ : &PostType) {
-        if let Some(mut last) = self.vars.last_mut() {
-           last.insert(ident.clone(), (typ.clone()));
+        if let Some(last) = self.vars.last_mut() {
+           last.insert(ident.clone(), typ.clone());
         } else {
             panic!("should never happend")
         }
     }
 
-    pub fn mark_as_moved(&mut self, var_name : &Ident) {
+    pub fn mark_as_moved(&mut self, _var_name : &Ident) {
         todo!()
     }
 }

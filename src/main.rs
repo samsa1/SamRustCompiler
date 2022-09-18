@@ -1,4 +1,4 @@
-use std::env;
+#![allow(dead_code)]
 
 pub mod ast;
 mod typing;
@@ -10,7 +10,7 @@ fn main() {
     let mut parse_only = false;
     let mut type_only = false;
 
-    let mut args = env::args().skip(1);
+    let mut args = std::env::args().skip(1);
 //    println!("{:?}", args);
     while let Some(t) = args.next() {
         if t.len() == 0 {
@@ -35,6 +35,10 @@ fn main() {
 
     let parsed_file = frontend::parser::parse_file(filenames.pop().unwrap());
     if parse_only { std::process::exit(0)}
+
+    let _typed_file = typing::type_inferencer(parsed_file);
+
+    if type_only { std::process::exit(0) }
 
     todo!()
 }

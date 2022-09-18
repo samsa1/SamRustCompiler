@@ -1,12 +1,13 @@
 use crate::ast::{rust, typed_rust};
-use crate::ast::common::{BuildinType, Sizes, Ident};
+use crate::ast::common::{BuildinType, Sizes};
 
 mod context;
+mod structs;
 
 fn compatible_types(type1 : &Option<rust::PreType>, type2 : typed_rust::PostType) -> typed_rust::PostType {
     match type1 {
         None => type2,
-        Some(type1) => type2
+        Some(_type1) => todo!{}
     }
 }
 
@@ -84,7 +85,7 @@ pub fn type_block(bloc : rust::Bloc,
             | Some(map) => map,
             | None => panic!("should not happen"),
         };
-    typed_rust::Bloc{ content, values : out_values }
+    typed_rust::Bloc{ content, values : out_values, }
 }
 
 pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt : &mut context::LocalContext) -> typed_rust::Expr {
@@ -119,7 +120,7 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                 typed_rust::ExprInner::Ref(b, expr))
             },
 
-            rust::ExprInner::FunCall(expr, args) => {
+            rust::ExprInner::FunCall(_expr, _args) => {
                 todo!()
           /*      let expr = type_checker(ctxt, expr, loc_ctxt);
                 if let typed_rust::PostTypeInner::Fun(args_typ, output) = &expr.typed.content {
@@ -146,9 +147,9 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
 
             rust::ExprInner::Method(_, _, _) => todo!(),
 
-            rust::ExprInner::Bloc(bloc) => todo!(),
+            rust::ExprInner::Bloc(_bloc) => todo!(),
 
-            rust::ExprInner::Deref(expr) => todo!(),
+            rust::ExprInner::Deref(_expr) => todo!(),
 
             rust::ExprInner::If(e1, e2, e3) => {
                 let expr1 = type_checker(ctxt, e1, loc_ctxt);
@@ -171,5 +172,29 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
         content : Box::new(content),
         typed : compatible_types(&expr.typed, found_type),
         loc : expr.loc,
+    }
+}
+
+fn type_funs(_funs : Vec<rust::DeclFun>, _structs : &Vec<typed_rust::DeclStruct>) -> Vec<typed_rust::DeclFun> {
+    todo!()
+}
+
+pub fn type_inferencer(file : rust::File) -> typed_rust::File {
+    let mut funs = Vec::new();
+    let mut structs = Vec::new();
+    for decl in file.content.into_iter() {
+        match decl {
+            rust::Decl::Fun(f) => funs.push(f),
+            rust::Decl::Struct(s) => structs.push(s),
+        }
+    }
+
+    let structs = structs::type_structs(structs);
+    let funs = type_funs(funs, &structs);
+
+    typed_rust::File {
+        name : file.name,
+        structs,
+        funs,
     }
 }

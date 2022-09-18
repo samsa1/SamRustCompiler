@@ -2,13 +2,9 @@ use super::common;
 use std::collections::HashMap;
 
 pub struct File {
-    pub name : common::Ident,
-    pub content : Vec<Decl>,
-}
-
-pub enum Decl {
-    Fun(DeclFun),
-    Struct(DeclStruct),
+    pub name : String,
+    pub funs : Vec<DeclFun>,
+    pub structs : Vec<DeclStruct>,
 }
 
 pub struct DeclFun {
