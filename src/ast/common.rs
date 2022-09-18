@@ -104,7 +104,7 @@ pub enum Sizes {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BuildinType {
+pub enum BuiltinType {
     Int(bool /* signed */, Sizes),
     Bool,
 }

@@ -1,5 +1,6 @@
 use crate::ast::{rust, typed_rust};
-use crate::ast::common::{BuildinType, Sizes};
+use crate::ast::common::{BuiltinType, Sizes};
+use std::collections::HashMap;
 
 mod context;
 mod structs;
@@ -19,19 +20,19 @@ fn biggest_compatible(typ1 : &typed_rust::PostType, typ2 : &typed_rust::PostType
     }
 }
 
-pub fn is_type_int(type_name : &Option<rust::PreType>) -> Option<BuildinType> {
+pub fn is_type_int(type_name : &Option<rust::PreType>) -> Option<BuiltinType> {
     if let Some(typ) = type_name {
         match &typ.content {
             | rust::PreTypeInner::IdentParametrized(_, _) => None,
             | rust::PreTypeInner::Ref(_) => None,
             | rust::PreTypeInner::Ident(s) =>
                 match s.get_content() {
-                    "u64" => Some(BuildinType::Int(false, Sizes::S64)),
-                    "i64" => Some(BuildinType::Int(true, Sizes::S64)),
-                    "u32" => Some(BuildinType::Int(false, Sizes::S32)),
-                    "i32" => Some(BuildinType::Int(true, Sizes::S32)),
-                    "usize" => Some(BuildinType::Int(false, Sizes::SUsize)),
-                    "isize" => Some(BuildinType::Int(true, Sizes::SUsize)),
+                    "u64" => Some(BuiltinType::Int(false, Sizes::S64)),
+                    "i64" => Some(BuiltinType::Int(true, Sizes::S64)),
+                    "u32" => Some(BuiltinType::Int(false, Sizes::S32)),
+                    "i32" => Some(BuiltinType::Int(true, Sizes::S32)),
+                    "usize" => Some(BuiltinType::Int(false, Sizes::SUsize)),
+                    "isize" => Some(BuiltinType::Int(true, Sizes::SUsize)),
                     _ => None
                 },
             | _ => todo!()
@@ -92,14 +93,14 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
     let (found_type, content) = 
         match *expr.content {
             rust::ExprInner::Bool(b) => {
-                (typed_rust::PostTypeInner::BuildIn(BuildinType::Bool).to_nonmut(), typed_rust::ExprInner::Bool(b))
+                (typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool).to_nonmut(), typed_rust::ExprInner::Bool(b))
             },
 
             rust::ExprInner::Int(i) => {
                 if let Some(typ) = is_type_int(&expr.typed) {
-                    (typed_rust::PostTypeInner::BuildIn(typ).to_nonmut(), typed_rust::ExprInner::Int(i))
+                    (typed_rust::PostTypeInner::BuiltIn(typ).to_nonmut(), typed_rust::ExprInner::Int(i))
                 } else {
-                    (typed_rust::PostTypeInner::BuildIn(BuildinType::Int(true, Sizes::S32)).to_nonmut(), typed_rust::ExprInner::Int(i))
+                    (typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(true, Sizes::S32)).to_nonmut(), typed_rust::ExprInner::Int(i))
                 }
             },
 
@@ -153,7 +154,7 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
 
             rust::ExprInner::If(e1, e2, e3) => {
                 let expr1 = type_checker(ctxt, e1, loc_ctxt);
-                if expr1.typed.content != typed_rust::PostTypeInner::BuildIn(BuildinType::Bool) {
+                if expr1.typed.content != typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) {
                     panic!("Type error")
                 }
                 let expr2 = type_checker(ctxt, e2, loc_ctxt);
@@ -175,7 +176,7 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
     }
 }
 
-fn type_funs(_funs : Vec<rust::DeclFun>, _structs : &Vec<typed_rust::DeclStruct>) -> Vec<typed_rust::DeclFun> {
+fn type_funs(_funs : Vec<rust::DeclFun>, known_types : &HashMap<String, typed_rust::PostType>, _structs : &Vec<typed_rust::DeclStruct>) -> Vec<typed_rust::DeclFun> {
     todo!()
 }
 
@@ -189,8 +190,8 @@ pub fn type_inferencer(file : rust::File) -> typed_rust::File {
         }
     }
 
-    let structs = structs::type_structs(structs);
-    let funs = type_funs(funs, &structs);
+    let (known_types, structs) = structs::type_structs(structs);
+    let funs = type_funs(funs, &known_types, &structs);
 
     typed_rust::File {
         name : file.name,

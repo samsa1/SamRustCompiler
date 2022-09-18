@@ -16,13 +16,15 @@ pub struct DeclFun {
 
 pub struct DeclStruct {
     pub name : common::Ident,
-    pub args : Vec<(common::Ident, PostType)>,
+    pub args : HashMap<String, PostType>,
+    pub size : usize, /* size in bytes */
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostType {
     pub content : PostTypeInner,
     pub mutable : bool,
+    pub size    : usize, /* size in bytes */
 }
 
 impl PostType {
@@ -30,15 +32,17 @@ impl PostType {
         Self {
             content : PostTypeInner::Tuple(Vec::new()),
             mutable : false,
+            size : 0,
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PostTypeInner {
-    BuildIn(common::BuildinType),
-    Struct(common::Ident),
-    Enum(common::Ident),
+    BuiltIn(common::BuiltinType),
+    Struct(String),
+    Enum(String),
+    Box(Box<PostType>),
     IdentParametrized(common::Ident, Vec<PostType>),
     Ref(Box<PostType>),
     Tuple(Vec<PostType>),
@@ -50,6 +54,7 @@ impl PostTypeInner {
         PostType {
             content : self,
             mutable : false,
+            size : todo!(),
         }
     }
 
@@ -57,6 +62,7 @@ impl PostTypeInner {
         PostType {
             content : self,
             mutable : true,
+            size : todo!()
         }
     }
 }
