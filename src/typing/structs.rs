@@ -1,6 +1,8 @@
 use crate::ast::{rust, typed_rust, common::*};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use std::collections::{HashMap, HashSet};
+use super::types::translate_typ;
+use super::context::GlobalContext;
 
 const DEFAULT_TYPES : [(&'static str, BuiltinType); 7] = [
     ("usize",   BuiltinType::Int(false, Sizes::SUsize)),
@@ -69,7 +71,7 @@ fn visit(id : usize, p_marks : &mut Vec<bool>, t_marks : &mut Vec<bool>, graph: 
     t_marks[id] = true;
     
     for node in graph.edges[id].iter() {
-        visit(*node, p_marks, t_marks, graph, out_vec);
+        visit(*node, p_marks, t_marks, graph, out_vec)?;
     }
     t_marks[id] = false;
     p_marks[id] = true;
@@ -83,7 +85,7 @@ fn topological_sort(structs : Vec<rust::DeclStruct>, graph : &mut Graph) -> Vec<
     let mut out_vec = Vec::new();
     for node in 0..graph.size {
         if !permanent_marks[node] {
-            visit(node, &mut permanent_marks, &mut temporary_marks, graph, &mut out_vec);
+            visit(node, &mut permanent_marks, &mut temporary_marks, graph, &mut out_vec).unwrap();
         }
     }
 
@@ -98,52 +100,6 @@ fn topological_sort(structs : Vec<rust::DeclStruct>, graph : &mut Graph) -> Vec<
     structs
 }
 
-pub fn translate_typ(typ : rust::PreType, sizes : &HashMap<String, typed_rust::PostType>) -> typed_rust::PostType {
-    match typ.content {
-        rust::PreTypeInner::Fun(args, out) => {
-            let mut args2 = Vec::new();
-            for args in args.into_iter() {
-                args2.push(translate_typ(args, sizes))
-            }
-            let out = translate_typ(*out, sizes);
-            typed_rust::PostType {
-                content : typed_rust::PostTypeInner::Fun(args2, Box::new(out)),
-                mutable : typ.mutable,
-                size : todo!(),
-            }
-        },
-        rust::PreTypeInner::Ident(id) => {
-            match sizes.get(id.get_content()) {
-                None => todo!(),
-                Some(post_type) => post_type.clone(),
-            }
-        },
-        rust::PreTypeInner::IdentParametrized(id, _) => {
-            match id.get_content() {
-                "Vec" => {todo!()},
-                "Box" => {todo!()},
-                _ => todo!(),
-            }
-
-        },
-        rust::PreTypeInner::Ref(_) => todo!(),
-        rust::PreTypeInner::Tuple(elements) => {
-            let mut elements2 = Vec::new();
-            let mut total_size = 0;
-            for el in elements.into_iter() {
-                let el = translate_typ(el, sizes);
-                total_size += el.size;
-                elements2.push(el);
-            }
-            typed_rust::PostType {
-                content : typed_rust::PostTypeInner::Tuple(elements2),
-                size : total_size,
-                mutable : typ.mutable,
-            }
-        }
-    }
-}
-
 pub fn compute_size_builtin(b : &BuiltinType) -> usize {
     match b {
         BuiltinType::Bool => 1,
@@ -153,7 +109,7 @@ pub fn compute_size_builtin(b : &BuiltinType) -> usize {
     }
 }
 
-pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (HashMap<String, typed_rust::PostType>, Vec<typed_rust::DeclStruct>) {
+pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<typed_rust::DeclStruct>) {
     let mut graph = Graph::new();
     for struct_decl in structs.iter() {
         graph.add_node(struct_decl.name.get_content().to_string());
@@ -167,7 +123,7 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (HashMap<String, typed_r
 
     let structs = topological_sort(structs, &mut graph);
     let mut structs2 = Vec::new();
-    let mut sizes = HashMap::new();
+    let mut sizes = GlobalContext::new();
 
     for (name, typ) in DEFAULT_TYPES {
         let typ = PostType {
