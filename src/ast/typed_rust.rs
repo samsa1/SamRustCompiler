@@ -61,6 +61,20 @@ impl PostType {
             size : 8,
         }
     }
+
+    pub const fn string() -> Self {
+        Self {
+            content : PostTypeInner::String,
+            size : 8,
+        }
+    }
+
+    pub fn is_mut_ref(&self) -> bool {
+        match &self.content {
+            PostTypeInner::Ref(true, _) => true,
+            _ => false
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -74,11 +88,12 @@ pub enum PostTypeInner {
     Tuple(Vec<PostType>),
     Fun(Vec<PostType>, Box<PostType>),
     Diverge,
+    String,
 }
 
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub values : HashMap<String, PostType>,
+//    pub values : HashMap<String, PostType>,
     pub last_type : PostType,
 }
 
@@ -111,5 +126,6 @@ pub enum ExprInner {
     Proj(Expr, common::Projector),
     Set(Expr, Expr),
     Print(String),
+    String(String),
     Vec(usize, Vec<Expr>),
 }

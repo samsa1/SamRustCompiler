@@ -1,7 +1,7 @@
 use crate::ast::{rust, typed_rust, common::*};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use std::collections::{HashMap, HashSet};
-use super::types::translate_typ;
+use super::types::{compute_size, translate_typ};
 use super::context::GlobalContext;
 
 const DEFAULT_TYPES : [(&'static str, BuiltinType); 7] = [
@@ -59,6 +59,8 @@ fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph, s
                     Some(_) => (),
                 }
             }},
+        rust::PreTypeInner::IdentParametrized(id, _) if id.get_content() == "Vec" => (),
+        rust::PreTypeInner::IdentParametrized(id, _) if id.get_content() == "Box" => (),
         rust::PreTypeInner::IdentParametrized(_, _) => todo!(),
         rust::PreTypeInner::Ref(_, _) => todo!(),
         rust::PreTypeInner::Tuple(v) => {
@@ -139,6 +141,19 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
 
     let structs = topological_sort(structs, &mut graph);
     let mut structs2 = Vec::new();
+
+    for struct_decl in structs.iter() {
+        let mut size = 0;
+        for (_, typ) in struct_decl.args.iter() {
+            size += compute_size(typ, &sizes);
+        }
+        assert_eq!(
+            sizes.insert(struct_decl.name.get_content().to_string(),
+                typed_rust::PostType {
+                    content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
+                    size,
+            }), None);
+    }
 
     for struct_decl in structs.into_iter() {
         let mut args = HashMap::new();

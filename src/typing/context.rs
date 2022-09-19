@@ -88,14 +88,20 @@ impl GlobalContext {
 
 #[derive(Clone, Debug)]
 pub struct LocalContext {
-    vars : Vec<HashMap<String, PostType>>,
+    vars : Vec<HashMap<String, (bool, PostType)>>,
 }
 
 impl LocalContext {
 
-    pub fn new() -> Self {
+    pub fn new(in_types : &Vec<(Ident, bool, PostType)>) -> Self {
+        let mut in_types2 = HashMap::new();
+        for (name, b, typ) in in_types.iter() {
+            assert_eq!(true,
+                in_types2.insert(name.get_content().to_string(), (*b, typ.clone())).is_none())
+        }
+        
         Self {
-            vars : Vec::new()
+            vars : vec![in_types2]
         }
     }
 
@@ -103,11 +109,11 @@ impl LocalContext {
         self.vars.push(HashMap::new())
     }
 
-    pub fn pop_layer(&mut self) -> Option<HashMap<String, PostType>> {
+    pub fn pop_layer(&mut self) -> Option<HashMap<String, (bool, PostType)>> {
         self.vars.pop()
     }
 
-    pub fn get_typ(&self, var_name : &Ident) -> Option<&PostType> {
+    pub fn get_typ(&self, var_name : &Ident) -> Option<&(bool, PostType)> {
         for hashmap in self.vars.iter().rev() {
             if let Some(typ) = hashmap.get(var_name.get_content()) {
                 return Some(typ)
@@ -116,9 +122,9 @@ impl LocalContext {
         None
     }
 
-    pub fn add_var(&mut self, ident : &Ident, typ : &PostType) {
+    pub fn add_var(&mut self, ident : &Ident, mutable : bool, typ : &PostType) {
         if let Some(last) = self.vars.last_mut() {
-           last.insert(ident.get_content().to_string(), typ.clone());
+           last.insert(ident.get_content().to_string(), (mutable, typ.clone()));
         } else {
             panic!("should never happend")
         }
