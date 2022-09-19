@@ -51,9 +51,17 @@ impl Ident {
         }
     }
 
+    pub fn new_from(name : String, start : usize, end : usize) -> Self {
+        Self {
+            name,
+            loc : Location::new(start, end),
+        }
+    }
+
     pub fn get_loc(&self) -> &Location {
         &self.loc
     }
+
 }
 
 impl PartialEq for Ident {

@@ -91,12 +91,14 @@ pub enum PostTypeInner {
     String,
 }
 
+#[derive(Debug)]
 pub struct Bloc {
     pub content : Vec<Instr>,
 //    pub values : HashMap<String, PostType>,
     pub last_type : PostType,
 }
 
+#[derive(Debug)]
 pub enum Instr {
     Expr(Expr),
     Binding(bool, common::Ident, Expr),
@@ -104,12 +106,14 @@ pub enum Instr {
     Return(Option<Expr>),
 }
 
+#[derive(Debug)]
 pub struct Expr {
     pub content : Box<ExprInner>,
     pub loc : common::Location,
     pub typed : PostType,
 }
 
+#[derive(Debug)]
 pub enum ExprInner {
     If(Expr, Expr, Expr),
     Bool(bool),

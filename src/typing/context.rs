@@ -9,7 +9,6 @@ pub struct StructInfo {
 
 impl StructInfo {
     pub fn get_typ(&mut self, name : &str) -> Option<&PostType> {
-        println!("define {}", name);
         match self.hashmap.get_mut(name) {
             Some(mut p) if !p.0 => { p.0 = true; Some(&p.1) },
             _ => None
@@ -18,7 +17,6 @@ impl StructInfo {
 
     pub fn check_finished(self) -> Option<String> {
         for (name, (b, typ)) in self.hashmap.into_iter() {
-            println!("{} {}", name, b);
             if !b {
                 return Some(name)
             }

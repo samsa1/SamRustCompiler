@@ -15,7 +15,35 @@ fn get_index_function(ctxt : &context::GlobalContext, typ : &typed_rust::PostTyp
         typed_rust::PostTypeInner::IdentParametrized(id, param) if id.get_content() == "Vec" => {
             Some(("get_element_vec", param[0].clone()))
         },
+        typed_rust::PostTypeInner::Ref(_, typ) => {
+            match &typ.content {
+                typed_rust::PostTypeInner::IdentParametrized(id, param) if id.get_content() == "Vec" => {
+                    Some(("get_element_vec", param[0].clone()))
+                },
+                _ => None,
+            }
+        },
         _ => None,
+    }
+}
+
+fn arith_fun_name(binop : BinOperator) -> Option<&'static str> {
+    match binop {
+        BinOperator::Add => Some("_add"),
+        BinOperator::Div => Some("_div"),
+        BinOperator::Mod => Some("_mod"),
+        BinOperator::Sub => Some("_sub"),
+        _ => None
+    }
+}
+
+fn arith_cmp_fun(binop : BinOperator) -> Option<&'static str> {
+    match binop {
+        BinOperator::Lower      => Some("_lower"),
+        BinOperator::LowerEq    => Some("_lower_eq"),
+        BinOperator::Greater    => Some("_greater"),
+        BinOperator::GreaterEq  => Some("_greater_eq"),
+        _ => None
     }
 }
 
@@ -82,6 +110,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                         todo!()
                     }
                 } else {
+                    println!("didn't manage in get index in {:?}[{:?}]", e1, e2);
                     todo!()
                 }
             },
@@ -100,25 +129,43 @@ pub fn type_checker(ctxt : &context::GlobalContext,
             
             },
 
-            rust::ExprInner::BinaryOp(BinOperator::Add, e1, e2) => {
-                let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
-                let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
-                if let Some(typ_name) = type_int_name(&e1.typed) {
-                    if &e1.typed.content == &e2.typed.content {
-                        let mut name = String::from(typ_name);
-                        name.push_str("_add");
-                        (false, e1.typed.clone(),
-                        typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
+            rust::ExprInner::BinaryOp(binop, e1, e2) => {
+                if let Some(fun_suffix) = arith_fun_name(binop) {
+                    let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
+                    let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
+                    if let Some(typ_name) = type_int_name(&e1.typed) {
+                        if &e1.typed.content == &e2.typed.content {
+                            let mut name = String::from(typ_name);
+                            name.push_str(fun_suffix);
+                            (false, e1.typed.clone(),
+                            typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
+                        } else {
+                            todo!()
+                        }
+                    } else {
+                        todo!()
+                    }
+                } else if let Some(fun_suffix) = arith_cmp_fun(binop) {
+                    let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
+                    let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
+                    if let Some(typ_name) = type_int_name(&e1.typed) {
+                        if are_compatible(&e1.typed, &e2.typed) {
+                            let mut name = String::from(typ_name);
+                            name.push_str(fun_suffix);
+                            (false, typed_rust::PostType::bool(),
+                            typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
+                        } else {
+                            println!("not compatible for cmp {:?} {:?}", e1.typed.content, e2.typed.content);
+                            todo!()
+                        }
                     } else {
                         todo!()
                     }
                 } else {
+                    println!("operator not implemented {:?}", binop);
                     todo!()
                 }
-            
             },
-
-            rust::ExprInner::BinaryOp(_, _, _) => todo!(),
 
             rust::ExprInner::UnaryOp(_, _) => todo!(),
 
@@ -223,10 +270,10 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                     typed_rust::PostTypeInner::Box(typ) => {
                         (false, *typ.clone(), typed_rust::ExprInner::Deref(expr))
                     },
-                    typed_rust::PostTypeInner::Ref(mutable, typ) if can_be_deref(typ) => {
+                    typed_rust::PostTypeInner::Ref(mutable, typ) => {
                         (*mutable, *typ.clone(), typed_rust::ExprInner::Deref(expr))
                     },
-                    _ => todo!()
+                    _ => {println!("trying to deref {:?}", expr.typed); todo!() }
                 }
             },
 
@@ -322,6 +369,22 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                                 } else {
                                     todo!()
                                 },
+                        }
+                    },
+                    typed_rust::PostTypeInner::Ref(affectable, typ) => {
+                        match &typ.content {
+                            typed_rust::PostTypeInner::Struct(s) => {
+                                match ctxt.get_struct(&s) {
+                                    None => panic!("should not happend"),
+                                    Some(struct_info) => 
+                                        if let Some(typ) = struct_info.get_field_typ(name.get_content()) {
+                                            (*affectable, typ.clone(), typed_rust::ExprInner::Proj(expr, Projector::Name(name)))
+                                        } else {
+                                            todo!()
+                                        },
+                                }
+                            },
+                            _ => todo!()
                         }
                     },
                     _ => todo!(),
