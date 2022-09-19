@@ -11,10 +11,31 @@ fn compatible_types(type1 : &Option<typed_rust::PostType>, type2 : typed_rust::P
 }
 
 fn biggest_compatible(typ1 : &typed_rust::PostType, typ2 : &typed_rust::PostType) -> Option<typed_rust::PostType> {
-    if typ1 == typ2 {
-        Some(typ1.clone())
-    } else {
-        None
+    match (&typ1.content, &typ2.content) {
+        (_, typed_rust::PostTypeInner::Diverge) => Some(typ1.clone()),
+        (typed_rust::PostTypeInner::Diverge, _) => Some(typ2.clone()),
+        (typed_rust::PostTypeInner::BuiltIn(btyp1),
+         typed_rust::PostTypeInner::BuiltIn(btyp2)) if btyp1 == btyp2 => Some(typ1.clone()),
+        (typed_rust::PostTypeInner::Ref(b1, typ1),
+         typed_rust::PostTypeInner::Ref(b2, typ2)) =>
+            biggest_compatible(&*typ1, &*typ2).map(|t| t.to_ref(*b1 && *b2)),
+        (typed_rust::PostTypeInner::Tuple(vec1),
+         typed_rust::PostTypeInner::Tuple(vec2)) if vec1.len() == vec2.len() => {
+            let mut vec_out = Vec::new();
+            for (typ1, typ2) in vec1.iter().zip(vec2.iter()) {
+                if let Some(typ) = biggest_compatible(typ1, typ2) {
+                    vec_out.push(typ)
+                } else {
+                    return None
+                }
+            };
+            Some(typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Tuple(vec_out),
+                size : typ1.size,
+            })
+         },
+
+        _ => todo!()
     }
 }
 
@@ -26,6 +47,13 @@ fn is_type_int(typ : &Option<typed_rust::PostType>) -> bool {
         }
     } else {
         false
+    }
+}
+
+fn can_be_deref(typ : &typed_rust::PostType) -> bool {
+    match &typ.content {
+        typed_rust::PostTypeInner::BuiltIn(_) => true,
+        _ => false
     }
 }
 
@@ -47,7 +75,7 @@ fn type_int_name(typ : &typed_rust::PostType) -> Option<&'static str> {
 
 fn get_index_function(ctxt : &context::GlobalContext, typ : &typed_rust::PostType) -> Option<(&'static str, typed_rust::PostType)> {
     match &typ.content {
-        typed_rust::PostTypeInner::IdentParametrized(id, param) if id.get_content() == "vec" => {
+        typed_rust::PostTypeInner::IdentParametrized(id, param) if id.get_content() == "Vec" => {
             Some(("get_element_vec", param[0].clone()))
         },
         _ => None,
@@ -137,7 +165,10 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                 let typ =
                     match loc_ctxt.get_typ(&var_name) {
                         Some(typ) => typ.clone(),
-                        None => todo!()
+                        None => { match ctxt.get_typ(var_name.get_content()) {
+                            Some(typ) => typ.clone(),
+                            None => todo!()
+                        }}
                 };
                 if let typed_rust::PostTypeInner::Fun(args_typ, output) = typ.content {
                     if args.len() != args_typ.len() {
@@ -180,11 +211,13 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                     let expr = type_checker(ctxt, expr, loc_ctxt, out);
                     match &typ {
                         None => typ = Some(expr.typed.clone()),
-                        Some(typ) => if are_compatible(typ, &expr.typed) {
-                            vec2.push(expr)
-                        } else {
-                            todo!()
-                        }
+                        Some(typ2) =>
+                            if let Some(typ2) = biggest_compatible(typ2, &expr.typed) {
+                                typ = Some(typ2);
+                                vec2.push(expr)
+                            } else {
+                                todo!()
+                            }
                     }
                 };
                 let size = match &typ {
@@ -192,7 +225,7 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                     Some(typ) => typ.size
                 };
                 (typed_rust::PostType {
-                    content : typed_rust::PostTypeInner::IdentParametrized(Ident::from_str("vec"), vec![typ.unwrap()]),
+                    content : typed_rust::PostTypeInner::IdentParametrized(Ident::from_str("Vec"), vec![typ.unwrap()]),
                     size : 8,
                 },
                 typed_rust::ExprInner::Vec(size, vec2))
@@ -210,7 +243,18 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
                 typed_rust::ExprInner::Bloc(bloc))
             },
 
-            rust::ExprInner::Deref(_expr) => todo!(),
+            rust::ExprInner::Deref(expr) => {
+                let expr = type_checker(ctxt, expr, loc_ctxt, out);
+                match &expr.typed.content {
+                    typed_rust::PostTypeInner::Box(typ) => {
+                        (*typ.clone(), typed_rust::ExprInner::Deref(expr))
+                    },
+                    typed_rust::PostTypeInner::Ref(_, typ) if can_be_deref(typ) => {
+                        (*typ.clone(), typed_rust::ExprInner::Deref(expr))
+                    },
+                    _ => todo!()
+                }
+            },
 
             rust::ExprInner::If(e1, e2, e3) => {
                 let expr1 = type_checker(ctxt, e1, loc_ctxt, out);
@@ -315,7 +359,20 @@ pub fn are_compatible(expected : &typed_rust::PostType, got : &typed_rust::PostT
                 }
             }; true
         },
-        _ => todo!(),
+        (typed_rust::PostTypeInner::IdentParametrized(name1, args1),
+         typed_rust::PostTypeInner::IdentParametrized(name2, args2)) => {
+            if name1.get_content() == name2.get_content() {
+                for (t1, t2) in args1.iter().zip(args2.iter()) {
+                    if !are_compatible(t1, t2) {
+                        return false
+                    }
+                }
+                true
+            } else {
+                false
+            }
+         }
+        _ => {println!("not compatible :\n {:?}\n {:?}", expected, got); todo!()},
     }
 }
 

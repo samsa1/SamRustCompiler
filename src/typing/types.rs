@@ -1,5 +1,6 @@
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
+use crate::ast::common::Ident;
 
 use std::collections::HashMap;
 use super::context::GlobalContext;
@@ -24,15 +25,27 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
                 Some(post_type) => post_type.clone(),
             }
         },
-        PreTypeInner::IdentParametrized(id, _) => {
+        PreTypeInner::IdentParametrized(id, mut args) => {
             match id.get_content() {
-                "Vec" => {todo!()},
+                "Vec" => {
+                    if args.len() == 1 {
+                        let typ = translate_typ(args.pop().unwrap(), sizes);
+                        PostType {
+                            content : PostTypeInner::IdentParametrized(Ident::from_str("Vec"), vec![typ]),
+                            size : 8,
+                        }
+                    } else {
+                        todo!()
+                    }
+                },
                 "Box" => {todo!()},
                 _ => todo!(),
             }
 
         },
-        PreTypeInner::Ref(_, _) => todo!(),
+
+        PreTypeInner::Ref(mutable, typ) => { translate_typ(*typ, sizes).to_ref(mutable) },
+
         PreTypeInner::Tuple(elements) => {
             let mut elements2 = Vec::new();
             let mut total_size = 0;

@@ -179,7 +179,6 @@ echo -n "Syntaxe : $score/$max : $percent%"; }
 
 # partie 2 : tests d'analyse s�mantique
 
-
 partie2 () {
 echo
 echo "Partie 2"
@@ -222,6 +221,68 @@ for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs t
     esac
 done
 echo
+
+percent=`expr 100 \* $score / $max`;
+
+echo    "Typage  : $score/$max : $percent%";
+}
+
+partie2_debug () {
+echo
+echo "Partie 2"
+
+score=0
+max=0
+
+# les bons
+echo -n "bons "
+for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
+    echo -n ".";
+    max=`expr $max + 1`;
+    compile --type-only $f;
+    case $? in
+	"1")
+    verbose=1;
+    compile --type-only $f;
+	echo
+	echo "ECHEC sur "$f" (devrait reussir)";
+    exit 1;;
+	"0") score=`expr $score + 1`;;
+	*)
+    verbose=1;
+    compile --type-only $f;
+	echo
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+    exit 1;;
+    esac
+done
+echo
+
+
+# les mauvais
+echo -n "mauvais "
+for f in tests/typing/bad/*.rs; do
+    echo -n ".";
+    max=`expr $max + 1`;
+    compile --type-only $f;
+    case $? in
+	"0")
+    verbose=1;
+    compile --type-only $f;
+	echo
+	echo "ECHEC sur "$f" (devrait �chouer)";
+    exit 1;;
+	"1") score=`expr $score + 1`;;
+	*)
+    verbose=1;
+    compile --type-only $f;
+	echo
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+    exit 1;;
+    esac
+done
+echo
+
 
 percent=`expr 100 \* $score / $max`;
 
@@ -363,6 +424,8 @@ case $option in
         partie1_debug;;
     "-2" )
         partie2;;
+    "-2d" )
+        partie2_debug;;
     "-2b" )
         partie2b;;
     "-3" )
