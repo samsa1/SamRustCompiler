@@ -27,7 +27,7 @@ fn type_funs(funs : Vec<rust::DeclFun>, known_types : &mut context::GlobalContex
         let in_types : Vec<(Ident, bool, typed_rust::PostType)> = fun_decl.args.into_iter().zip(args_typ.into_iter()).map(|((name, b, _pre_type), post_type)| (name, b, post_type)).collect();
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
-        let content = expr::type_block(fun_decl.content, known_types, &mut local_ctxt, &output);
+        let content = expr::type_block(fun_decl.content, known_types, &mut local_ctxt, &output, Some(&output));
 
         fun_vec.push(
             typed_rust::DeclFun {

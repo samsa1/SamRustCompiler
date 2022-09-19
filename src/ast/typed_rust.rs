@@ -94,8 +94,9 @@ pub enum PostTypeInner {
 #[derive(Debug)]
 pub struct Bloc {
     pub content : Vec<Instr>,
+    pub expr : Option<Expr>,
 //    pub values : HashMap<String, PostType>,
-    pub last_type : PostType,
+//    pub last_type : PostType,
 }
 
 #[derive(Debug)]

@@ -33,6 +33,7 @@ fn arith_fun_name(binop : BinOperator) -> Option<&'static str> {
         BinOperator::Div => Some("_div"),
         BinOperator::Mod => Some("_mod"),
         BinOperator::Sub => Some("_sub"),
+        BinOperator::Times => Some("_times"),
         _ => None
     }
 }
@@ -43,6 +44,14 @@ fn arith_cmp_fun(binop : BinOperator) -> Option<&'static str> {
         BinOperator::LowerEq    => Some("_lower_eq"),
         BinOperator::Greater    => Some("_greater"),
         BinOperator::GreaterEq  => Some("_greater_eq"),
+        _ => None
+    }
+}
+
+fn bool_fun_name(binop : BinOperator) -> Option<&'static str> {
+    match binop {
+        BinOperator::And    => Some("_and"),
+        BinOperator::Or     => Some("_or"),
         _ => None
     }
 }
@@ -130,9 +139,9 @@ pub fn type_checker(ctxt : &context::GlobalContext,
             },
 
             rust::ExprInner::BinaryOp(binop, e1, e2) => {
+                let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
+                let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
                 if let Some(fun_suffix) = arith_fun_name(binop) {
-                    let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
-                    let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
                     if let Some(typ_name) = type_int_name(&e1.typed) {
                         if &e1.typed.content == &e2.typed.content {
                             let mut name = String::from(typ_name);
@@ -146,8 +155,6 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                         todo!()
                     }
                 } else if let Some(fun_suffix) = arith_cmp_fun(binop) {
-                    let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
-                    let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
                     if let Some(typ_name) = type_int_name(&e1.typed) {
                         if are_compatible(&e1.typed, &e2.typed) {
                             let mut name = String::from(typ_name);
@@ -161,13 +168,61 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                     } else {
                         todo!()
                     }
+                } else if let Some(fun_suffix) = bool_fun_name(binop) {
+                    if are_compatible(&typed_rust::PostType::bool(), &e1.typed)
+                        && are_compatible(&typed_rust::PostType::bool(), &e2.typed) {
+                            let mut name = String::from("bool");
+                            name.push_str(fun_suffix);
+                            (false, typed_rust::PostType::bool(),
+                            typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
+                    } else {
+                        println!("not compatible for logic {:?} {:?}", e1.typed.content, e2.typed.content);
+                        todo!()
+                    }
+                } else if binop == BinOperator::Eq {
+                    let content = match &e1.typed.content {
+                        typed_rust::PostTypeInner::BuiltIn(built_in) => built_in,
+                        _ => todo!(),
+                    };
+                    if are_compatible(&e1.typed, &e2.typed) {
+                        let mut fun_name = String::from(builtin_name(content));
+                        fun_name.push_str("_eq");
+                        (false, typed_rust::PostType::bool(),
+                        typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1, e2]))
+                    } else {
+                        todo!()
+                    }
                 } else {
                     println!("operator not implemented {:?}", binop);
                     todo!()
                 }
             },
 
-            rust::ExprInner::UnaryOp(_, _) => todo!(),
+            rust::ExprInner::UnaryOp(UnaOperator::ArithNeg, expr) => {
+                let expr = type_checker(ctxt, expr, loc_ctxt, out, None).1;
+                match &expr.typed.content {
+                    typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(true, size)) => {
+                        let fun_name = match size {
+                            Sizes::S32 => "i32_neg",
+                            Sizes::S64 => "i64_neg",
+                            Sizes::SUsize => "isize_neg",
+                        };
+                        (false, expr.typed.clone(),
+                        typed_rust::ExprInner::FunCall(Ident::from_str(fun_name), vec![expr]))
+                    },
+                    _ => todo!()
+                }
+            }
+
+            rust::ExprInner::UnaryOp(UnaOperator::LogicalNeg, expr) => {
+                let expr = type_checker(ctxt, expr, loc_ctxt, out, None).1;
+                if are_compatible(&typed_rust::PostType::bool(), &expr.typed) {
+                    (false, typed_rust::PostType::bool(),
+                    typed_rust::ExprInner::FunCall(Ident::from_str("bool_neg"), vec![expr]))
+                } else {
+                    todo!()
+                }
+            },
 
             rust::ExprInner::FunCall(var_name, args) => {
                 let typ =
@@ -256,11 +311,21 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                 panic!("should not happen")
             },
 
-            rust::ExprInner::Method(_, _, _) => todo!(),
+            rust::ExprInner::Method(_, name, args) => {
+                if name.get_content() == "len" && args.len() == 0 {
+                    todo!()
+                } else {
+                    todo!()
+                }
+            },
 
             rust::ExprInner::Bloc(bloc) => {
-                let bloc = type_block(bloc, ctxt, loc_ctxt, out);
-                (false, bloc.last_type.clone(),
+                let bloc = type_block(bloc, ctxt, loc_ctxt, out, expected_typ);
+                let typ = match &bloc.expr {
+                    Some(expr) => expr.typed.clone(),
+                    None => typed_rust::PostType::unit(),
+                };
+                (false, typ,
                 typed_rust::ExprInner::Bloc(bloc))
             },
 
@@ -415,7 +480,8 @@ pub fn type_checker(ctxt : &context::GlobalContext,
 pub fn type_block(bloc : rust::Bloc,
     ctxt : &context::GlobalContext,
     loc_ctxt : &mut context::LocalContext,
-    output : &typed_rust::PostType)
+    output : &typed_rust::PostType,
+    expected_typ : Option<&typed_rust::PostType>)
 -> typed_rust::Bloc {
     loc_ctxt.add_layer();
     let mut content = Vec::new();
@@ -433,7 +499,13 @@ pub fn type_block(bloc : rust::Bloc,
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
 //                todo!();
             },
-            rust::Instr::While(_, _) => todo!(),
+            rust::Instr::While(condition, bloc) => {
+                let condition = type_checker(ctxt, condition, loc_ctxt, output, Some(&typed_rust::PostType::bool())).1;
+                if !are_compatible(&typed_rust::PostType::bool(), &condition.typed) {
+                    todo!()
+                };
+                let bloc = type_block(bloc, ctxt, loc_ctxt, output, None);
+            },
             rust::Instr::Return(None) => {
                 match &output.content {
                     typed_rust::PostTypeInner::Tuple(l) if l.len() == 0 => {
@@ -456,21 +528,12 @@ pub fn type_block(bloc : rust::Bloc,
         }
     };
 
-    let last_type;
-
-    if reachable {
-        last_type = match content.pop() {
-            Some(typed_rust::Instr::Expr(e)) => {let typ = e.typed.clone(); content.push(typed_rust::Instr::Expr(e)); typ},
-            _ => typed_rust::PostType::unit(),
-        };
-    } else {
-        last_type = typed_rust::PostType::diverge();
-    }
+    let expr = bloc.expr.map(|expr| type_checker(ctxt, expr, loc_ctxt, output, expected_typ).1);
 
     match loc_ctxt.pop_layer() {
         | Some(_) => (),
         | None => panic!("should not happen"),
     };
 
-    typed_rust::Bloc{ content, last_type }
+    typed_rust::Bloc{ content, expr }
 }

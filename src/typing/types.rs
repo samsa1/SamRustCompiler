@@ -193,3 +193,19 @@ pub fn type_int_name(typ : &PostType) -> Option<&'static str> {
         _ => None
     }
 }
+
+pub fn builtin_name(typ : &BuiltinType) -> &'static str {
+    match typ {
+        BuiltinType::Int(b, size) => {
+            match (b, size) {
+                (true,  Sizes::S32) => "i32",
+                (false, Sizes::S32) => "u32",
+                (true,  Sizes::S64) => "i64",
+                (false, Sizes::S64) => "u64",
+                (true,  Sizes::SUsize) => "isize",
+                (false, Sizes::SUsize) => "usize",
+            }
+        },
+        BuiltinType::Bool => "bool",
+    }
+}

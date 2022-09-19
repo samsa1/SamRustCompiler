@@ -133,6 +133,7 @@ peg::parser!{
 
         rule reserved() =
             "true" / "false" / "if" / "else" / "while" / "fn" / "pub" / "struct" / "as" / "let" / "mut"
+            / "return"
 
         rule name() -> Ident =
             start:position!() n:name_inner() end:position!() {
@@ -185,14 +186,16 @@ peg::parser!{
         } 
 
         rule instr() -> Instr = precedence! {
-            e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(e) }
             ";" { Instr::Expr(Expr::unit()) }
             "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";"
                 { Instr::Binding(b != None, n, e) }
             "while" spaces() e:expr() space() b:bloc()
                 { Instr::While(e, b) }
-            "return" spaces() e:expr()? ";"
-                { Instr::Return(e) }
+            "return" space() ";"
+                { Instr::Return(None) }
+            "return" spaces() e:expr() ";"
+                { Instr::Return(Some(e)) }
+            e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(e) }
             i:if() { Instr::Expr(i) }
         }
 
