@@ -15,7 +15,6 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
             let out = translate_typ(*out, sizes);
             PostType {
                 content : PostTypeInner::Fun(args2, Box::new(out)),
-                mutable : typ.mutable,
                 size : todo!(),
             }
         },
@@ -33,7 +32,7 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
             }
 
         },
-        PreTypeInner::Ref(_) => todo!(),
+        PreTypeInner::Ref(_, _) => todo!(),
         PreTypeInner::Tuple(elements) => {
             let mut elements2 = Vec::new();
             let mut total_size = 0;
@@ -45,7 +44,6 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
             PostType {
                 content : PostTypeInner::Tuple(elements2),
                 size : total_size,
-                mutable : typ.mutable,
             }
         }
     }

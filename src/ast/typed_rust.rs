@@ -23,7 +23,6 @@ pub struct DeclStruct {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostType {
     pub content : PostTypeInner,
-    pub mutable : bool,
     pub size    : usize, /* size in bytes */
 }
 
@@ -31,7 +30,6 @@ impl PostType {
     pub fn unit() -> Self {
         Self {
             content : PostTypeInner::Tuple(Vec::new()),
-            mutable : false,
             size : 0,
         }
     }
@@ -39,7 +37,6 @@ impl PostType {
     pub const fn diverge() -> Self {
         Self {
             content : PostTypeInner::Diverge,
-            mutable : false,
             size : 0,
         }
     }
@@ -47,7 +44,6 @@ impl PostType {
     pub const fn bool() -> Self {
         Self {
             content : PostTypeInner::BuiltIn(common::BuiltinType::Bool),
-            mutable : false,
             size : 1,
         }
     }
@@ -55,8 +51,14 @@ impl PostType {
     pub const fn i32() -> Self {
         Self {
             content : PostTypeInner::BuiltIn(common::BuiltinType::Int(true, common::Sizes::S32)),
-            mutable : false,
             size : 1,
+        }
+    }
+
+    pub fn to_ref(self, mutable : bool) -> Self {
+        Self {
+            content : PostTypeInner::Ref(mutable, Box::new(self)),
+            size : 8,
         }
     }
 }
@@ -68,28 +70,10 @@ pub enum PostTypeInner {
     Enum(String),
     Box(Box<PostType>),
     IdentParametrized(common::Ident, Vec<PostType>),
-    Ref(Box<PostType>),
+    Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     Fun(Vec<PostType>, Box<PostType>),
     Diverge,
-}
-
-impl PostTypeInner {
-    pub fn to_nonmut(self) -> PostType {
-        PostType {
-            content : self,
-            mutable : false,
-            size : todo!(),
-        }
-    }
-
-    pub fn to_mut(self) -> PostType {
-        PostType {
-            content : self,
-            mutable : true,
-            size : todo!()
-        }
-    }
 }
 
 pub struct Bloc {
@@ -124,7 +108,8 @@ pub enum ExprInner {
     Deref(Expr),
     Tuple(Vec<Expr>),
     BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
-    Proj(Vec<Expr>, common::Projector),
+    Proj(Expr, common::Projector),
     Set(Expr, Expr),
-    Print(Expr),
+    Print(String),
+    Vec(usize, Vec<Expr>),
 }

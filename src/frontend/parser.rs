@@ -147,18 +147,18 @@ peg::parser!{
 
         rule typ() -> PreType = precedence! {
             "&" space() "mut" spaces() typ:typ() {
-                PreTypeInner::Ref(Box::new(typ)).to_mut()
+                PreTypeInner::Ref(true, Box::new(typ)).to_type()
             }
             "&" space() typ:typ() {
-                PreTypeInner::Ref(Box::new(typ)).to_nonmut()
+                PreTypeInner::Ref(false, Box::new(typ)).to_type()
             }
 
             typ:typ_no_ref() { typ}
         }
 
         rule typ_no_ref() -> PreType = precedence! {
-            n:name() "<" t:typ() ">" { PreTypeInner::IdentParametrized(n, vec![t]).to_nonmut()}
-            n:name() { PreTypeInner::Ident(n).to_nonmut()}
+            n:name() "<" t:typ() ">" { PreTypeInner::IdentParametrized(n, vec![t]).to_type()}
+            n:name() { PreTypeInner::Ident(n).to_type()}
         }
         
         // bloc with spaces
@@ -249,7 +249,7 @@ peg::parser!{
         rule expr() -> Expr = precedence! {
             e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
                 { to_expr(e1.loc.start(), end,
-                    ExprInner::Method(e1, Ident::from_str("index"), vec![e2])) }
+                    ExprInner::Index(e1, e2)) }
             n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
             n:name() space() "(" v:opt_expr_list() ")" end:position!()
@@ -308,7 +308,7 @@ peg::parser!{
         rule expr_no_bracket() -> Expr = precedence! {
             e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
                 { to_expr(e1.loc.start(), end,
-                    ExprInner::Method(e1, Ident::from_str("index"), vec![e2])) }
+                    ExprInner::Index(e1, e2)) }
             n:name() space() "(" v:opt_expr_list() ")" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::FunCall(n, v)) }
             n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()

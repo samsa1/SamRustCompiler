@@ -47,7 +47,6 @@ impl Graph {
         let id1 = self.names.get(n1)?;
         let id2 = self.names.get(n2)?;
         Some(self.edges[*id1].insert(*id2))
-    
     }
 }
 
@@ -61,7 +60,7 @@ fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph, s
                 }
             }},
         rust::PreTypeInner::IdentParametrized(_, _) => todo!(),
-        rust::PreTypeInner::Ref(_) => todo!(),
+        rust::PreTypeInner::Ref(_, _) => todo!(),
         rust::PreTypeInner::Tuple(v) => {
             for typ in v.iter() {
                 explore_dependensies(typ, parent, graph, set)
@@ -127,7 +126,6 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
         let typ = PostType {
             size : compute_size_builtin(&typ),
             content : PostTypeInner::BuiltIn(typ),
-            mutable : true,
         };
         sizes.insert(name.to_string(), typ);
         set.insert(name.to_string());
@@ -157,7 +155,6 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
             struct_decl.name.get_content().to_string(),
             typed_rust::PostType {
                 content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
-                mutable : false,
                 size,
             },
             args.clone(),

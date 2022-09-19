@@ -35,6 +35,10 @@ impl StructInfo {
             hashmap,
         }
     }
+
+    pub fn get_field_typ(&self, name : &str) -> Option<&PostType> {
+        self.hashmap.get(name).map(|x| &x.1)
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -66,7 +70,11 @@ impl GlobalContext {
         self.known_types.get(name)
     }
 
-    pub fn get_struct(&self, name : &str) -> Option<StructInfo> {
+    pub fn get_struct(&self, name : &str) -> Option<&StructInfo> {
+        self.structs.get(name)
+    }
+
+    pub fn struct_infos(&self, name : &str) -> Option<StructInfo> {
         self.structs.get(name).map(|si| si.clone())
     }
 
