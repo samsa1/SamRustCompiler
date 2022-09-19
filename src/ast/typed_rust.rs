@@ -35,6 +35,30 @@ impl PostType {
             size : 0,
         }
     }
+
+    pub const fn diverge() -> Self {
+        Self {
+            content : PostTypeInner::Diverge,
+            mutable : false,
+            size : 0,
+        }
+    }
+
+    pub const fn bool() -> Self {
+        Self {
+            content : PostTypeInner::BuiltIn(common::BuiltinType::Bool),
+            mutable : false,
+            size : 1,
+        }
+    }
+
+    pub const fn i32() -> Self {
+        Self {
+            content : PostTypeInner::BuiltIn(common::BuiltinType::Int(true, common::Sizes::S32)),
+            mutable : false,
+            size : 1,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -47,6 +71,7 @@ pub enum PostTypeInner {
     Ref(Box<PostType>),
     Tuple(Vec<PostType>),
     Fun(Vec<PostType>, Box<PostType>),
+    Diverge,
 }
 
 impl PostTypeInner {
@@ -97,6 +122,8 @@ pub enum ExprInner {
     Ref(bool, Expr),
     Deref(Expr),
     Tuple(Vec<Expr>),
-    BuildStruct(common::Ident, Vec<Expr>),
+    BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
     Proj(Vec<Expr>, common::Projector),
+    Set(Expr, Expr),
+    Print(Expr),
 }

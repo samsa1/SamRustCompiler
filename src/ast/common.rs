@@ -114,3 +114,27 @@ pub enum Projector {
     Int(usize),
     Name(Ident),
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinOperator {
+    Add,
+    Sub,
+    Times,
+    Mod,
+    Div,
+    Eq,
+    Ne,
+    Lower,
+    LowerEq,
+    Greater,
+    GreaterEq,
+    Set,
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum UnaOperator {
+    LogicalNeg,
+    ArithNeg,
+}

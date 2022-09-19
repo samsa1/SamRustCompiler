@@ -104,6 +104,8 @@ pub enum ExprInner {
     Method(Expr, common::Ident, Vec<Expr>),
     FunCall(common::Ident, Vec<Expr>),
     MacroCall(common::Ident, Vec<Expr>),
+    BinaryOp(common::BinOperator, Expr, Expr),
+    UnaryOp(common::UnaOperator, Expr),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),

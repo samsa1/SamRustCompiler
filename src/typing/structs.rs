@@ -31,7 +31,11 @@ impl Graph {
 
     fn add_node(&mut self, name : String) {
         if self.names.get(&name) == None {
-            self.names.insert(name, self.size).unwrap();
+//            println!("adding {:?} to {:?}", name, self.names);
+            if let Some(_) = self.names.insert(name, self.size) {
+                todo!()
+            };
+//            println!("added");
             self.size += 1;
             self.edges.push(HashSet::new());
         } else {
@@ -47,18 +51,20 @@ impl Graph {
     }
 }
 
-fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph) {
+fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph, set : &HashSet<String>) {
     match &typ.content {
         rust::PreTypeInner::Ident(id) => {
-            match graph.add_edge(parent, id.get_content()) {
-                None => todo!(),
-                Some(_) => (),
+            if !set.contains(id.get_content()) {
+                match graph.add_edge(parent, id.get_content()) {
+                    None => todo!(),
+                    Some(_) => (),
+                }
             }},
         rust::PreTypeInner::IdentParametrized(_, _) => todo!(),
         rust::PreTypeInner::Ref(_) => todo!(),
         rust::PreTypeInner::Tuple(v) => {
             for typ in v.iter() {
-                explore_dependensies(typ, parent, graph)
+                explore_dependensies(typ, parent, graph, set)
             }
         },
         rust::PreTypeInner::Fun(_, _) => {},
@@ -115,16 +121,8 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
         graph.add_node(struct_decl.name.get_content().to_string());
     }
 
-    for struct_decl in structs.iter() {
-        for arg in struct_decl.args.iter() {
-            explore_dependensies(&arg.1, struct_decl.name.get_content(), &mut graph)
-        }
-    }
-
-    let structs = topological_sort(structs, &mut graph);
-    let mut structs2 = Vec::new();
     let mut sizes = GlobalContext::new();
-
+    let mut set = HashSet::new();
     for (name, typ) in DEFAULT_TYPES {
         let typ = PostType {
             size : compute_size_builtin(&typ),
@@ -132,7 +130,17 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
             mutable : true,
         };
         sizes.insert(name.to_string(), typ);
+        set.insert(name.to_string());
     }
+
+    for struct_decl in structs.iter() {
+        for arg in struct_decl.args.iter() {
+            explore_dependensies(&arg.1, struct_decl.name.get_content(), &mut graph, &set)
+        }
+    }
+
+    let structs = topological_sort(structs, &mut graph);
+    let mut structs2 = Vec::new();
 
     for struct_decl in structs.into_iter() {
         let mut args = HashMap::new();
@@ -145,13 +153,14 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
                 Some(_) => todo!(),
             }
         };
-        sizes.insert(
+        sizes.add_struct(
             struct_decl.name.get_content().to_string(),
             typed_rust::PostType {
                 content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
                 mutable : false,
                 size,
-            }
+            },
+            args.clone(),
         );
         structs2.push(typed_rust::DeclStruct {
             name : struct_decl.name,
