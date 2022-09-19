@@ -40,6 +40,23 @@ fn is_type_int(typ : &Option<typed_rust::PostType>) -> bool {
     }
 }
 
+fn type_int_name(typ : &typed_rust::PostType) -> Option<&'static str> {
+    match &typ.content {
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(b, size)) => {
+            Some(match (b, size) {
+                (true,  Sizes::S32) => "i32",
+                (false, Sizes::S32) => "u32",
+                (true,  Sizes::S64) => "i64",
+                (false, Sizes::S64) => "u64",
+                (true,  Sizes::SUsize) => "isize",
+                (false, Sizes::SUsize) => "usize",
+            })
+
+        },
+        _ => None
+    }
+}
+
 pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt : &mut context::LocalContext, out : &typed_rust::PostType) -> typed_rust::Expr {
     let mut translated_typ = expr.typed.map(|t| translate_typ(t, ctxt));
     let (found_type, content) = 
@@ -87,6 +104,24 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
             
             },
 
+            rust::ExprInner::BinaryOp(BinOperator::Add, e1, e2) => {
+                let e1 = type_checker(ctxt, e1, loc_ctxt, out);
+                let e2 = type_checker(ctxt, e2, loc_ctxt, out);
+                if let Some(typ_name) = type_int_name(&e1.typed) {
+                    if &e1.typed.content == &e2.typed.content {
+                        let mut name = String::from(typ_name);
+                        name.push_str("_add");
+                        (e1.typed.clone(),
+                        typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
+                    } else {
+                        todo!()
+                    }
+                } else {
+                    todo!()
+                }
+            
+            },
+
             rust::ExprInner::FunCall(var_name, args) => {
                 let typ =
                     match loc_ctxt.get_typ(&var_name) {
@@ -117,7 +152,11 @@ pub fn type_checker(ctxt : &context::GlobalContext, expr : rust::Expr, loc_ctxt 
 
             rust::ExprInner::Method(_, _, _) => todo!(),
 
-            rust::ExprInner::Bloc(_bloc) => todo!(),
+            rust::ExprInner::Bloc(bloc) => {
+                let bloc = type_block(bloc, ctxt, loc_ctxt, out);
+                (bloc.last_type.clone(),
+                typed_rust::ExprInner::Bloc(bloc))
+            },
 
             rust::ExprInner::Deref(_expr) => todo!(),
 
@@ -254,15 +293,15 @@ pub fn type_block(bloc : rust::Bloc,
         }
     };
 
-    let last_typ;
+    let last_type;
 
     if reachable {
-        last_typ = match content.pop() {
+        last_type = match content.pop() {
             Some(typed_rust::Instr::Expr(e)) => {let typ = e.typed.clone(); content.push(typed_rust::Instr::Expr(e)); typ},
             _ => typed_rust::PostType::unit(),
         };
     } else {
-        last_typ = typed_rust::PostType::diverge();
+        last_type = typed_rust::PostType::diverge();
     }
 
     let out_values = match loc_ctxt.pop_layer() {
@@ -270,5 +309,5 @@ pub fn type_block(bloc : rust::Bloc,
         | None => panic!("should not happen"),
     };
 
-    typed_rust::Bloc{ content, values : out_values, }
+    typed_rust::Bloc{ content, values : out_values, last_type }
 }

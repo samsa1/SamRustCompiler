@@ -94,7 +94,8 @@ impl PostTypeInner {
 
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub values : HashMap<String, PostType>
+    pub values : HashMap<String, PostType>,
+    pub last_type : PostType,
 }
 
 pub enum Instr {
