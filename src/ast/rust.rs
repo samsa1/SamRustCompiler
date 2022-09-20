@@ -56,13 +56,12 @@ impl PreTypeInner {
 #[derive(Debug)]
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub expr : Option<Expr>,
     pub loc : common::Location,
 }
 
 #[derive(Debug)]
 pub enum Instr {
-    Expr(Expr),
+    Expr(bool, Expr),
     Binding(bool, common::Ident, Expr),
     While(Expr, Bloc),
     Return(Option<Expr>),

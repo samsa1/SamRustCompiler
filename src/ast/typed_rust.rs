@@ -75,6 +75,13 @@ impl PostType {
             _ => false
         }
     }
+
+    pub fn is_unit(&self) -> bool {
+        match &self.content {
+            PostTypeInner::Tuple(v) => v.len() == 0,
+            _ => false,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -94,14 +101,14 @@ pub enum PostTypeInner {
 #[derive(Debug)]
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub expr : Option<Expr>,
+//    pub expr : Option<Expr>,
 //    pub values : HashMap<String, PostType>,
-//    pub last_type : PostType,
+    pub last_type : PostType,
 }
 
 #[derive(Debug)]
 pub enum Instr {
-    Expr(Expr),
+    Expr(bool, Expr),
     Binding(bool, common::Ident, Expr),
     While(Expr, Bloc),
     Return(Option<Expr>),

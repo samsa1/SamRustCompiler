@@ -146,7 +146,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                 let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
                 if let Some(fun_suffix) = arith_fun_name(binop) {
                     if let Some(typ_name) = type_int_name(&e1.typed) {
-                        if &e1.typed.content == &e2.typed.content {
+                        if are_compatible(&e1.typed, &e2.typed) {
                             let mut name = String::from(typ_name);
                             name.push_str(fun_suffix);
                             (false, e1.typed.clone(),
@@ -358,11 +358,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
 
             rust::ExprInner::Bloc(bloc) => {
                 let bloc = type_block(bloc, ctxt, loc_ctxt, out, expected_typ);
-                let typ = match &bloc.expr {
-                    Some(expr) => expr.typed.clone(),
-                    None => typed_rust::PostType::unit(),
-                };
-                (false, typ,
+                (false, bloc.last_type.clone(),
                 typed_rust::ExprInner::Bloc(bloc))
             },
 
@@ -525,9 +521,9 @@ pub fn type_block(bloc : rust::Bloc,
     let mut reachable = true;
     for instr in bloc.content {
         match instr {
-            rust::Instr::Expr(expr) => {
+            rust::Instr::Expr(b, expr) => {
                 let expr = type_checker(ctxt, expr, loc_ctxt, output, None).1;
-                content.push(typed_rust::Instr::Expr(expr));
+                content.push(typed_rust::Instr::Expr(b, expr));
 //                todo!();
             },
             rust::Instr::Binding(mutable, ident, expr) => {
@@ -565,27 +561,132 @@ pub fn type_block(bloc : rust::Bloc,
         }
     };
 
-    let expr = bloc.expr.map(|expr| type_checker(ctxt, expr, loc_ctxt, output, expected_typ).1);
+    let last_type;
 
-    match (&expr, expected_typ) {
-        (_, None) => (),
-        (Some(expr), Some(typ)) => {
-            if !are_compatible(typ, &expr.typed) {
-                todo!()
-            }
-        },
-        (None, Some(typ)) => {
-            match &typ.content {
-                typed_rust::PostTypeInner::Tuple(v) if v.len() == 0 => {},
-                _ => todo!()
-            }
-        },
-    };
+    if reachable {
+        last_type = match (content.pop(), expected_typ) {
+            (None, None) => { typed_rust::PostType::unit() },
+            (None, Some(typ)) if typ.is_unit() => { typed_rust::PostType::unit() },
+            (None, _) => todo!(),
+            (Some(instr), None) => {
+                let typ = match &instr {
+                    typed_rust::Instr::Expr(false, e) => e.typed.clone(),
+                    _ => typed_rust::PostType::unit(),
+                };
+                content.push(instr);
+                typ
+            },
+            (Some(instr), Some(expected_typ)) => {
+                let got_typ = match &instr {
+                    typed_rust::Instr::Expr(false, e) => e.typed.clone(),
+                    _ => typed_rust::PostType::unit(),
+                };
+                content.push(instr);
+                if !are_compatible(expected_typ, &got_typ) {
+                    todo!()
+                } else {
+                    got_typ
+                }
+            },
+        }
+    } else {
+        match (content.pop(), expected_typ) {
+            (Some(instr), None) => content.push(instr),
+            (Some(instr), Some(typ)) => {
+                match &instr {
+                    typed_rust::Instr::Expr(false, expr) => {
+                        if !are_compatible(typ, &expr.typed) {
+                            todo!()
+                        }
+                    },
+                    _ => (),
+                };
+                content.push(instr)
+            },
+            _ => (),
+        }
+        last_type = typed_rust::PostType::diverge()
+    }
 
     match loc_ctxt.pop_layer() {
         | Some(_) => (),
         | None => panic!("should not happen"),
     };
 
-    typed_rust::Bloc{ content, expr }
+    typed_rust::Bloc{ content, last_type }
 }
+
+/*[Expr(Expr {
+    content: If(
+        Expr {
+            content: FunCall(Ident { name: "i32_eq", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } },
+                [Expr {
+                    content: Var(Ident { name: "i", loc: Location { start: 85, end: 86 } }),
+                    loc: Location { start: 85, end: 86 },
+                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } },
+                Expr {
+                    content: Int(0),
+                    loc: Location { start: 90, end: 91 },
+                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 1 } }]),
+            loc: Location { start: 85, end: 91 },
+            typed: PostType { content: BuiltIn(Bool), size: 1 } },
+        Expr {
+            content: Bloc(Bloc {
+                content: [],
+                expr: Some(Expr {
+                        content: Proj(
+                            Expr {
+                                content: Var(Ident { name: "l", loc: Location { start: 94, end: 95 } }),
+                                loc: Location { start: 94, end: 95 },
+                                typed: PostType { content: Ref(false, PostType { content: Struct("L"), size: 12 }), size: 8 } },
+                            Name(Ident { name: "head", loc: Location { start: 96, end: 100 } })),
+                        loc: Location { start: 94, end: 100 },
+                        typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }) }),
+            loc: Location { start: 92, end: 102 },
+            typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } },
+        Expr {
+            content: Bloc(Bloc {
+                content: [],
+                expr: Some(Expr {
+                    content: FunCall(Ident { name: "get", loc: Location { start: 110, end: 113 } },
+                        [Expr {
+                            content: Ref(false,
+                                Expr {
+                                    content: FunCall(Ident { name: "get_element_vec", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } },
+                                        [Expr {
+                                            content: Proj(
+                                                Expr {
+                                                    content: Var(Ident { name: "l", loc: Location { start: 115, end: 116 } }),
+                                                    loc: Location { start: 115, end: 116 },
+                                                    typed: PostType { content: Ref(false, PostType { content: Struct("L"), size: 12 }), size: 8 } },
+                                                Name(Ident { name: "next", loc: Location { start: 117, end: 121 } })),
+                                            loc: Location { start: 115, end: 121 },
+                                            typed: PostType { content: IdentParametrized(Ident { name: "Vec", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } }, [PostType { content: Struct("L"), size: 12 }]), size: 8 } },
+                                        Expr {
+                                            content: Int(0),
+                                            loc: Location { start: 122, end: 123 },
+                                            typed: PostType { content: BuiltIn(Int(true, S32)), size: 1 } }]),
+                                    loc: Location { start: 115, end: 124 },
+                                    typed: PostType { content: Struct("L"), size: 12 } }),
+                            loc: Location { start: 114, end: 124 },
+                            typed: PostType { content: Ref(false, PostType { content: Struct("L"), size: 12 }), size: 8 } },
+                        Expr {
+                            content: FunCall(Ident { name: "i32_sub", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } },
+                                [Expr {
+                                    content: Var(Ident { name: "i", loc: Location { start: 126, end: 127 } }),
+                                    loc: Location { start: 126, end: 127 },
+                                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } },
+                                Expr {
+                                    content: Int(1),
+                                    loc: Location { start: 128, end: 129 },
+                                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 1 } }]),
+                            loc: Location { start: 126, end: 129 },
+                            typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }]),
+                    loc: Location { start: 110, end: 130 },
+                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }) }),
+                loc: Location { start: 108, end: 132 },
+                typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }),
+            loc: Location { start: 82, end: 132 },
+            typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } })]
+
+*/

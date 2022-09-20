@@ -172,21 +172,20 @@ peg::parser!{
         rule bloc() -> Bloc = precedence! {
             start:position!() "{" space() b:bloc_inner() { Bloc {
                 content : b.0.into_iter().rev().collect(),
-                expr : b.1,
-                loc : Location::new(start, b.2),
+                loc : Location::new(start, b.1),
             } }
         }
 
-        rule bloc_inner() -> (Vec<Instr>, Option<Expr>, usize) = precedence! {
-            i:instr() space() "}" end:position!() { (vec![i], None, end) }
-            e:expr() space() "}" end:position!() { (Vec::new(), Some(e), end) }
+        rule bloc_inner() -> (Vec<Instr>, usize) = precedence! {
+            i:instr() space() "}" end:position!() { (vec![i], end) }
+            e:expr() space() "}" end:position!() { (vec![Instr::Expr(false, e)], end) }
             i:instr() space() t:@
-                { let (mut v, opt, end) = t; v.push(i); (v, opt, end)}
-            "}" end:position!() { (Vec::new(), None, end) }
+                { let (mut v, end) = t; v.push(i); (v, end)}
+            "}" end:position!() { (Vec::new(), end) }
         } 
 
         rule instr() -> Instr = precedence! {
-            ";" { Instr::Expr(Expr::unit()) }
+            ";" { Instr::Expr(true, Expr::unit()) }
             "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";"
                 { Instr::Binding(b != None, n, e) }
             "while" spaces() e:expr() space() b:bloc()
@@ -195,8 +194,8 @@ peg::parser!{
                 { Instr::Return(None) }
             "return" spaces() e:expr() ";"
                 { Instr::Return(Some(e)) }
-            e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(e) }
-            i:if() { Instr::Expr(i) }
+            e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(true, e) }
+            i:if() { Instr::Expr(false, i) }
         }
 
         rule if() -> Expr = precedence! {

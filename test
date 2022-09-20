@@ -249,8 +249,11 @@ for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs t
     exit 1;;
 	"0") score=`expr $score + 1`;;
 	*)
+    verbose=1;
+    compile --type-only $f;
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+    exit 1;;
     esac
 done
 echo
