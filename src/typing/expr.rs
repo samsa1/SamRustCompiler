@@ -101,7 +101,10 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                         }
                     },
                 };
-                let mut expr = type_checker(ctxt, expr, loc_ctxt, out, expected_typ).1;
+                let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, expected_typ);
+                if b && !affectable {
+                    todo!()
+                };
                 (false,
                  Box::new(expr.typed.clone()).to_ref(b),
                  typed_rust::ExprInner::Ref(b, expr))
@@ -192,9 +195,21 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                     } else {
                         todo!()
                     }
+                } else if binop == BinOperator::Ne {
+                    let content = match &e1.typed.content {
+                        typed_rust::PostTypeInner::BuiltIn(built_in) => built_in,
+                        _ => todo!(),
+                    };
+                    if are_compatible(&e1.typed, &e2.typed) {
+                        let mut fun_name = String::from(builtin_name(content));
+                        fun_name.push_str("_ne");
+                        (false, typed_rust::PostType::bool(),
+                        typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1, e2]))
+                    } else {
+                        todo!()
+                    }
                 } else {
-                    println!("operator not implemented {:?}", binop);
-                    todo!()
+                    panic!("should never happen")
                 }
             },
 
@@ -243,6 +258,8 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                         let expr = type_checker(ctxt, expr, loc_ctxt, out, Some(arg)).1;
                         if are_compatible(arg, &expr.typed) {
                             args2.push(expr)
+                        } else {
+                            todo!()
                         };
                     }
                     (false, *output,
@@ -311,9 +328,29 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                 panic!("should not happen")
             },
 
-            rust::ExprInner::Method(_, name, args) => {
+            rust::ExprInner::Method(expr, name, args) => {
+                let expr = type_checker(ctxt, expr, loc_ctxt, out, None);
                 if name.get_content() == "len" && args.len() == 0 {
-                    todo!()
+                    match &expr.1.typed.content {
+                        typed_rust::PostTypeInner::IdentParametrized(id, args)
+                            if id.get_content() == "Vec" && args.len() == 1 => {
+                                (false, ctxt.get_typ("i32").unwrap().clone(),
+                                    typed_rust::ExprInner::FunCall(Ident::from_str("vec_len"),
+                                    vec![expr.1.to_ref(false)]))
+                        },
+                        typed_rust::PostTypeInner::Ref(mutable, typ) => {
+                            match &typ.content {
+                                typed_rust::PostTypeInner::IdentParametrized(id, args)
+                                    if id.get_content() == "Vec" && args.len() == 1 => {
+                                        (false, ctxt.get_typ("i32").unwrap().clone(),
+                                            typed_rust::ExprInner::FunCall(Ident::from_str("vec_len"),
+                                            vec![expr.1]))
+                                },
+                                _ => todo!(),
+                            }
+                        },
+                        _ => {todo!()},
+                    }
                 } else {
                     todo!()
                 }
@@ -529,6 +566,21 @@ pub fn type_block(bloc : rust::Bloc,
     };
 
     let expr = bloc.expr.map(|expr| type_checker(ctxt, expr, loc_ctxt, output, expected_typ).1);
+
+    match (&expr, expected_typ) {
+        (_, None) => (),
+        (Some(expr), Some(typ)) => {
+            if !are_compatible(typ, &expr.typed) {
+                todo!()
+            }
+        },
+        (None, Some(typ)) => {
+            match &typ.content {
+                typed_rust::PostTypeInner::Tuple(v) if v.len() == 0 => {},
+                _ => todo!()
+            }
+        },
+    };
 
     match loc_ctxt.pop_layer() {
         | Some(_) => (),

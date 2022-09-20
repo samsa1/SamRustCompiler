@@ -114,6 +114,16 @@ pub struct Expr {
     pub typed : PostType,
 }
 
+impl Expr {
+    pub fn to_ref(self, mutable : bool) -> Self {
+        Self {
+            typed : self.typed.clone().to_ref(mutable),
+            loc : self.loc,
+            content : Box::new(ExprInner::Ref(mutable, self)),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum ExprInner {
     If(Expr, Expr, Expr),
