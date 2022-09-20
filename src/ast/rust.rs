@@ -26,14 +26,12 @@ pub struct DeclStruct {
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreType {
     pub content : PreTypeInner,
-    pub mutable : bool,
 }
 
 impl PreType {
     pub fn unit() -> Self {
         Self {
             content : PreTypeInner::Tuple(Vec::new()),
-            mutable : false,
         }
     }
 }
@@ -42,23 +40,15 @@ impl PreType {
 pub enum PreTypeInner {
     Ident(common::Ident),
     IdentParametrized(common::Ident, Vec<PreType>),
-    Ref(Box<PreType>),
+    Ref(bool, Box<PreType>),
     Tuple(Vec<PreType>),
     Fun(Vec<PreType>, Box<PreType>),
 }
 
 impl PreTypeInner {
-    pub fn to_nonmut(self) -> PreType {
+    pub fn to_type(self) -> PreType {
         PreType {
-            content : self,
-            mutable : false,
-        }
-    }
-
-    pub fn to_mut(self) -> PreType {
-        PreType {
-            content : self,
-            mutable : true,
+            content : self
         }
     }
 }
@@ -104,6 +94,8 @@ pub enum ExprInner {
     Method(Expr, common::Ident, Vec<Expr>),
     FunCall(common::Ident, Vec<Expr>),
     MacroCall(common::Ident, Vec<Expr>),
+    BinaryOp(common::BinOperator, Expr, Expr),
+    UnaryOp(common::UnaOperator, Expr),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
@@ -113,6 +105,7 @@ pub enum ExprInner {
     String(String),
     Array(Vec<Expr>),
     Parenthesis(Expr),
+    Index(Expr, Expr),
 }
 
 impl ExprInner {

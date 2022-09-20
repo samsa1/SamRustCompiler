@@ -19,7 +19,7 @@ fn main() {
             if t.bytes().next() == Some(b'-') {
                 match t.as_str() {
                     "--parse-only" => parse_only = true,
-                    "--typing-only" => type_only = true,
+                    "--type-only" => type_only = true,
                     _ => panic!("unkown option"),
                 }
             } else {
@@ -36,7 +36,7 @@ fn main() {
     let parsed_file = frontend::parser::parse_file(filenames.pop().unwrap());
     if parse_only { std::process::exit(0)}
 
-    let _typed_file = typing::type_inferencer(parsed_file);
+    let typed_file = typing::type_inferencer(parsed_file);
 
     if type_only { std::process::exit(0) }
 

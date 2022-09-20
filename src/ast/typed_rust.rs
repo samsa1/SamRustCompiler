@@ -16,56 +16,90 @@ pub struct DeclFun {
 
 pub struct DeclStruct {
     pub name : common::Ident,
-    pub args : Vec<(common::Ident, PostType)>,
+    pub args : HashMap<String, PostType>,
+    pub size : usize, /* size in bytes */
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PostType {
     pub content : PostTypeInner,
-    pub mutable : bool,
+    pub size    : usize, /* size in bytes */
 }
 
 impl PostType {
     pub fn unit() -> Self {
         Self {
             content : PostTypeInner::Tuple(Vec::new()),
-            mutable : false,
+            size : 0,
+        }
+    }
+
+    pub const fn diverge() -> Self {
+        Self {
+            content : PostTypeInner::Diverge,
+            size : 0,
+        }
+    }
+
+    pub const fn bool() -> Self {
+        Self {
+            content : PostTypeInner::BuiltIn(common::BuiltinType::Bool),
+            size : 1,
+        }
+    }
+
+    pub const fn i32() -> Self {
+        Self {
+            content : PostTypeInner::BuiltIn(common::BuiltinType::Int(true, common::Sizes::S32)),
+            size : 1,
+        }
+    }
+
+    pub fn to_ref(self, mutable : bool) -> Self {
+        Self {
+            content : PostTypeInner::Ref(mutable, Box::new(self)),
+            size : 8,
+        }
+    }
+
+    pub const fn string() -> Self {
+        Self {
+            content : PostTypeInner::String,
+            size : 8,
+        }
+    }
+
+    pub fn is_mut_ref(&self) -> bool {
+        match &self.content {
+            PostTypeInner::Ref(true, _) => true,
+            _ => false
         }
     }
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum PostTypeInner {
-    BuildIn(common::BuildinType),
-    Struct(common::Ident),
-    Enum(common::Ident),
+    BuiltIn(common::BuiltinType),
+    Struct(String),
+    Enum(String),
+    Box(Box<PostType>),
     IdentParametrized(common::Ident, Vec<PostType>),
-    Ref(Box<PostType>),
+    Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     Fun(Vec<PostType>, Box<PostType>),
+    Diverge,
+    String,
 }
 
-impl PostTypeInner {
-    pub fn to_nonmut(self) -> PostType {
-        PostType {
-            content : self,
-            mutable : false,
-        }
-    }
-
-    pub fn to_mut(self) -> PostType {
-        PostType {
-            content : self,
-            mutable : true,
-        }
-    }
-}
-
+#[derive(Debug)]
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub values : HashMap<String, PostType>
+    pub expr : Option<Expr>,
+//    pub values : HashMap<String, PostType>,
+//    pub last_type : PostType,
 }
 
+#[derive(Debug)]
 pub enum Instr {
     Expr(Expr),
     Binding(bool, common::Ident, Expr),
@@ -73,12 +107,24 @@ pub enum Instr {
     Return(Option<Expr>),
 }
 
+#[derive(Debug)]
 pub struct Expr {
     pub content : Box<ExprInner>,
     pub loc : common::Location,
     pub typed : PostType,
 }
 
+impl Expr {
+    pub fn to_ref(self, mutable : bool) -> Self {
+        Self {
+            typed : self.typed.clone().to_ref(mutable),
+            loc : self.loc,
+            content : Box::new(ExprInner::Ref(mutable, self)),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum ExprInner {
     If(Expr, Expr, Expr),
     Bool(bool),
@@ -91,6 +137,10 @@ pub enum ExprInner {
     Ref(bool, Expr),
     Deref(Expr),
     Tuple(Vec<Expr>),
-    BuildStruct(common::Ident, Vec<Expr>),
-    Proj(Vec<Expr>, common::Projector),
+    BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
+    Proj(Expr, common::Projector),
+    Set(Expr, Expr),
+    Print(String),
+    String(String),
+    Vec(usize, Vec<Expr>),
 }

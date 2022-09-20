@@ -20,16 +20,15 @@ fn expr_of_bloc(b : Bloc) -> Expr {
 
 fn test_no_cmp(e: &Expr) {
     match &*e.content {
-        | ExprInner::Method(_, id, _) => {
-            if id.get_content() == "eq"
-                || id.get_content() == "neq"
-                || id.get_content() == "greater"
-                || id.get_content() == "greater_eq"
-                || id.get_content() == "lower"
-                || id.get_content() == "lower_eq" {
+        | ExprInner::BinaryOp(op, _, _)
+            if *op == BinOperator::Eq
+                || *op == BinOperator::Ne
+                || *op == BinOperator::Lower
+                || *op == BinOperator::LowerEq
+                || *op == BinOperator::Greater
+                || *op == BinOperator::GreaterEq => {
                     println!("invalid syntax");
                     std::process::exit(1)
-            }
         },
         | _ => (),
     }
@@ -68,14 +67,14 @@ peg::parser!{
         rule not_end_comment() -> () = !"*/" !"/*" n:([^'*'] / ['*']) { }
 
         rule comment() -> () = precedence! {
-            "/*" not_end_comment()* "*/" {println!("sing comment")}
-            "/*" not_end_comment()* comment() not_end_comment()* "*/" {println!("inner comment")}
+            "/*" not_end_comment()* "*/" {}
+            "/*" not_end_comment()* comment() not_end_comment()* "*/" {}
         }
 
         rule sgn_space() -> () = precedence! {
             [' ' | '\n']  {}
             ("//" [^'\n']* "\n") {}
-            comment() {println!("comment")}
+            comment() {}
         }
 
         rule spaces() -> () = (quiet!{sgn_space()+} / expected!("space")) { }
@@ -126,7 +125,6 @@ peg::parser!{
         rule decl_struct() -> DeclStruct =
             "struct" spaces() n:name() space() "{"
                 args:typ_decls() "}" {
-                println!("defined struct {:?}", n);
                 DeclStruct {
                     name : n,
                     args,
@@ -135,31 +133,36 @@ peg::parser!{
 
         rule reserved() =
             "true" / "false" / "if" / "else" / "while" / "fn" / "pub" / "struct" / "as" / "let" / "mut"
+            / "return"
 
         rule name() -> Ident =
+            start:position!() n:name_inner() end:position!() {
+                Ident::new_from(n, start, end)
+            }
+
+        rule name_inner() -> String =
             !reserved() n1:(quiet!{char()}/expected!("identifier")) n2:(char_num()*) {
                 let mut n = String::from(n1);
                 for c in n2.into_iter() {
                     n.push(c)
                 }
-                println!("parsed name {}", n);
-                Ident::from_str(&n)
+                n
             }
 
         rule typ() -> PreType = precedence! {
             "&" space() "mut" spaces() typ:typ() {
-                PreTypeInner::Ref(Box::new(typ)).to_mut()
+                PreTypeInner::Ref(true, Box::new(typ)).to_type()
             }
             "&" space() typ:typ() {
-                PreTypeInner::Ref(Box::new(typ)).to_nonmut()
+                PreTypeInner::Ref(false, Box::new(typ)).to_type()
             }
 
             typ:typ_no_ref() { typ}
         }
 
         rule typ_no_ref() -> PreType = precedence! {
-            n:name() "<" t:typ() ">" { PreTypeInner::IdentParametrized(n, vec![t]).to_nonmut()}
-            n:name() { PreTypeInner::Ident(n).to_nonmut()}
+            n:name() "<" t:typ() ">" { PreTypeInner::IdentParametrized(n, vec![t]).to_type()}
+            n:name() { PreTypeInner::Ident(n).to_type()}
         }
         
         // bloc with spaces
@@ -183,15 +186,17 @@ peg::parser!{
         } 
 
         rule instr() -> Instr = precedence! {
-            e:expr() space() (quiet!{";"} / expected!("end of expr")) { println!("parsed Instr"); Instr::Expr(e) }
-            ";" { println!("parsed Instr"); Instr::Expr(Expr::unit()) }
+            ";" { Instr::Expr(Expr::unit()) }
             "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";"
-                { println!("parsed Instr binding"); Instr::Binding(b != None, n, e) }
+                { Instr::Binding(b != None, n, e) }
             "while" spaces() e:expr() space() b:bloc()
-                { println!("parsed Instr"); Instr::While(e, b) }
-            "return" spaces() e:expr()? ";"
-                { println!("parsed Instr"); Instr::Return(e) }
-            i:if() { println!("parsed Instr if {:?}", i); Instr::Expr(i) }
+                { Instr::While(e, b) }
+            "return" space() ";"
+                { Instr::Return(None) }
+            "return" spaces() e:expr() ";"
+                { Instr::Return(Some(e)) }
+            e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(e) }
+            i:if() { Instr::Expr(i) }
         }
 
         rule if() -> Expr = precedence! {
@@ -215,11 +220,7 @@ peg::parser!{
 
         // expression starting with spaces
         rule expr_ws() -> Expr =
-            space() e:(quiet!{expr()} / expected!("expr")) space() { println!("parsed 135 {:?}", e); e }
-
-/*        rule expr() -> Expr = precedence! {
-            e:expr_in() { println!("parsed expr_in : 139 {:?}", e); to_expr(e) }
-        }*/
+            space() e:(quiet!{expr()} / expected!("expr")) space() { e }
 
         rule true_expr() -> Expr =
             start:position!() "true" end:position!() { to_expr(start, end, ExprInner::Bool(true)) }
@@ -241,7 +242,7 @@ peg::parser!{
 
         rule opt_expr_list() -> Vec<Expr> = precedence! {
             v:(expr_ws() ++ ",") { v }
-            n:space() { println!("empty of size unknown"); Vec::new() }
+            n:space() { Vec::new() }
         }
 
         rule expr_decl() -> (Ident, Expr) =
@@ -250,7 +251,7 @@ peg::parser!{
         rule expr() -> Expr = precedence! {
             e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
                 { to_expr(e1.loc.start(), end,
-                    ExprInner::Method(e1, Ident::from_str("index"), vec![e2])) }
+                    ExprInner::Index(e1, e2)) }
             n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
             n:name() space() "(" v:opt_expr_list() ")" end:position!()
@@ -260,107 +261,107 @@ peg::parser!{
             start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
                 { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec"), v)) }
             e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("set"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Set, e1, e2)) }
             --
             e1:(@) space() (quiet!{"||"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("or"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Or, e1, e2)) }
             --
             e1:(@) space() (quiet!{"&&"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("and"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::And, e1, e2)) }
             --
             e1:(@) space() (quiet!{"=="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("eq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Eq, e1, e2)) }
             e1:(@) space() (quiet!{"!="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("neq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Ne, e1, e2)) }
             e1:(@) space() (quiet!{"<"}/ expected!("infix operator")) space() e2:@  {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("lower"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Lower, e1, e2)) }
             e1:(@) space() (quiet!{"<="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("lower_eq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::LowerEq, e1, e2)) }
             e1:(@) space() (quiet!{">"}/ expected!("infix operator")) space() e2:@  {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("greater"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Greater, e1, e2)) }
             e1:(@) space() (quiet!{">="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("greater_eq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::GreaterEq, e1, e2)) }
             --
             e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("and"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Add, e1, e2)) }
             e1:(@) space() (quiet!{"-"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("sub"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Sub, e1, e2)) }
             --
             e1:(@) space() (quiet!{"*"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("times"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Times, e1, e2)) }
             e1:(@) space() (quiet!{"/"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("div"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Div, e1, e2)) }
             e1:(@) space() (quiet!{"%"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("mod"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Mod, e1, e2)) }
             --
             start:position!() "&" space() b:("mut" space())? e:@ { to_expr(start, e.loc.end(), ExprInner::Ref(b != None, e)) }
             start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
-            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Method(e, Ident::from_str("not"), Vec::new())) }
-            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Method(e, Ident::from_str("neg"), Vec::new())) }
-            e:(quiet!{small_expr()} / expected!("value")) { println!("{:?}", e); e }
+            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::LogicalNeg, e)) }
+            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::ArithNeg, e)) }
+            e:(quiet!{small_expr()} / expected!("value")) { e }
         }
 
         rule expr_no_bracket() -> Expr = precedence! {
             e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
                 { to_expr(e1.loc.start(), end,
-                    ExprInner::Method(e1, Ident::from_str("index"), vec![e2])) }
+                    ExprInner::Index(e1, e2)) }
             n:name() space() "(" v:opt_expr_list() ")" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::FunCall(n, v)) }
             n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
             start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
                 { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec"), v)) }
-            e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("set"), vec![e2])) }
+                e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Set, e1, e2)) }
             --
             e1:(@) space() (quiet!{"||"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("or"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Or, e1, e2)) }
             --
             e1:(@) space() (quiet!{"&&"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("and"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::And, e1, e2)) }
             --
             e1:(@) space() (quiet!{"=="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("eq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Eq, e1, e2)) }
             e1:(@) space() (quiet!{"!="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("neq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Ne, e1, e2)) }
             e1:(@) space() (quiet!{"<"}/ expected!("infix operator")) space() e2:@  {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("lower"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Lower, e1, e2)) }
             e1:(@) space() (quiet!{"<="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("lower_eq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::LowerEq, e1, e2)) }
             e1:(@) space() (quiet!{">"}/ expected!("infix operator")) space() e2:@  {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("greater"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Greater, e1, e2)) }
             e1:(@) space() (quiet!{">="}/ expected!("infix operator")) space() e2:@ {
                 test_no_cmp(&e1); test_no_cmp(&e2);
-                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("greater_eq"), vec![e2])) }
+                to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::GreaterEq, e1, e2)) }
             --
             e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("and"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Add, e1, e2)) }
             e1:(@) space() (quiet!{"-"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("sub"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Sub, e1, e2)) }
             --
             e1:(@) space() (quiet!{"*"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("times"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Times, e1, e2)) }
             e1:(@) space() (quiet!{"/"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("div"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Div, e1, e2)) }
             e1:(@) space() (quiet!{"%"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::Method(e1, Ident::from_str("mod"), vec![e2])) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Mod, e1, e2)) }
             --
             start:position!() "&" space() b:("mut" space())? e:@ { to_expr(start, e.loc.end(), ExprInner::Ref(b != None, e)) }
             start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
-            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Method(e, Ident::from_str("not"), Vec::new())) }
-            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Method(e, Ident::from_str("neg"), Vec::new())) }
-            e:(quiet!{small_expr()} / expected!("value")) { println!("{:?}", e); e }
+            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::LogicalNeg, e)) }
+            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::ArithNeg, e)) }
+            e:(quiet!{small_expr()} / expected!("value")) { e }
         }
 
         rule proj() -> Projector = precedence! {

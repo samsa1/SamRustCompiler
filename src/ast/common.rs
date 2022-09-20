@@ -51,9 +51,17 @@ impl Ident {
         }
     }
 
+    pub fn new_from(name : String, start : usize, end : usize) -> Self {
+        Self {
+            name,
+            loc : Location::new(start, end),
+        }
+    }
+
     pub fn get_loc(&self) -> &Location {
         &self.loc
     }
+
 }
 
 impl PartialEq for Ident {
@@ -104,7 +112,7 @@ pub enum Sizes {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum BuildinType {
+pub enum BuiltinType {
     Int(bool /* signed */, Sizes),
     Bool,
 }
@@ -113,4 +121,28 @@ pub enum BuildinType {
 pub enum Projector {
     Int(usize),
     Name(Ident),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BinOperator {
+    Add,
+    Sub,
+    Times,
+    Mod,
+    Div,
+    Eq,
+    Ne,
+    Lower,
+    LowerEq,
+    Greater,
+    GreaterEq,
+    Set,
+    And,
+    Or,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum UnaOperator {
+    LogicalNeg,
+    ArithNeg,
 }
