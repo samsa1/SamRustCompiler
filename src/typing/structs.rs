@@ -151,6 +151,14 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
                     content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typ.clone()))
                 });
             }
+            let mut fun_name = name.to_string();
+            fun_name.push_str("::");
+            fun_name.push_str("Not");
+            sizes.implement_trait(&typ, Trait::Name("Not".to_string()), fun_name.clone());
+            sizes.insert(fun_name, typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Fun(vec![typ.clone()], Box::new(typ.clone()))
+            });
+
         }
 
         if raw_type.is_int() {
@@ -181,7 +189,18 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
                     content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typed_rust::PostType::bool()))
                 });
             }
+
+            let mut fun_name = name.to_string();
+            fun_name.push_str("::");
+            fun_name.push_str("Neg");
+            sizes.implement_trait(&typ, Trait::Name("Neg".to_string()), fun_name.clone());
+            sizes.insert(fun_name, typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Fun(vec![typ.clone()], Box::new(typ.clone()))
+            });
+
         };
+
+
 
         let mut fun_name = name.to_string();
         fun_name.push_str("::");

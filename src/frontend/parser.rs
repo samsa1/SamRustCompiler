@@ -301,8 +301,8 @@ peg::parser!{
             --
             start:position!() "&" space() b:("mut" space())? e:@ { to_expr(start, e.loc.end(), ExprInner::Ref(b != None, e)) }
             start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
-            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::LogicalNeg, e)) }
-            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::ArithNeg, e)) }
+            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Not, e)) }
+            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Neg, e)) }
             e:(quiet!{small_expr()} / expected!("value")) { e }
         }
 
@@ -358,8 +358,8 @@ peg::parser!{
             --
             start:position!() "&" space() b:("mut" space())? e:@ { to_expr(start, e.loc.end(), ExprInner::Ref(b != None, e)) }
             start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
-            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::LogicalNeg, e)) }
-            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::ArithNeg, e)) }
+            start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Not, e)) }
+            start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Neg, e)) }
             e:(quiet!{small_expr()} / expected!("value")) { e }
         }
 

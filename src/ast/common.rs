@@ -158,21 +158,21 @@ impl BinOperator {
     pub fn get_trait_name(self) -> (&'static str, &'static str) {
         match self {
             Self::Add => ("Add", ""),
-            Self::Div => ("Div", ""),
             Self::Sub => ("Sub", ""),
-            Self::Mul => ("Mul", ""),
+            Self::Div => ("Div", ""),
             Self::Mod => ("Mod", ""),
+            Self::Mul => ("Mul", ""),
     
-            Self::Or  => ("Or", ""),
             Self::And => ("And", ""),
+            Self::Or  => ("Or", ""),
     
             Self::Eq => ("PartialEq", "_eq"),
             Self::Ne => ("PartialEq", "_ne"),
     
-            Self::Lower     => ("PartialOrd", "_lo"),
-            Self::LowerEq   => ("PartialOrd", "_le"),
             Self::Greater   => ("PartialOrd", "_gr"),
             Self::GreaterEq => ("PartialOrd", "_ge"),
+            Self::Lower     => ("PartialOrd", "_lo"),
+            Self::LowerEq   => ("PartialOrd", "_le"),
             
             Self::Set => todo!(),
         }
@@ -181,6 +181,15 @@ impl BinOperator {
 
 #[derive(Debug, Clone, Copy)]
 pub enum UnaOperator {
-    LogicalNeg,
-    ArithNeg,
+    Not,
+    Neg,
+}
+
+impl UnaOperator {
+    pub fn get_trait_name(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Neg => ("Neg", ""),
+            Self::Not => ("Not", ""),
+        }
+    }
 }

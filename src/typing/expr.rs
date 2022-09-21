@@ -27,7 +27,7 @@ fn get_index_function(ctxt : &context::GlobalContext, typ : &typed_rust::PostTyp
     }
 }
 
-fn get_arith_fun_name<'a>(ctxt : &'a context::GlobalContext,
+fn get_binop_fun_name<'a>(ctxt : &'a context::GlobalContext,
     binop : BinOperator,
     typ1 : &typed_rust::PostType,
     typ2 : &typed_rust::PostType) -> Option<String> {
@@ -37,6 +37,22 @@ fn get_arith_fun_name<'a>(ctxt : &'a context::GlobalContext,
         None => None,
         Some(s) => {
             println!("prefix {} for {:?} {:?}", s, binop, binop.get_trait_name());
+            let mut s = s.to_string();
+            s.push_str(fun_suffix);
+            Some(s)
+        }
+    }
+}
+
+fn get_unaop_fun_name<'a>(ctxt : &'a context::GlobalContext,
+    unaop : UnaOperator,
+    typ1 : &typed_rust::PostType) -> Option<String> {
+    let (name, fun_suffix) = unaop.get_trait_name();
+    let name = String::from(name);
+    match ctxt.has_trait(typ1, &context::Trait::Name(name)) {
+        None => None,
+        Some(s) => {
+            println!("prefix {} for {:?} {:?}", s, unaop, unaop.get_trait_name());
             let mut s = s.to_string();
             s.push_str(fun_suffix);
             Some(s)
@@ -162,7 +178,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
             rust::ExprInner::BinaryOp(binop, e1, e2) => {
                 let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
                 let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
-                if let Some(fun_name) = get_arith_fun_name(ctxt, binop, &e1.typed, &e2.typed) {
+                if let Some(fun_name) = get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed) {
                     if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
                         (false, fun_typ.fun_out_typ().unwrap().clone(),
                         typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1, e2]))
@@ -174,101 +190,17 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                 }
             },
 
-
-/*            rust::ExprInner::BinaryOp(binop, e1, e2) => {
+            rust::ExprInner::UnaryOp(unaop, e1) => {
                 let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
-                let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
-                if let Some(fun_suffix) = arith_fun_name(binop) {
-                    if let Some(typ_name) = type_int_name(&e1.typed) {
-                        if are_compatible(&e1.typed, &e2.typed) {
-                            let mut name = String::from(typ_name);
-                            name.push_str(fun_suffix);
-                            (false, e1.typed.clone(),
-                            typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
-                        } else {
-                            todo!()
-                        }
+                if let Some(fun_name) = get_unaop_fun_name(ctxt, unaop, &e1.typed) {
+                    if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
+                        (false, fun_typ.fun_out_typ().unwrap().clone(),
+                        typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1]))
                     } else {
-                        todo!()
-                    }
-                } else if let Some(fun_suffix) = arith_cmp_fun(binop) {
-                    if let Some(typ_name) = type_int_name(&e1.typed) {
-                        if are_compatible(&e1.typed, &e2.typed) {
-                            let mut name = String::from(typ_name);
-                            name.push_str(fun_suffix);
-                            (false, typed_rust::PostType::bool(),
-                            typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
-                        } else {
-                            println!("not compatible for cmp {:?} {:?}", e1.typed.content, e2.typed.content);
-                            todo!()
-                        }
-                    } else {
-                        todo!()
-                    }
-                } else if let Some(fun_suffix) = bool_fun_name(binop) {
-                    if are_compatible(&typed_rust::PostType::bool(), &e1.typed)
-                        && are_compatible(&typed_rust::PostType::bool(), &e2.typed) {
-                            let mut name = String::from("bool");
-                            name.push_str(fun_suffix);
-                            (false, typed_rust::PostType::bool(),
-                            typed_rust::ExprInner::FunCall(Ident::from_str(&name), vec![e1, e2]))
-                    } else {
-                        println!("not compatible for logic {:?} {:?}", e1.typed.content, e2.typed.content);
-                        todo!()
-                    }
-                } else if binop == BinOperator::Eq {
-                    let content = match &e1.typed.content {
-                        typed_rust::PostTypeInner::BuiltIn(built_in) => built_in,
-                        _ => todo!(),
-                    };
-                    if are_compatible(&e1.typed, &e2.typed) {
-                        let mut fun_name = String::from(builtin_name(content));
-                        fun_name.push_str("_eq");
-                        (false, typed_rust::PostType::bool(),
-                        typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1, e2]))
-                    } else {
-                        todo!()
-                    }
-                } else if binop == BinOperator::Ne {
-                    let content = match &e1.typed.content {
-                        typed_rust::PostTypeInner::BuiltIn(built_in) => built_in,
-                        _ => todo!(),
-                    };
-                    if are_compatible(&e1.typed, &e2.typed) {
-                        let mut fun_name = String::from(builtin_name(content));
-                        fun_name.push_str("_ne");
-                        (false, typed_rust::PostType::bool(),
-                        typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1, e2]))
-                    } else {
-                        todo!()
+                        panic!("should not happen {}", fun_name);
                     }
                 } else {
-                    panic!("should never happen")
-                }
-            },*/
-
-            rust::ExprInner::UnaryOp(UnaOperator::ArithNeg, expr) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, out, None).1;
-                match &expr.typed.content {
-                    typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(true, size)) => {
-                        let fun_name = match size {
-                            Sizes::S32 => "i32_neg",
-                            Sizes::S64 => "i64_neg",
-                            Sizes::SUsize => "isize_neg",
-                        };
-                        (false, expr.typed.clone(),
-                        typed_rust::ExprInner::FunCall(Ident::from_str(fun_name), vec![expr]))
-                    },
-                    _ => todo!()
-                }
-            }
-
-            rust::ExprInner::UnaryOp(UnaOperator::LogicalNeg, expr) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, out, None).1;
-                if are_compatible(&typed_rust::PostType::bool(), &expr.typed) {
-                    (false, typed_rust::PostType::bool(),
-                    typed_rust::ExprInner::FunCall(Ident::from_str("bool_neg"), vec![expr]))
-                } else {
+                    println!("{:?} {:?}", unaop, e1);
                     todo!()
                 }
             },
