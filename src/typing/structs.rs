@@ -197,10 +197,17 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
             sizes.insert(fun_name, typed_rust::PostType {
                 content : typed_rust::PostTypeInner::Fun(vec![typ.clone()], Box::new(typ.clone()))
             });
-
         };
 
+        let mut fun_name = name.to_string();
+        fun_name.push_str("::");
+        fun_name.push_str("Copy");
+        sizes.implement_trait(&typ, Trait::Name("Copy".to_string()), fun_name.clone());
 
+        let mut fun_name = name.to_string();
+        fun_name.push_str("::");
+        fun_name.push_str("Clone");
+        sizes.implement_trait(&typ, Trait::Name("Clone".to_string()), fun_name.clone());
 
         let mut fun_name = name.to_string();
         fun_name.push_str("::");

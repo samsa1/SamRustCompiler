@@ -5,6 +5,7 @@ pub mod context;
 mod structs;
 mod expr;
 pub mod types;
+mod scopes;
 
 fn type_funs(funs : Vec<rust::DeclFun>, known_types : &mut context::GlobalContext) -> Vec<typed_rust::DeclFun> {
     let mut fun_types = Vec::new();
