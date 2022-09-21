@@ -12,19 +12,18 @@ fn main() {
 
     let mut args = std::env::args().skip(1);
 //    println!("{:?}", args);
+    #[allow(clippy::while_let_on_iterator)]
     while let Some(t) = args.next() {
-        if t.len() == 0 {
+        if t.is_empty() {
             panic!("should never happen")
-        } else {
-            if t.bytes().next() == Some(b'-') {
-                match t.as_str() {
-                    "--parse-only" => parse_only = true,
-                    "--type-only" => type_only = true,
-                    _ => panic!("unkown option"),
-                }
-            } else {
-                filenames.push(t)
+        } else if t.bytes().next() == Some(b'-') {
+            match t.as_str() {
+                "--parse-only" => parse_only = true,
+                "--type-only" => type_only = true,
+                _ => panic!("unkown option"),
             }
+        } else {
+            filenames.push(t)
         }
     }
 //    println!("{:?}", filenames);

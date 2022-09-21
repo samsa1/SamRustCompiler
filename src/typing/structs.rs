@@ -4,7 +4,7 @@ use std::collections::{HashMap, HashSet};
 use super::types::{compute_size, translate_typ};
 use super::context::{GlobalContext, Trait};
 
-const DEFAULT_TYPES : [(&'static str, BuiltinType); 7] = [
+const DEFAULT_TYPES : [(&str, BuiltinType); 7] = [
     ("usize",   BuiltinType::Int(false, Sizes::SUsize)),
     ("isize",   BuiltinType::Int(true,  Sizes::SUsize)),
     ("u64",     BuiltinType::Int(false, Sizes::S64)),
@@ -14,11 +14,11 @@ const DEFAULT_TYPES : [(&'static str, BuiltinType); 7] = [
     ("bool",    BuiltinType::Bool),
 ];
 
-const DEFAULT_TRAITS_ARITH : [&'static str; 5] = [
+const DEFAULT_TRAITS_ARITH : [&str; 5] = [
     "Add", "Div", "Sub", "Mul", "Mod"
 ];
 
-const DEFAULT_TRAITS_LOGIC : [&'static str; 2] = [
+const DEFAULT_TRAITS_LOGIC : [&str; 2] = [
     "And", "Or"
 ];
 
@@ -39,11 +39,9 @@ impl Graph {
 
     fn add_node(&mut self, name : String) {
         if self.names.get(&name) == None {
-//            println!("adding {:?} to {:?}", name, self.names);
-            if let Some(_) = self.names.insert(name, self.size) {
+            if self.names.insert(name, self.size).is_some() {
                 todo!()
             };
-//            println!("added");
             self.size += 1;
             self.edges.push(HashSet::new());
         } else {
@@ -244,13 +242,12 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
         for (_, typ) in struct_decl.args.iter() {
             size += compute_size(typ, &sizes);
         }
-        assert_eq!(
+        assert!(
             sizes.insert(struct_decl.name.get_content().to_string(),
                 typed_rust::PostType {
                     content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
-            }).is_none(), true);
-        assert_eq!(
-            sizes.insert_size(struct_decl.name.get_content().to_string(), size).is_none(), true);
+            }).is_none());
+        assert!(sizes.insert_size(struct_decl.name.get_content().to_string(), size).is_none());
         }
 
     for struct_decl in structs.into_iter() {

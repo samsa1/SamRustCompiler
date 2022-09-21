@@ -96,7 +96,7 @@ impl GlobalContext {
     }
 
     pub fn insert_size(&mut self, name : String, size : usize) -> Option<usize> {
-        self.sizes.insert(name.clone(), size)
+        self.sizes.insert(name, size)
     }
 
     pub fn insert(&mut self, name : String, typ : PostType) -> Option<PostType> {
@@ -108,8 +108,7 @@ impl GlobalContext {
             None => {
                 let mut hashset = HashSet::new();
                 hashset.insert(TraitInner { content : t, fun : fun_name });
-                assert_eq!(true,
-                    self.implemented_traits.insert(typ.clone(), hashset).is_none());
+                assert!(self.implemented_traits.insert(typ.clone(), hashset).is_none());
                 true
             },
             Some(traits) => {
@@ -139,7 +138,7 @@ impl GlobalContext {
     }
 
     pub fn get_size(&self, name : &str) -> Option<usize> {
-        self.sizes.get(name).map(|i| *i)
+        self.sizes.get(name).copied()
     }
 
     pub fn get_struct(&self, name : &str) -> Option<&StructInfo> {
@@ -147,7 +146,7 @@ impl GlobalContext {
     }
 
     pub fn struct_infos(&self, name : &str) -> Option<StructInfo> {
-        self.structs.get(name).map(|si| si.clone())
+        self.structs.get(name).cloned()
     }
 
     pub fn add_struct(&mut self, name : String, typ : PostType, args : HashMap<String, PostType>) -> Option<PostType> {
@@ -165,11 +164,10 @@ pub struct LocalContext {
 
 impl LocalContext {
 
-    pub fn new(in_types : &Vec<(Ident, bool, PostType)>) -> Self {
+    pub fn new(in_types : &[(Ident, bool, PostType)]) -> Self {
         let mut in_types2 = HashMap::new();
         for (name, b, typ) in in_types.iter() {
-            assert_eq!(true,
-                in_types2.insert(name.get_content().to_string(), (*b, typ.clone())).is_none())
+            assert!(in_types2.insert(name.get_content().to_string(), (*b, typ.clone())).is_none())
         }
         
         Self {

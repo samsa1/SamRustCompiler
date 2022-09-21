@@ -35,12 +35,9 @@ fn check_scopes(ctxt : &GlobalContext, expr : &Expr, ref_autorized : bool, scope
         ExprInner::Bool(_) | ExprInner::Int(_) => (),
         ExprInner::Bloc(_bloc) => todo!(),
         ExprInner::Var(id) => {
-            if ctxt.has_trait(&expr.typed, &Trait::Name("Copy".to_string())).is_some() {
-                ()
-            } else {
-                if !scope_scan.mark_moved(id.get_content()) {
-                    todo!()
-                }
+            if ctxt.has_trait(&expr.typed, &Trait::Name("Copy".to_string())).is_none()
+                    && !scope_scan.mark_moved(id.get_content()) {
+                todo!()
             }
         },
         ExprInner::FunCall(_, _) => todo!(),

@@ -96,8 +96,8 @@ pub fn are_compatible(expected : &PostType, got : &PostType) -> bool {
         (_, PostTypeInner::Diverge) => true,
         (PostTypeInner::BuiltIn(b1), PostTypeInner::BuiltIn(b2)) => b1 == b2,
         (PostTypeInner::Struct(name1), PostTypeInner::Struct(name2)) => name1 == name2,
-        (PostTypeInner::Box(box1), PostTypeInner::Box(box2)) => are_compatible(&*box1, &*box2),
-        (PostTypeInner::Ref(mut1, box1), PostTypeInner::Ref(mut2, box2)) => (*mut2 || !*mut1) && are_compatible(&*box1, &*box2),
+        (PostTypeInner::Box(box1), PostTypeInner::Box(box2)) => are_compatible(&**box1, &**box2),
+        (PostTypeInner::Ref(mut1, box1), PostTypeInner::Ref(mut2, box2)) => (*mut2 || !*mut1) && are_compatible(&**box1, &**box2),
         (PostTypeInner::Tuple(vec1), PostTypeInner::Tuple(vec2)) if vec1.len() == vec2.len() => {
             for (t1, t2) in vec1.iter().zip(vec2.iter()) {
                 if !are_compatible(t1, t2) {
@@ -130,7 +130,7 @@ pub fn biggest_compatible(typ1 : &PostType, typ2 : &PostType) -> Option<PostType
          PostTypeInner::BuiltIn(btyp2)) if btyp1 == btyp2 => Some(typ1.clone()),
         (PostTypeInner::Ref(b1, typ1),
          PostTypeInner::Ref(b2, typ2)) =>
-            biggest_compatible(&*typ1, &*typ2).map(|t| t.to_ref(*b1 && *b2)),
+            biggest_compatible(&**typ1, &**typ2).map(|t| t.to_ref(*b1 && *b2)),
         (PostTypeInner::Tuple(vec1),
          PostTypeInner::Tuple(vec2)) if vec1.len() == vec2.len() => {
             let mut vec_out = Vec::new();
@@ -156,20 +156,14 @@ pub fn biggest_compatible(typ1 : &PostType, typ2 : &PostType) -> Option<PostType
 
 pub fn is_type_int(typ : &Option<PostType>) -> bool {
     if let Some(typ) = typ {
-        match &typ.content {
-            PostTypeInner::BuiltIn(BuiltinType::Int(_, _)) => true,
-            _ => false
-        }
+        matches!(&typ.content, PostTypeInner::BuiltIn(_))
     } else {
         false
     }
 }
 
 pub fn can_be_deref(typ : &PostType) -> bool {
-    match &typ.content {
-        PostTypeInner::BuiltIn(_) => true,
-        _ => false
-    }
+    matches!(&typ.content, PostTypeInner::BuiltIn(_))
 }
 
 pub fn type_int_name(typ : &PostType) -> Option<&'static str> {

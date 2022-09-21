@@ -68,22 +68,19 @@ impl PostType {
     }
 
     pub fn is_mut_ref(&self) -> bool {
-        match &self.content {
-            PostTypeInner::Ref(true, _) => true,
-            _ => false
-        }
+        matches!(&self.content, PostTypeInner::Ref(true, _))
     }
 
     pub fn is_unit(&self) -> bool {
         match &self.content {
-            PostTypeInner::Tuple(v) => v.len() == 0,
+            PostTypeInner::Tuple(v) => v.is_empty(),
             _ => false,
         }
     }
 
     pub fn fun_out_typ(&self) -> Option<&Self> {
         match &self.content {
-            PostTypeInner::Fun(_, out) => Some(&*out),
+            PostTypeInner::Fun(_, out) => Some(&**out),
             _ => None,
         }
     }

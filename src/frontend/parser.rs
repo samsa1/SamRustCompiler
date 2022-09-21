@@ -1,6 +1,6 @@
 use crate::ast::{common::*, rust::*};
 use std::fs;
-
+use std::str::FromStr;
 
 fn to_expr(start : usize, end : usize, e : ExprInner) -> Expr {
     Expr {
@@ -63,7 +63,7 @@ peg::parser!{
         pub rule file() -> Vec<Decl> =
             space() d:decl()* { d }
 
-        rule not_return() -> () = !"\n" ['\x00'..='\x7f'] { () }
+        rule not_return() -> () = !"\n" ['\x00'..='\x7f'] { }
         rule not_end_comment() -> () = !"*/" !"/*" n:([^'*'] / ['*']) { }
 
         rule comment() -> () = precedence! {
@@ -78,9 +78,9 @@ peg::parser!{
         }
 
         rule spaces() -> () = (quiet!{sgn_space()+} / expected!("space")) { }
-        rule _spaces() -> () = sgn_space()+ { () }
+        rule _spaces() -> () = sgn_space()+ { }
 
-        rule space() -> () = quiet!{sgn_space()*} { () }
+        rule space() -> () = quiet!{sgn_space()*} { }
 
         rule decl() -> Decl = precedence!{
             df:decl_fun() space() { Decl::Fun(df) }
@@ -258,7 +258,7 @@ peg::parser!{
             n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
             start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
-                { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec"), v)) }
+                { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec").unwrap(), v)) }
             e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
                 { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Set, e1, e2)) }
             --
@@ -315,7 +315,7 @@ peg::parser!{
             n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
                 { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
             start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
-                { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec"), v)) }
+                { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec").unwrap(), v)) }
                 e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
                 { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Set, e1, e2)) }
             --

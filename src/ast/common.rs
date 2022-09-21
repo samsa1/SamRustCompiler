@@ -1,3 +1,4 @@
+use std::str::FromStr;
 
 pub enum BinOp {
     Eq,
@@ -37,17 +38,10 @@ impl Ident {
         self.name
     }
 
-    pub fn from_str(s : &str) -> Self {
-        Self {
-            name : s.to_string(),
-            loc : Location::default(),
-        }
-    }
-
     pub fn new(s:&str, loc:Location) -> Self {
         Self {
             name : s.to_string(),
-            loc : loc,
+            loc,
         }
     }
 
@@ -64,14 +58,25 @@ impl Ident {
 
 }
 
+impl FromStr for Ident {
+    type Err = ();
+    
+    fn from_str(s : &str) -> Result<Self, Self::Err> {
+        Ok(Self {
+            name : s.to_string(),
+            loc : Location::default(),
+        })
+    }
+}
+
 impl PartialEq for Ident {
     fn eq(&self, other : &Self) -> bool {
         self.name == other.name
     }
 
-    fn ne(&self, other : &Self) -> bool {
+/*    fn ne(&self, other : &Self) -> bool {
         self.name != other.name
-    }
+    }*/
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -119,14 +124,11 @@ pub enum BuiltinType {
 
 impl BuiltinType {
     pub fn is_int(&self) -> bool {
-        match self {
-            Self::Int(_, _) => true,
-            _ => false,
-        }
+        matches!(self, Self::Int(_, _))
     }
 
     pub fn is_bool(&self) -> bool {
-        self == &Self::Bool
+        matches!(self, Self::Bool)
     }
 }
 
