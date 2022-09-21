@@ -2,7 +2,7 @@ use crate::ast::{rust, typed_rust, common::*};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use std::collections::{HashMap, HashSet};
 use super::types::{compute_size, translate_typ};
-use super::context::GlobalContext;
+use super::context::{GlobalContext, Trait};
 
 const DEFAULT_TYPES : [(&'static str, BuiltinType); 7] = [
     ("usize",   BuiltinType::Int(false, Sizes::SUsize)),
@@ -12,6 +12,14 @@ const DEFAULT_TYPES : [(&'static str, BuiltinType); 7] = [
     ("u32",     BuiltinType::Int(false, Sizes::S32)),
     ("i32",     BuiltinType::Int(true,  Sizes::S32)),
     ("bool",    BuiltinType::Bool),
+];
+
+const DEFAULT_TRAITS_ARITH : [&'static str; 5] = [
+    "Add", "Div", "Sub", "Mul", "Mod"
+];
+
+const DEFAULT_TRAITS_LOGIC : [&'static str; 2] = [
+    "And", "Or"
 ];
 
 struct Graph {
@@ -124,11 +132,74 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
 
     let mut sizes = GlobalContext::new();
     let mut set = HashSet::new();
-    for (name, typ) in DEFAULT_TYPES {
+    for (name, raw_type) in DEFAULT_TYPES {
+        sizes.insert_size(name.to_string(), compute_size_builtin(&raw_type));
         let typ = PostType {
-            size : compute_size_builtin(&typ),
-            content : PostTypeInner::BuiltIn(typ),
+            content : PostTypeInner::BuiltIn(raw_type),
         };
+
+        if raw_type.is_bool() {
+            for logic_trait in DEFAULT_TRAITS_LOGIC {
+                let mut fun_name = name.to_string();
+                fun_name.push_str("::");
+                fun_name.push_str(logic_trait);
+                fun_name.push('<');
+                fun_name.push_str(name);
+                fun_name.push('>');
+                sizes.implement_trait(&typ, Trait::Parametrized(logic_trait.to_string(), Some(typ.clone())), fun_name.clone());
+                sizes.insert(fun_name, typed_rust::PostType {
+                    content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typ.clone()))
+                });
+            }
+        }
+
+        if raw_type.is_int() {
+            for arith_trait in DEFAULT_TRAITS_ARITH {
+                let mut fun_name = name.to_string();
+                fun_name.push_str("::");
+                fun_name.push_str(arith_trait);
+                fun_name.push('<');
+                fun_name.push_str(name);
+                fun_name.push('>');
+                sizes.implement_trait(&typ, Trait::Parametrized(arith_trait.to_string(), Some(typ.clone())), fun_name.clone());
+                sizes.insert(fun_name, typed_rust::PostType {
+                    content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typ.clone()))
+                });
+            };
+            let mut fun_name = name.to_string();
+            fun_name.push_str("::");
+            fun_name.push_str("PartialOrd");
+            fun_name.push('<');
+            fun_name.push_str(name);
+            fun_name.push('>');
+            sizes.implement_trait(&typ, Trait::Parametrized("PartialOrd".to_string(), Some(typ.clone())), fun_name.clone());
+            for tail in ["_le", "_lo", "_gr", "_ge"] {
+                let mut fun_name2 = fun_name.clone();
+                fun_name2.push_str(tail);
+                println!("implementing {}", fun_name2);
+                sizes.insert(fun_name2, typed_rust::PostType {
+                    content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typed_rust::PostType::bool()))
+                });
+            }
+        };
+
+        let mut fun_name = name.to_string();
+        fun_name.push_str("::");
+        fun_name.push_str("PartialEq");
+        fun_name.push('<');
+        fun_name.push_str(name);
+        fun_name.push('>');
+        sizes.implement_trait(&typ, Trait::Parametrized("PartialEq".to_string(), Some(typ.clone())), fun_name.clone());
+        for tail in ["_eq", "_ne"] {
+            let mut fun_name2 = fun_name.clone();
+            fun_name2.push_str(tail);
+            println!("implementing {}", fun_name2);
+            sizes.insert(fun_name2, typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typed_rust::PostType::bool()))
+            });
+        }
+
+
         sizes.insert(name.to_string(), typ);
         set.insert(name.to_string());
     }
@@ -151,16 +222,15 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
             sizes.insert(struct_decl.name.get_content().to_string(),
                 typed_rust::PostType {
                     content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
-                    size,
-            }), None);
-    }
+            }).is_none(), true);
+        assert_eq!(
+            sizes.insert_size(struct_decl.name.get_content().to_string(), size).is_none(), true);
+        }
 
     for struct_decl in structs.into_iter() {
         let mut args = HashMap::new();
-        let mut size = 0;
         for (name, typ) in struct_decl.args.into_iter() {
             let typ = translate_typ(typ, &sizes);
-            size += typ.size;
             match args.insert(name.content(), typ) {
                 None => (),
                 Some(_) => todo!(),
@@ -170,14 +240,13 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
             struct_decl.name.get_content().to_string(),
             typed_rust::PostType {
                 content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
-                size,
             },
             args.clone(),
         );
         structs2.push(typed_rust::DeclStruct {
+            size : sizes.get_size(struct_decl.name.get_content()).unwrap(),
             name : struct_decl.name,
             args,
-            size,
         })
     }
 

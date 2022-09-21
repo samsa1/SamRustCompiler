@@ -20,52 +20,50 @@ pub struct DeclStruct {
     pub size : usize, /* size in bytes */
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct PostType {
     pub content : PostTypeInner,
-    pub size    : usize, /* size in bytes */
 }
 
 impl PostType {
     pub fn unit() -> Self {
         Self {
             content : PostTypeInner::Tuple(Vec::new()),
-            size : 0,
+//            size : 0,
         }
     }
 
     pub const fn diverge() -> Self {
         Self {
             content : PostTypeInner::Diverge,
-            size : 0,
+//            size : 0,
         }
     }
 
     pub const fn bool() -> Self {
         Self {
             content : PostTypeInner::BuiltIn(common::BuiltinType::Bool),
-            size : 1,
+//            size : 1,
         }
     }
 
     pub const fn i32() -> Self {
         Self {
             content : PostTypeInner::BuiltIn(common::BuiltinType::Int(true, common::Sizes::S32)),
-            size : 1,
+//            size : 1,
         }
     }
 
     pub fn to_ref(self, mutable : bool) -> Self {
         Self {
             content : PostTypeInner::Ref(mutable, Box::new(self)),
-            size : 8,
+//            size : 8,
         }
     }
 
     pub const fn string() -> Self {
         Self {
             content : PostTypeInner::String,
-            size : 8,
         }
     }
 
@@ -82,15 +80,22 @@ impl PostType {
             _ => false,
         }
     }
+
+    pub fn fun_out_typ(&self) -> Option<&Self> {
+        match &self.content {
+            PostTypeInner::Fun(_, out) => Some(&*out),
+            _ => None,
+        }
+    }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
     Struct(String),
     Enum(String),
     Box(Box<PostType>),
-    IdentParametrized(common::Ident, Vec<PostType>),
+    IdentParametrized(String, Vec<PostType>),
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     Fun(Vec<PostType>, Box<PostType>),
@@ -149,5 +154,5 @@ pub enum ExprInner {
     Set(Expr, Expr),
     Print(String),
     String(String),
-    Vec(usize, Vec<Expr>),
+    Vec(Vec<Expr>),
 }

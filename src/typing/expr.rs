@@ -12,12 +12,12 @@ fn compatible_types(type1 : &Option<typed_rust::PostType>, type2 : typed_rust::P
 
 fn get_index_function(ctxt : &context::GlobalContext, typ : &typed_rust::PostType) -> Option<(&'static str, typed_rust::PostType)> {
     match &typ.content {
-        typed_rust::PostTypeInner::IdentParametrized(id, param) if id.get_content() == "Vec" => {
+        typed_rust::PostTypeInner::IdentParametrized(id, param) if id == "Vec" => {
             Some(("get_element_vec", param[0].clone()))
         },
         typed_rust::PostTypeInner::Ref(_, typ) => {
             match &typ.content {
-                typed_rust::PostTypeInner::IdentParametrized(id, param) if id.get_content() == "Vec" => {
+                typed_rust::PostTypeInner::IdentParametrized(id, param) if id == "Vec" => {
                     Some(("get_element_vec", param[0].clone()))
                 },
                 _ => None,
@@ -27,13 +27,31 @@ fn get_index_function(ctxt : &context::GlobalContext, typ : &typed_rust::PostTyp
     }
 }
 
+fn get_arith_fun_name<'a>(ctxt : &'a context::GlobalContext,
+    binop : BinOperator,
+    typ1 : &typed_rust::PostType,
+    typ2 : &typed_rust::PostType) -> Option<String> {
+    let (name, fun_suffix) = binop.get_trait_name();
+    let name = String::from(name);
+    match ctxt.has_trait(typ1, &context::Trait::Parametrized(name, Some(typ2.clone()))) {
+        None => None,
+        Some(s) => {
+            println!("prefix {} for {:?} {:?}", s, binop, binop.get_trait_name());
+            let mut s = s.to_string();
+            s.push_str(fun_suffix);
+            Some(s)
+        }
+    }
+}
+
+
 fn arith_fun_name(binop : BinOperator) -> Option<&'static str> {
     match binop {
         BinOperator::Add => Some("_add"),
         BinOperator::Div => Some("_div"),
         BinOperator::Mod => Some("_mod"),
         BinOperator::Sub => Some("_sub"),
-        BinOperator::Times => Some("_times"),
+        BinOperator::Mul => Some("_mul"),
         _ => None
     }
 }
@@ -144,6 +162,22 @@ pub fn type_checker(ctxt : &context::GlobalContext,
             rust::ExprInner::BinaryOp(binop, e1, e2) => {
                 let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
                 let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
+                if let Some(fun_name) = get_arith_fun_name(ctxt, binop, &e1.typed, &e2.typed) {
+                    if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
+                        (false, fun_typ.fun_out_typ().unwrap().clone(),
+                        typed_rust::ExprInner::FunCall(Ident::from_str(&fun_name), vec![e1, e2]))
+                    } else {
+                        panic!("should not happen {}", fun_name);
+                    }
+                } else {
+                    todo!()
+                }
+            },
+
+
+/*            rust::ExprInner::BinaryOp(binop, e1, e2) => {
+                let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
+                let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
                 if let Some(fun_suffix) = arith_fun_name(binop) {
                     if let Some(typ_name) = type_int_name(&e1.typed) {
                         if are_compatible(&e1.typed, &e2.typed) {
@@ -211,7 +245,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                 } else {
                     panic!("should never happen")
                 }
-            },
+            },*/
 
             rust::ExprInner::UnaryOp(UnaOperator::ArithNeg, expr) => {
                 let expr = type_checker(ctxt, expr, loc_ctxt, out, None).1;
@@ -291,7 +325,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                     Some(typ) => {
                         match &typ.content {
                             typed_rust::PostTypeInner::IdentParametrized(id, args)
-                                if id.get_content() == "Vec" && args.len() == 1 => {
+                                if id == "Vec" && args.len() == 1 => {
                                     Some(&args[0])
                                 },
                             _ => todo!(),
@@ -312,19 +346,14 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                             }
                     }
                 };
-                let size = match &typ {
-                    None => todo!(),
-                    Some(typ) => typ.size
-                };
                 (false,
                 typed_rust::PostType {
-                    content : typed_rust::PostTypeInner::IdentParametrized(Ident::from_str("Vec"), vec![typ.unwrap()]),
-                    size : 8,
+                    content : typed_rust::PostTypeInner::IdentParametrized(String::from("Vec"), vec![typ.unwrap()]),
                 },
-                typed_rust::ExprInner::Vec(size, vec2))
+                typed_rust::ExprInner::Vec(vec2))
             },
 
-            rust::ExprInner::MacroCall(name, vec) => {
+            rust::ExprInner::MacroCall(_name, _vec) => {
                 panic!("should not happen")
             },
 
@@ -333,7 +362,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                 if name.get_content() == "len" && args.len() == 0 {
                     match &expr.1.typed.content {
                         typed_rust::PostTypeInner::IdentParametrized(id, args)
-                            if id.get_content() == "Vec" && args.len() == 1 => {
+                            if id == "Vec" && args.len() == 1 => {
                                 (false, ctxt.get_typ("i32").unwrap().clone(),
                                     typed_rust::ExprInner::FunCall(Ident::from_str("vec_len"),
                                     vec![expr.1.to_ref(false)]))
@@ -341,7 +370,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                         typed_rust::PostTypeInner::Ref(mutable, typ) => {
                             match &typ.content {
                                 typed_rust::PostTypeInner::IdentParametrized(id, args)
-                                    if id.get_content() == "Vec" && args.len() == 1 => {
+                                    if id == "Vec" && args.len() == 1 => {
                                         (false, ctxt.get_typ("i32").unwrap().clone(),
                                             typed_rust::ExprInner::FunCall(Ident::from_str("vec_len"),
                                             vec![expr.1]))
@@ -406,7 +435,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                         }
                     }
                     match struct_info.check_finished() {
-                        Some(name) => todo!(),
+                        Some(_name) => todo!(),
                         None =>
                             (false,
                             ctxt.get_typ(name.get_content()).unwrap().clone(),
@@ -420,7 +449,6 @@ pub fn type_checker(ctxt : &context::GlobalContext,
             rust::ExprInner::Tuple(vec1) => {
                 let mut vec_expr = Vec::new();
                 let mut vec_type = Vec::new();
-                let mut size = 0;
                 let expected_typ_vec = match expected_typ {
                     None => None,
                     Some(typ) => {
@@ -439,19 +467,17 @@ pub fn type_checker(ctxt : &context::GlobalContext,
 
                 for (i, expr) in vec1.into_iter().enumerate() {
                     let expr = type_checker(ctxt, expr, loc_ctxt, out, expected_typ_vec.map(|v| &v[i])).1;
-                    size += expr.typed.size;
                     vec_type.push(expr.typed.clone());
                     vec_expr.push(expr);
                 }
                 (false,
                 typed_rust::PostType {
                     content : typed_rust::PostTypeInner::Tuple(vec_type),
-                    size
                 },
                 typed_rust::ExprInner::Tuple(vec_expr))
             },
 
-            rust::ExprInner::Proj(expr, Projector::Int(id)) => {
+            rust::ExprInner::Proj(_expr, Projector::Int(_id)) => {
                 todo!()
             },
 
@@ -499,7 +525,7 @@ pub fn type_checker(ctxt : &context::GlobalContext,
                     typed_rust::ExprInner::String(s))
             },
 
-            rust::ExprInner::Array(a) => todo!(),
+            rust::ExprInner::Array(_a) => todo!(),
 
         };
     (affectable,
@@ -527,7 +553,7 @@ pub fn type_block(bloc : rust::Bloc,
 //                todo!();
             },
             rust::Instr::Binding(mutable, ident, expr) => {
-                let mut expr = type_checker(ctxt, expr, loc_ctxt, output, None).1;
+                let expr = type_checker(ctxt, expr, loc_ctxt, output, None).1;
                 loc_ctxt.add_var(&ident, mutable, &expr.typed);
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
 //                todo!();

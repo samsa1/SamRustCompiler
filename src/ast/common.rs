@@ -104,17 +104,30 @@ impl Location {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Sizes {
     S32,
     S64,
     SUsize,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BuiltinType {
     Int(bool /* signed */, Sizes),
     Bool,
+}
+
+impl BuiltinType {
+    pub fn is_int(&self) -> bool {
+        match self {
+            Self::Int(_, _) => true,
+            _ => false,
+        }
+    }
+
+    pub fn is_bool(&self) -> bool {
+        self == &Self::Bool
+    }
 }
 
 #[derive(Debug)]
@@ -127,7 +140,7 @@ pub enum Projector {
 pub enum BinOperator {
     Add,
     Sub,
-    Times,
+    Mul,
     Mod,
     Div,
     Eq,
@@ -139,6 +152,31 @@ pub enum BinOperator {
     Set,
     And,
     Or,
+}
+
+impl BinOperator {
+    pub fn get_trait_name(self) -> (&'static str, &'static str) {
+        match self {
+            Self::Add => ("Add", ""),
+            Self::Div => ("Div", ""),
+            Self::Sub => ("Sub", ""),
+            Self::Mul => ("Mul", ""),
+            Self::Mod => ("Mod", ""),
+    
+            Self::Or  => ("Or", ""),
+            Self::And => ("And", ""),
+    
+            Self::Eq => ("PartialEq", "_eq"),
+            Self::Ne => ("PartialEq", "_ne"),
+    
+            Self::Lower     => ("PartialOrd", "_lo"),
+            Self::LowerEq   => ("PartialOrd", "_le"),
+            Self::Greater   => ("PartialOrd", "_gr"),
+            Self::GreaterEq => ("PartialOrd", "_ge"),
+            
+            Self::Set => todo!(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -1,17 +1,16 @@
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
-use crate::ast::common::{Ident, Sizes, BuiltinType};
+use crate::ast::common::{Sizes, BuiltinType};
 
-use std::collections::HashMap;
 use super::context::GlobalContext;
 
 pub fn compute_size(typ : &PreType, sizes : &GlobalContext) -> usize {
     match &typ.content {
-        PreTypeInner::Fun(args, out) => todo!(),
+        PreTypeInner::Fun(_args, _out) => todo!(),
         PreTypeInner::Ident(id) => {
-            match sizes.get_typ(id.get_content()) {
+            match sizes.get_size(id.get_content()) {
                 None => todo!(),
-                Some(typ) => typ.size,
+                Some(size) => size,
             }
         },
         PreTypeInner::IdentParametrized(id, args) => {
@@ -29,7 +28,7 @@ pub fn compute_size(typ : &PreType, sizes : &GlobalContext) -> usize {
 
         },
 
-        PreTypeInner::Ref(mutable, typ) => todo!(),
+        PreTypeInner::Ref(_mutable, _typ) => todo!(),
 
         PreTypeInner::Tuple(elements) => {
             let mut total_size = 0;
@@ -51,7 +50,6 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
             let out = translate_typ(*out, sizes);
             PostType {
                 content : PostTypeInner::Fun(args2, Box::new(out)),
-                size : todo!(),
             }
         },
         PreTypeInner::Ident(id) => {
@@ -66,8 +64,7 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
                     if args.len() == 1 {
                         let typ = translate_typ(args.pop().unwrap(), sizes);
                         PostType {
-                            content : PostTypeInner::IdentParametrized(Ident::from_str("Vec"), vec![typ]),
-                            size : 8,
+                            content : PostTypeInner::IdentParametrized(String::from("Vec"), vec![typ]),
                         }
                     } else {
                         todo!()
@@ -83,15 +80,12 @@ pub fn translate_typ(typ : PreType, sizes : &GlobalContext) -> PostType {
 
         PreTypeInner::Tuple(elements) => {
             let mut elements2 = Vec::new();
-            let mut total_size = 0;
             for el in elements.into_iter() {
                 let el = translate_typ(el, sizes);
-                total_size += el.size;
                 elements2.push(el);
             }
             PostType {
                 content : PostTypeInner::Tuple(elements2),
-                size : total_size,
             }
         }
     }
@@ -113,7 +107,7 @@ pub fn are_compatible(expected : &PostType, got : &PostType) -> bool {
         },
         (PostTypeInner::IdentParametrized(name1, args1),
          PostTypeInner::IdentParametrized(name2, args2)) => {
-            if name1.get_content() == name2.get_content() {
+            if name1 == name2 {
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
                     if !are_compatible(t1, t2) {
                         return false
@@ -149,7 +143,7 @@ pub fn biggest_compatible(typ1 : &PostType, typ2 : &PostType) -> Option<PostType
             };
             Some(PostType {
                 content : PostTypeInner::Tuple(vec_out),
-                size : typ1.size,
+//                size : typ1.size,
             })
          },
         (PostTypeInner::Struct(s1), PostTypeInner::Struct(s2)) if s1 == s2 =>

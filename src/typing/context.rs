@@ -2,6 +2,41 @@ use std::collections::{HashMap, HashSet};
 use crate::ast::common::Ident;
 use crate::ast::typed_rust::PostType;
 
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+struct TraitInner {
+    content : Trait,
+    fun : String,
+}
+
+impl TraitInner {
+    pub fn implements(&self, t : &Trait) -> Option<&str> {
+        if self.content.implements(t) {
+            Some(&self.fun)
+        } else {
+            None
+        }
+    }
+}
+
+
+#[derive(Debug, PartialEq, Eq, Hash, Clone)]
+pub enum Trait {
+    Name(String),
+    Parametrized(String, Option<PostType>)
+}
+
+impl Trait {
+    pub fn implements(&self, t : &Self) -> bool {
+        match (self, t) {
+            (Self::Name(s), Self::Name(t)) => s == t,
+            (Self::Parametrized(s, None), Self::Parametrized(t, _)) => s == t,
+            (Self::Parametrized(s, Some(s1)), Self::Parametrized(t, Some(s2))) => s == t && super::types::are_compatible(s1, s2),
+            _ => false,
+        }
+    }
+
+}
+
 #[derive(Clone, Debug)]
 pub struct StructInfo {
     hashmap : HashMap<String, (bool, PostType)>
@@ -16,7 +51,7 @@ impl StructInfo {
     }
 
     pub fn check_finished(self) -> Option<String> {
-        for (name, (b, typ)) in self.hashmap.into_iter() {
+        for (name, (b, _)) in self.hashmap.into_iter() {
             if !b {
                 return Some(name)
             }
@@ -43,7 +78,9 @@ impl StructInfo {
 pub struct GlobalContext {
     enums : HashMap<String, HashSet<String>>,
     structs : HashMap<String, StructInfo>,
+    implemented_traits : HashMap<PostType, HashSet<TraitInner>>,
     known_types : HashMap<String, PostType>,
+    sizes : HashMap<String, usize>,
 }
 
 impl GlobalContext {
@@ -52,12 +89,45 @@ impl GlobalContext {
         Self {
             enums : HashMap::new(),
             structs : HashMap::new(),
+            implemented_traits : HashMap::new(),
             known_types : HashMap::new(),
+            sizes : HashMap::new(),
         }
+    }
+
+    pub fn insert_size(&mut self, name : String, size : usize) -> Option<usize> {
+        self.sizes.insert(name.clone(), size)
     }
 
     pub fn insert(&mut self, name : String, typ : PostType) -> Option<PostType> {
         self.known_types.insert(name, typ)
+    }
+
+    pub fn implement_trait(&mut self, typ : &PostType, t : Trait, fun_name : String) -> bool {
+        match self.implemented_traits.get_mut(typ) {
+            None => {
+                let mut hashset = HashSet::new();
+                hashset.insert(TraitInner { content : t, fun : fun_name });
+                assert_eq!(true,
+                    self.implemented_traits.insert(typ.clone(), hashset).is_none());
+                true
+            },
+            Some(traits) => {
+                traits.insert(TraitInner { content : t, fun : fun_name })
+            }
+        }
+    }
+
+    pub fn has_trait(&self, name : &PostType, t : &Trait) -> Option<&str> {
+        for traits in self.implemented_traits.get(name).unwrap().iter() {
+            println!("{:?} -> {:?} <=> {:?}", name, traits, t);
+            let out = traits.implements(t);
+            if out.is_some() {
+                println!("yes");
+                return out
+            }
+        }
+        None
     }
 
     pub fn get_known_types(&self) -> &HashMap<String, PostType> {
@@ -66,6 +136,10 @@ impl GlobalContext {
 
     pub fn get_typ(&self, name : &str) -> Option<&PostType> {
         self.known_types.get(name)
+    }
+
+    pub fn get_size(&self, name : &str) -> Option<usize> {
+        self.sizes.get(name).map(|i| *i)
     }
 
     pub fn get_struct(&self, name : &str) -> Option<&StructInfo> {

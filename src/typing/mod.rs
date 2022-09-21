@@ -1,6 +1,5 @@
 use crate::ast::{rust, typed_rust, common::*};
-use crate::ast::common::{BuiltinType, Sizes};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 pub mod context;
 mod structs;
@@ -11,12 +10,11 @@ fn type_funs(funs : Vec<rust::DeclFun>, known_types : &mut context::GlobalContex
     let mut fun_types = Vec::new();
     let mut fun_names = HashSet::new();
     for fun_decl in funs.iter() {
-        let args : Vec<typed_rust::PostType> = fun_decl.args.iter().map(|(n, b, typ)| types::translate_typ(typ.clone(), known_types)).collect();
+        let args : Vec<typed_rust::PostType> = fun_decl.args.iter().map(|(_, _, typ)| types::translate_typ(typ.clone(), known_types)).collect();
         let output = types::translate_typ(fun_decl.output.clone(), known_types);
         fun_types.push((args.clone(), output.clone()));
         let fun_typ = typed_rust::PostType {
             content : typed_rust::PostTypeInner::Fun(args, Box::new(output)),
-            size : 8, // todo!()
         };
 
         known_types.insert(fun_decl.name.get_content().to_string(), fun_typ);

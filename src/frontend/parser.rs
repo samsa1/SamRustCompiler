@@ -293,7 +293,7 @@ peg::parser!{
                 { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Sub, e1, e2)) }
             --
             e1:(@) space() (quiet!{"*"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Times, e1, e2)) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Mul, e1, e2)) }
             e1:(@) space() (quiet!{"/"}/ expected!("infix operator")) space() e2:@
                 { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Div, e1, e2)) }
             e1:(@) space() (quiet!{"%"}/ expected!("infix operator")) space() e2:@
@@ -350,7 +350,7 @@ peg::parser!{
                 { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Sub, e1, e2)) }
             --
             e1:(@) space() (quiet!{"*"}/ expected!("infix operator")) space() e2:@
-                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Times, e1, e2)) }
+                { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Mul, e1, e2)) }
             e1:(@) space() (quiet!{"/"}/ expected!("infix operator")) space() e2:@
                 { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Div, e1, e2)) }
             e1:(@) space() (quiet!{"%"}/ expected!("infix operator")) space() e2:@
