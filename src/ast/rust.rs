@@ -1,9 +1,8 @@
 use super::common;
 
-
 pub struct File {
-    pub name : String,
-    pub content : Vec<Decl>,
+    pub name: String,
+    pub content: Vec<Decl>,
 }
 
 pub enum Decl {
@@ -12,26 +11,26 @@ pub enum Decl {
 }
 
 pub struct DeclFun {
-    pub name : common::Ident,
-    pub args : Vec<(common::Ident, bool, PreType)>,
-    pub output : PreType,
-    pub content : Bloc,
+    pub name: common::Ident,
+    pub args: Vec<(common::Ident, bool, PreType)>,
+    pub output: PreType,
+    pub content: Bloc,
 }
 
 pub struct DeclStruct {
-    pub name : common::Ident,
-    pub args : Vec<(common::Ident, PreType)>,
+    pub name: common::Ident,
+    pub args: Vec<(common::Ident, PreType)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PreType {
-    pub content : PreTypeInner,
+    pub content: PreTypeInner,
 }
 
 impl PreType {
     pub fn unit() -> Self {
         Self {
-            content : PreTypeInner::Tuple(Vec::new()),
+            content: PreTypeInner::Tuple(Vec::new()),
         }
     }
 }
@@ -47,16 +46,14 @@ pub enum PreTypeInner {
 
 impl PreTypeInner {
     pub fn to_type(self) -> PreType {
-        PreType {
-            content : self
-        }
+        PreType { content: self }
     }
 }
 
 #[derive(Debug)]
 pub struct Bloc {
-    pub content : Vec<Instr>,
-    pub loc : common::Location,
+    pub content: Vec<Instr>,
+    pub loc: common::Location,
 }
 
 #[derive(Debug)]
@@ -69,17 +66,17 @@ pub enum Instr {
 
 #[derive(Debug)]
 pub struct Expr {
-    pub content : Box<ExprInner>,
-    pub loc : common::Location,    
-    pub typed : Option<PreType>,
+    pub content: Box<ExprInner>,
+    pub loc: common::Location,
+    pub typed: Option<PreType>,
 }
 
 impl Expr {
     pub fn unit() -> Self {
         Self {
-            loc:common::Location::default(),
-            typed:None,
-            content:Box::new(ExprInner::unit()),
+            loc: common::Location::default(),
+            typed: None,
+            content: Box::new(ExprInner::unit()),
         }
     }
 }

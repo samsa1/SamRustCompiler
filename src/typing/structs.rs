@@ -1,43 +1,39 @@
-use crate::ast::{rust, typed_rust, common::*};
-use crate::ast::typed_rust::{PostType, PostTypeInner};
-use std::collections::{HashMap, HashSet};
-use super::types::{compute_size, translate_typ};
 use super::context::{GlobalContext, Trait};
+use super::types::{compute_size, translate_typ};
+use crate::ast::typed_rust::{PostType, PostTypeInner};
+use crate::ast::{common::*, rust, typed_rust};
+use std::collections::{HashMap, HashSet};
 
-const DEFAULT_TYPES : [(&str, BuiltinType); 7] = [
-    ("usize",   BuiltinType::Int(false, Sizes::SUsize)),
-    ("isize",   BuiltinType::Int(true,  Sizes::SUsize)),
-    ("u64",     BuiltinType::Int(false, Sizes::S64)),
-    ("i64",     BuiltinType::Int(true,  Sizes::S64)),
-    ("u32",     BuiltinType::Int(false, Sizes::S32)),
-    ("i32",     BuiltinType::Int(true,  Sizes::S32)),
-    ("bool",    BuiltinType::Bool),
+const DEFAULT_TYPES: [(&str, BuiltinType); 7] = [
+    ("usize", BuiltinType::Int(false, Sizes::SUsize)),
+    ("isize", BuiltinType::Int(true, Sizes::SUsize)),
+    ("u64", BuiltinType::Int(false, Sizes::S64)),
+    ("i64", BuiltinType::Int(true, Sizes::S64)),
+    ("u32", BuiltinType::Int(false, Sizes::S32)),
+    ("i32", BuiltinType::Int(true, Sizes::S32)),
+    ("bool", BuiltinType::Bool),
 ];
 
-const DEFAULT_TRAITS_ARITH : [&str; 5] = [
-    "Add", "Div", "Sub", "Mul", "Mod"
-];
+const DEFAULT_TRAITS_ARITH: [&str; 5] = ["Add", "Div", "Sub", "Mul", "Mod"];
 
-const DEFAULT_TRAITS_LOGIC : [&str; 2] = [
-    "And", "Or"
-];
+const DEFAULT_TRAITS_LOGIC: [&str; 2] = ["And", "Or"];
 
 struct Graph {
-    size : usize,
-    names : HashMap<String, usize>,
-    edges : Vec<HashSet<usize>>,
+    size: usize,
+    names: HashMap<String, usize>,
+    edges: Vec<HashSet<usize>>,
 }
 
 impl Graph {
     fn new() -> Self {
         Self {
-            size : 0,
-            names : HashMap::new(),
-            edges : Vec::new(),
+            size: 0,
+            names: HashMap::new(),
+            edges: Vec::new(),
         }
     }
 
-    fn add_node(&mut self, name : String) {
+    fn add_node(&mut self, name: String) {
         if self.names.get(&name) == None {
             if self.names.insert(name, self.size).is_some() {
                 todo!()
@@ -49,14 +45,19 @@ impl Graph {
         }
     }
 
-    fn add_edge(&mut self, n1 : &str, n2 : &str) -> Option<bool> {
+    fn add_edge(&mut self, n1: &str, n2: &str) -> Option<bool> {
         let id1 = self.names.get(n1)?;
         let id2 = self.names.get(n2)?;
         Some(self.edges[*id1].insert(*id2))
     }
 }
 
-fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph, set : &HashSet<String>) {
+fn explore_dependensies(
+    typ: &rust::PreType,
+    parent: &str,
+    graph: &mut Graph,
+    set: &HashSet<String>,
+) {
     match &typ.content {
         rust::PreTypeInner::Ident(id) => {
             if !set.contains(id.get_content()) {
@@ -64,7 +65,8 @@ fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph, s
                     None => todo!(),
                     Some(_) => (),
                 }
-            }},
+            }
+        }
         rust::PreTypeInner::IdentParametrized(id, _) if id.get_content() == "Vec" => (),
         rust::PreTypeInner::IdentParametrized(id, _) if id.get_content() == "Box" => (),
         rust::PreTypeInner::IdentParametrized(_, _) => todo!(),
@@ -73,16 +75,26 @@ fn explore_dependensies(typ: &rust::PreType, parent: &str, graph : &mut Graph, s
             for typ in v.iter() {
                 explore_dependensies(typ, parent, graph, set)
             }
-        },
-        rust::PreTypeInner::Fun(_, _) => {},
+        }
+        rust::PreTypeInner::Fun(_, _) => {}
     }
 }
 
-fn visit(id : usize, p_marks : &mut Vec<bool>, t_marks : &mut Vec<bool>, graph: &Graph, out_vec : &mut Vec<usize>) -> Result<(), usize> {
-    if p_marks[id] { return Ok(()) }
-    if t_marks[id] { return Err(id) }
+fn visit(
+    id: usize,
+    p_marks: &mut Vec<bool>,
+    t_marks: &mut Vec<bool>,
+    graph: &Graph,
+    out_vec: &mut Vec<usize>,
+) -> Result<(), usize> {
+    if p_marks[id] {
+        return Ok(());
+    }
+    if t_marks[id] {
+        return Err(id);
+    }
     t_marks[id] = true;
-    
+
     for node in graph.edges[id].iter() {
         visit(*node, p_marks, t_marks, graph, out_vec)?;
     }
@@ -92,13 +104,20 @@ fn visit(id : usize, p_marks : &mut Vec<bool>, t_marks : &mut Vec<bool>, graph: 
     Ok(())
 }
 
-fn topological_sort(structs : Vec<rust::DeclStruct>, graph : &mut Graph) -> Vec<rust::DeclStruct> {
+fn topological_sort(structs: Vec<rust::DeclStruct>, graph: &mut Graph) -> Vec<rust::DeclStruct> {
     let mut permanent_marks = vec![false; graph.size];
     let mut temporary_marks = vec![false; graph.size];
     let mut out_vec = Vec::new();
     for node in 0..graph.size {
         if !permanent_marks[node] {
-            visit(node, &mut permanent_marks, &mut temporary_marks, graph, &mut out_vec).unwrap();
+            visit(
+                node,
+                &mut permanent_marks,
+                &mut temporary_marks,
+                graph,
+                &mut out_vec,
+            )
+            .unwrap();
         }
     }
 
@@ -113,16 +132,18 @@ fn topological_sort(structs : Vec<rust::DeclStruct>, graph : &mut Graph) -> Vec<
     structs
 }
 
-pub fn compute_size_builtin(b : &BuiltinType) -> usize {
+pub fn compute_size_builtin(b: &BuiltinType) -> usize {
     match b {
         BuiltinType::Bool => 1,
         BuiltinType::Int(_, Sizes::S32) => 4,
         BuiltinType::Int(_, Sizes::S64) => 8,
-        BuiltinType::Int(_, Sizes::SUsize) => 8 /* todo!() */,
+        BuiltinType::Int(_, Sizes::SUsize) => 8, /* todo!() */
     }
 }
 
-pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<typed_rust::DeclStruct>) {
+pub fn type_structs(
+    structs: Vec<rust::DeclStruct>,
+) -> (GlobalContext, Vec<typed_rust::DeclStruct>) {
     let mut graph = Graph::new();
     for struct_decl in structs.iter() {
         graph.add_node(struct_decl.name.get_content().to_string());
@@ -133,7 +154,7 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
     for (name, raw_type) in DEFAULT_TYPES {
         sizes.insert_size(name.to_string(), compute_size_builtin(&raw_type));
         let typ = PostType {
-            content : PostTypeInner::BuiltIn(raw_type),
+            content: PostTypeInner::BuiltIn(raw_type),
         };
 
         if raw_type.is_bool() {
@@ -144,19 +165,34 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
                 fun_name.push('<');
                 fun_name.push_str(name);
                 fun_name.push('>');
-                sizes.implement_trait(&typ, Trait::Parametrized(logic_trait.to_string(), Some(typ.clone())), fun_name.clone());
-                sizes.insert(fun_name, typed_rust::PostType {
-                    content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typ.clone()))
-                });
+                sizes.implement_trait(
+                    &typ,
+                    Trait::Parametrized(logic_trait.to_string(), Some(typ.clone())),
+                    fun_name.clone(),
+                );
+                sizes.insert(
+                    fun_name,
+                    typed_rust::PostType {
+                        content: typed_rust::PostTypeInner::Fun(
+                            vec![typ.clone(), typ.clone()],
+                            Box::new(typ.clone()),
+                        ),
+                    },
+                );
             }
             let mut fun_name = name.to_string();
             fun_name.push_str("::");
             fun_name.push_str("Not");
             sizes.implement_trait(&typ, Trait::Name("Not".to_string()), fun_name.clone());
-            sizes.insert(fun_name, typed_rust::PostType {
-                content : typed_rust::PostTypeInner::Fun(vec![typ.clone()], Box::new(typ.clone()))
-            });
-
+            sizes.insert(
+                fun_name,
+                typed_rust::PostType {
+                    content: typed_rust::PostTypeInner::Fun(
+                        vec![typ.clone()],
+                        Box::new(typ.clone()),
+                    ),
+                },
+            );
         }
 
         if raw_type.is_int() {
@@ -167,34 +203,60 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
                 fun_name.push('<');
                 fun_name.push_str(name);
                 fun_name.push('>');
-                sizes.implement_trait(&typ, Trait::Parametrized(arith_trait.to_string(), Some(typ.clone())), fun_name.clone());
-                sizes.insert(fun_name, typed_rust::PostType {
-                    content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typ.clone()))
-                });
-            };
+                sizes.implement_trait(
+                    &typ,
+                    Trait::Parametrized(arith_trait.to_string(), Some(typ.clone())),
+                    fun_name.clone(),
+                );
+                sizes.insert(
+                    fun_name,
+                    typed_rust::PostType {
+                        content: typed_rust::PostTypeInner::Fun(
+                            vec![typ.clone(), typ.clone()],
+                            Box::new(typ.clone()),
+                        ),
+                    },
+                );
+            }
             let mut fun_name = name.to_string();
             fun_name.push_str("::");
             fun_name.push_str("PartialOrd");
             fun_name.push('<');
             fun_name.push_str(name);
             fun_name.push('>');
-            sizes.implement_trait(&typ, Trait::Parametrized("PartialOrd".to_string(), Some(typ.clone())), fun_name.clone());
+            sizes.implement_trait(
+                &typ,
+                Trait::Parametrized("PartialOrd".to_string(), Some(typ.clone())),
+                fun_name.clone(),
+            );
             for tail in ["_le", "_lo", "_gr", "_ge"] {
                 let mut fun_name2 = fun_name.clone();
                 fun_name2.push_str(tail);
                 println!("implementing {}", fun_name2);
-                sizes.insert(fun_name2, typed_rust::PostType {
-                    content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typed_rust::PostType::bool()))
-                });
+                sizes.insert(
+                    fun_name2,
+                    typed_rust::PostType {
+                        content: typed_rust::PostTypeInner::Fun(
+                            vec![typ.clone(), typ.clone()],
+                            Box::new(typed_rust::PostType::bool()),
+                        ),
+                    },
+                );
             }
 
             let mut fun_name = name.to_string();
             fun_name.push_str("::");
             fun_name.push_str("Neg");
             sizes.implement_trait(&typ, Trait::Name("Neg".to_string()), fun_name.clone());
-            sizes.insert(fun_name, typed_rust::PostType {
-                content : typed_rust::PostTypeInner::Fun(vec![typ.clone()], Box::new(typ.clone()))
-            });
+            sizes.insert(
+                fun_name,
+                typed_rust::PostType {
+                    content: typed_rust::PostTypeInner::Fun(
+                        vec![typ.clone()],
+                        Box::new(typ.clone()),
+                    ),
+                },
+            );
         };
 
         let mut fun_name = name.to_string();
@@ -213,16 +275,25 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
         fun_name.push('<');
         fun_name.push_str(name);
         fun_name.push('>');
-        sizes.implement_trait(&typ, Trait::Parametrized("PartialEq".to_string(), Some(typ.clone())), fun_name.clone());
+        sizes.implement_trait(
+            &typ,
+            Trait::Parametrized("PartialEq".to_string(), Some(typ.clone())),
+            fun_name.clone(),
+        );
         for tail in ["_eq", "_ne"] {
             let mut fun_name2 = fun_name.clone();
             fun_name2.push_str(tail);
             println!("implementing {}", fun_name2);
-            sizes.insert(fun_name2, typed_rust::PostType {
-                content : typed_rust::PostTypeInner::Fun(vec![typ.clone(), typ.clone()], Box::new(typed_rust::PostType::bool()))
-            });
+            sizes.insert(
+                fun_name2,
+                typed_rust::PostType {
+                    content: typed_rust::PostTypeInner::Fun(
+                        vec![typ.clone(), typ.clone()],
+                        Box::new(typed_rust::PostType::bool()),
+                    ),
+                },
+            );
         }
-
 
         sizes.insert(name.to_string(), typ);
         set.insert(name.to_string());
@@ -242,13 +313,20 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
         for (_, typ) in struct_decl.args.iter() {
             size += compute_size(typ, &sizes);
         }
-        assert!(
-            sizes.insert(struct_decl.name.get_content().to_string(),
+        assert!(sizes
+            .insert(
+                struct_decl.name.get_content().to_string(),
                 typed_rust::PostType {
-                    content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
-            }).is_none());
-        assert!(sizes.insert_size(struct_decl.name.get_content().to_string(), size).is_none());
-        }
+                    content: typed_rust::PostTypeInner::Struct(
+                        struct_decl.name.get_content().to_string()
+                    ),
+                }
+            )
+            .is_none());
+        assert!(sizes
+            .insert_size(struct_decl.name.get_content().to_string(), size)
+            .is_none());
+    }
 
     for struct_decl in structs.into_iter() {
         let mut args = HashMap::new();
@@ -258,17 +336,19 @@ pub fn type_structs(structs : Vec<rust::DeclStruct>) -> (GlobalContext, Vec<type
                 None => (),
                 Some(_) => todo!(),
             }
-        };
+        }
         sizes.add_struct(
             struct_decl.name.get_content().to_string(),
             typed_rust::PostType {
-                content : typed_rust::PostTypeInner::Struct(struct_decl.name.get_content().to_string()),
+                content: typed_rust::PostTypeInner::Struct(
+                    struct_decl.name.get_content().to_string(),
+                ),
             },
             args.clone(),
         );
         structs2.push(typed_rust::DeclStruct {
-            size : sizes.get_size(struct_decl.name.get_content()).unwrap(),
-            name : struct_decl.name,
+            size: sizes.get_size(struct_decl.name.get_content()).unwrap(),
+            name: struct_decl.name,
             args,
         })
     }

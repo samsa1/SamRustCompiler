@@ -25,8 +25,8 @@ pub enum UnOp {
 
 #[derive(Clone, Debug)]
 pub struct Ident {
-    name : String,
-    loc : Location,
+    name: String,
+    loc: Location,
 }
 
 impl Ident {
@@ -38,58 +38,57 @@ impl Ident {
         self.name
     }
 
-    pub fn new(s:&str, loc:Location) -> Self {
+    pub fn new(s: &str, loc: Location) -> Self {
         Self {
-            name : s.to_string(),
+            name: s.to_string(),
             loc,
         }
     }
 
-    pub fn new_from(name : String, start : usize, end : usize) -> Self {
+    pub fn new_from(name: String, start: usize, end: usize) -> Self {
         Self {
             name,
-            loc : Location::new(start, end),
+            loc: Location::new(start, end),
         }
     }
 
     pub fn get_loc(&self) -> &Location {
         &self.loc
     }
-
 }
 
 impl FromStr for Ident {
     type Err = ();
-    
-    fn from_str(s : &str) -> Result<Self, Self::Err> {
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         Ok(Self {
-            name : s.to_string(),
-            loc : Location::default(),
+            name: s.to_string(),
+            loc: Location::default(),
         })
     }
 }
 
 impl PartialEq for Ident {
-    fn eq(&self, other : &Self) -> bool {
+    fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
 
-/*    fn ne(&self, other : &Self) -> bool {
+    /*    fn ne(&self, other : &Self) -> bool {
         self.name != other.name
     }*/
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Location {
-    start : usize,
-    end : usize,
+    start: usize,
+    end: usize,
 }
 
 impl Location {
     pub fn default() -> Self {
         Self {
-            start : usize::MAX,
-            end : usize::MAX,
+            start: usize::MAX,
+            end: usize::MAX,
         }
     }
 
@@ -101,11 +100,8 @@ impl Location {
         self.end
     }
 
-    pub fn new(start : usize, end : usize) -> Self {
-        Self {
-            start,
-            end,
-        }
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
     }
 }
 
@@ -164,18 +160,18 @@ impl BinOperator {
             Self::Div => ("Div", ""),
             Self::Mod => ("Mod", ""),
             Self::Mul => ("Mul", ""),
-    
+
             Self::And => ("And", ""),
-            Self::Or  => ("Or", ""),
-    
+            Self::Or => ("Or", ""),
+
             Self::Eq => ("PartialEq", "_eq"),
             Self::Ne => ("PartialEq", "_ne"),
-    
-            Self::Greater   => ("PartialOrd", "_gr"),
+
+            Self::Greater => ("PartialOrd", "_gr"),
             Self::GreaterEq => ("PartialOrd", "_ge"),
-            Self::Lower     => ("PartialOrd", "_lo"),
-            Self::LowerEq   => ("PartialOrd", "_le"),
-            
+            Self::Lower => ("PartialOrd", "_lo"),
+            Self::LowerEq => ("PartialOrd", "_le"),
+
             Self::Set => todo!(),
         }
     }
