@@ -202,13 +202,13 @@ peg::parser! {
       rule if() -> Expr = precedence! {
           p:if_head() "else" spaces() e3:@ {
               let (start, e1, e2) = p;
-              to_expr(start, e3.loc.end(), ExprInner::If(e1, expr_of_bloc(e2), e3)) }
+              to_expr(start, e3.loc.end(), ExprInner::If(e1, e2, Bloc::from_expr(e3))) }
           p:if_head() "else" e3:bloc_ws() {
               let (start, e1, e2) = p;
-              to_expr(start, e3.loc.end(), ExprInner::If(e1, expr_of_bloc(e2), expr_of_bloc(e3))) }
+              to_expr(start, e3.loc.end(), ExprInner::If(e1, e2, e3)) }
           p:if_head() {
               let (start, e1, e2) = p;
-              to_expr(start, e2.loc.end(), ExprInner::If(e1, expr_of_bloc(e2), Expr::unit())) }
+              to_expr(start, e2.loc.end(), ExprInner::If(e1, e2, Bloc::empty())) }
       }
 
       rule if_head() -> (usize, Expr, Bloc) = precedence! {

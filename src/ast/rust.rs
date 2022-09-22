@@ -56,6 +56,22 @@ pub struct Bloc {
     pub loc: common::Location,
 }
 
+impl Bloc {
+    pub fn from_expr(expr : Expr) -> Self {
+        Self {
+            loc : expr.loc,
+            content : vec![Instr::Expr(true, expr)],
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            content : Vec::new(),
+            loc : common::Location::default(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Instr {
     Expr(bool, Expr),
@@ -83,7 +99,7 @@ impl Expr {
 
 #[derive(Debug)]
 pub enum ExprInner {
-    If(Expr, Expr, Expr),
+    If(Expr, Bloc, Bloc),
     Bool(bool),
     Int(usize),
     Var(common::Ident),

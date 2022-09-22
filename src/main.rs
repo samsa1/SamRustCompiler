@@ -3,6 +3,7 @@
 pub mod ast;
 mod frontend;
 mod typing;
+mod passes;
 
 fn main() {
     let mut filenames = Vec::new();
@@ -36,7 +37,11 @@ fn main() {
         std::process::exit(0)
     }
 
-    let typed_file = typing::type_inferencer(parsed_file);
+    let moved_refs = passes::move_refs::rewrite_file(parsed_file);
+
+    let typed_file = typing::type_inferencer(moved_refs);
+
+    println!("{:?}", typed_file);
 
     if type_only {
         std::process::exit(0)

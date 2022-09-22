@@ -1,12 +1,14 @@
 use super::common;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub struct File {
     pub name: String,
     pub funs: Vec<DeclFun>,
     pub structs: Vec<DeclStruct>,
 }
 
+#[derive(Debug)]
 pub struct DeclFun {
     pub name: common::Ident,
     pub args: Vec<(common::Ident, bool, PostType)>,
@@ -14,6 +16,7 @@ pub struct DeclFun {
     pub content: Bloc,
 }
 
+#[derive(Debug)]
 pub struct DeclStruct {
     pub name: common::Ident,
     pub args: HashMap<String, PostType>,
@@ -116,7 +119,7 @@ pub enum Instr {
     Return(Option<Expr>),
 }
 
-#[derive(Debug)]
+#[derive()]
 pub struct Expr {
     pub content: Box<ExprInner>,
     pub loc: common::Location,
@@ -133,9 +136,17 @@ impl Expr {
     }
 }
 
+impl std::fmt::Debug for Expr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Expr")
+         .field("c", &self.content)
+         .finish()
+    }
+}
+
 #[derive(Debug)]
 pub enum ExprInner {
-    If(Expr, Expr, Expr),
+    If(Expr, Bloc, Bloc),
     Bool(bool),
     Int(usize),
     Var(common::Ident),

@@ -46,7 +46,7 @@ fn check_scopes(
             {
                 todo!()
             }
-        }
+        },
         ExprInner::FunCall(_, _) => todo!(),
         ExprInner::Constructor(_, _) => todo!(),
         ExprInner::Ref(_, _) => todo!(),

@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 pub mod context;
 mod expr;
-mod scopes;
+mod borrow_checker;
 mod structs;
 pub mod types;
 

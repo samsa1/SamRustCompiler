@@ -232,7 +232,7 @@ pub fn type_structs(
             for tail in ["_le", "_lo", "_gr", "_ge"] {
                 let mut fun_name2 = fun_name.clone();
                 fun_name2.push_str(tail);
-                println!("implementing {}", fun_name2);
+//                println!("implementing {}", fun_name2);
                 sizes.insert(
                     fun_name2,
                     typed_rust::PostType {
@@ -283,7 +283,7 @@ pub fn type_structs(
         for tail in ["_eq", "_ne"] {
             let mut fun_name2 = fun_name.clone();
             fun_name2.push_str(tail);
-            println!("implementing {}", fun_name2);
+//            println!("implementing {}", fun_name2);
             sizes.insert(
                 fun_name2,
                 typed_rust::PostType {

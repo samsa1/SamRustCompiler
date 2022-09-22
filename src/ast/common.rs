@@ -85,7 +85,7 @@ pub struct Location {
 }
 
 impl Location {
-    pub fn default() -> Self {
+    pub const fn default() -> Self {
         Self {
             start: usize::MAX,
             end: usize::MAX,

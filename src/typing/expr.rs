@@ -151,9 +151,11 @@ pub fn type_checker(
                 },
             };
             let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, expected_typ);
+            println!("warning typing/expr.rs line 154");
             if b && !affectable {
                 todo!()
             };
+
             (
                 false,
                 Box::new(expr.typed.clone()).to_ref(b),
@@ -398,17 +400,17 @@ pub fn type_checker(
             }
         }
 
-        rust::ExprInner::If(e1, e2, e3) => {
+        rust::ExprInner::If(e1, bloc1, bloc2) => {
             let expr1 =
                 type_checker(ctxt, e1, loc_ctxt, out, Some(&typed_rust::PostType::bool())).1;
             if expr1.typed.content != typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) {
                 panic!("Type error")
             }
-            let expr2 = type_checker(ctxt, e2, loc_ctxt, out, expected_typ).1;
-            let expr3 = type_checker(ctxt, e3, loc_ctxt, out, expected_typ).1;
+            let bloc1 = type_block(bloc1, ctxt, loc_ctxt, out, expected_typ);
+            let bloc2 = type_block(bloc2, ctxt, loc_ctxt, out, expected_typ);
 
-            if let Some(typ) = biggest_compatible(&expr2.typed, &expr3.typed) {
-                (false, typ, typed_rust::ExprInner::If(expr1, expr2, expr3))
+            if let Some(typ) = biggest_compatible(&bloc1.last_type, &bloc2.last_type) {
+                (false, typ, typed_rust::ExprInner::If(expr1, bloc1, bloc2))
             } else {
                 panic!("incompatible types")
             }
