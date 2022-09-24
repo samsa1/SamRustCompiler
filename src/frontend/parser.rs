@@ -112,6 +112,7 @@ peg::parser! {
                       args,
                       output : out,
                       content : b,
+                      id_counter : IdCounter::new(),
                   }
               }
 

@@ -252,7 +252,7 @@ pub fn type_checker(
                     None => todo!(),
                 },
             };
-            if let typed_rust::PostTypeInner::Fun(args_typ, output) = typ.content {
+            if let typed_rust::PostTypeInner::Fun(freetypes, args_typ, output) = typ.content {
                 if args.len() != args_typ.len() {
                     panic!("not allowed")
                 }

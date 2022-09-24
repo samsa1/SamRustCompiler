@@ -174,6 +174,7 @@ pub fn type_structs(
                     fun_name,
                     typed_rust::PostType {
                         content: typed_rust::PostTypeInner::Fun(
+                            vec![],
                             vec![typ.clone(), typ.clone()],
                             Box::new(typ.clone()),
                         ),
@@ -188,6 +189,7 @@ pub fn type_structs(
                 fun_name,
                 typed_rust::PostType {
                     content: typed_rust::PostTypeInner::Fun(
+                        vec![],
                         vec![typ.clone()],
                         Box::new(typ.clone()),
                     ),
@@ -212,6 +214,7 @@ pub fn type_structs(
                     fun_name,
                     typed_rust::PostType {
                         content: typed_rust::PostTypeInner::Fun(
+                            vec![],
                             vec![typ.clone(), typ.clone()],
                             Box::new(typ.clone()),
                         ),
@@ -237,6 +240,7 @@ pub fn type_structs(
                     fun_name2,
                     typed_rust::PostType {
                         content: typed_rust::PostTypeInner::Fun(
+                            vec![],
                             vec![typ.clone(), typ.clone()],
                             Box::new(typed_rust::PostType::bool()),
                         ),
@@ -252,6 +256,7 @@ pub fn type_structs(
                 fun_name,
                 typed_rust::PostType {
                     content: typed_rust::PostTypeInner::Fun(
+                        vec![],
                         vec![typ.clone()],
                         Box::new(typ.clone()),
                     ),
@@ -288,6 +293,7 @@ pub fn type_structs(
                 fun_name2,
                 typed_rust::PostType {
                     content: typed_rust::PostTypeInner::Fun(
+                        vec![],
                         vec![typ.clone(), typ.clone()],
                         Box::new(typed_rust::PostType::bool()),
                     ),

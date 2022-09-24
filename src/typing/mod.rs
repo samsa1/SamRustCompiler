@@ -6,6 +6,7 @@ mod expr;
 mod borrow_checker;
 mod structs;
 pub mod types;
+mod inferencer;
 
 fn type_funs(
     funs: Vec<rust::DeclFun>,
@@ -22,11 +23,23 @@ fn type_funs(
         let output = types::translate_typ(fun_decl.output.clone(), known_types);
         fun_types.push((args.clone(), output.clone()));
         let fun_typ = typed_rust::PostType {
-            content: typed_rust::PostTypeInner::Fun(args, Box::new(output)),
+            content: typed_rust::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
         };
 
         known_types.insert(fun_decl.name.get_content().to_string(), fun_typ);
     }
+
+    let free_type = typed_rust::PostType {
+        content : typed_rust::PostTypeInner::FreeType("Vec".to_string()),
+    };
+    let vec_type = typed_rust::PostType {
+        content : typed_rust::PostTypeInner::IdentParametrized("Vec".to_string(),
+        vec![free_type.clone()]),
+    };
+    let fun_typ = typed_rust::PostType {
+        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type)),
+    };
+    known_types.insert("std::vec::Vec::new()".to_string(), fun_typ);
     assert_eq!(fun_types.len(), funs.len());
     let mut fun_vec = Vec::new();
 
@@ -37,6 +50,17 @@ fn type_funs(
             .zip(args_typ.into_iter())
             .map(|((name, b, _pre_type), post_type)| (name, b, post_type))
             .collect();
+        let in_types2 : Vec<(String, &typed_rust::PostType)> = in_types.iter().map(|(id, _, typ)| (id.get_content().to_string(), typ)).collect();
+        match inferencer::type_funs(known_types, &in_types2, &output, fun_decl.content.clone()) {
+            Ok(_) => (),
+            Err(errs) => {
+                for err in errs.into_iter() {
+                    println!("{err:?}")
+                }
+                std::process::exit(1);
+            },
+        }
+
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
         let content = expr::type_block(

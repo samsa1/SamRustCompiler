@@ -83,7 +83,7 @@ impl PostType {
 
     pub fn fun_out_typ(&self) -> Option<&Self> {
         match &self.content {
-            PostTypeInner::Fun(_, out) => Some(&**out),
+            PostTypeInner::Fun(_, _, out) => Some(&**out),
             _ => None,
         }
     }
@@ -98,7 +98,9 @@ pub enum PostTypeInner {
     IdentParametrized(String, Vec<PostType>),
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
-    Fun(Vec<PostType>, Box<PostType>),
+    FreeType(String),
+    // Free types, args types, out type
+    Fun(Vec<String>, Vec<PostType>, Box<PostType>),
     Diverge,
     String,
 }

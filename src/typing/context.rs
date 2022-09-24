@@ -35,6 +35,10 @@ impl Trait {
             _ => false,
         }
     }
+
+    pub fn clone_trait() -> Self {
+        Self::Name("Clone".to_string())
+    }
 }
 
 #[derive(Clone, Debug)]

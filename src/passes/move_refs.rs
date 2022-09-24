@@ -1,30 +1,6 @@
 use crate::ast::rust::*;
 use crate::ast::common::*;
 
-
-struct IdCounter {
-    id : usize
-}
-
-
-impl IdCounter {
-    pub fn new() -> Self {
-        Self {
-            id : 0
-        }
-    }
-
-    fn incr(&mut self) -> usize {
-        let i = self.id;
-        self.id += 1;
-        i
-    }
-
-    pub fn new_name(&mut self) -> String {
-        format!("@{}", self.incr())
-    }
-}
-
 fn is_ref(mutable : bool, mut top_expr : Expr, context : &mut Vec<Instr>, counter : &mut IdCounter) -> Expr {
     match *top_expr.content {
         ExprInner::Bool(_) | ExprInner::Bloc(_)
@@ -227,9 +203,9 @@ fn rewrite_bloc(bloc : Bloc, counter : &mut IdCounter) -> Bloc {
     }
 }
 
-fn rewrite_fun(fun_decl : DeclFun) -> DeclFun {
+fn rewrite_fun(mut fun_decl : DeclFun) -> DeclFun {
     DeclFun {
-        content : rewrite_bloc(fun_decl.content, &mut IdCounter::new()),
+        content : rewrite_bloc(fun_decl.content, &mut fun_decl.id_counter),
         ..fun_decl
     }
 }

@@ -46,7 +46,7 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> PostType {
             }
             let out = translate_typ(*out, sizes);
             PostType {
-                content: PostTypeInner::Fun(args2, Box::new(out)),
+                content: PostTypeInner::Fun(vec![], args2, Box::new(out)),
             }
         }
         PreTypeInner::Ident(id) => match sizes.get_typ(id.get_content()) {

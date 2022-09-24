@@ -37,7 +37,8 @@ fn main() {
         std::process::exit(0)
     }
 
-    let moved_refs = passes::move_refs::rewrite_file(parsed_file);
+    let unfolded_macros = passes::macros::rewrite_file(parsed_file);
+    let moved_refs = passes::move_refs::rewrite_file(unfolded_macros);
 
     let typed_file = typing::type_inferencer(moved_refs);
 

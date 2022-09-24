@@ -23,7 +23,7 @@ pub enum UnOp {
     Deref,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Ident {
     name: String,
     loc: Location,
@@ -52,8 +52,8 @@ impl Ident {
         }
     }
 
-    pub fn get_loc(&self) -> &Location {
-        &self.loc
+    pub fn get_loc(&self) -> Location {
+        self.loc
     }
 }
 
@@ -76,6 +76,20 @@ impl PartialEq for Ident {
     /*    fn ne(&self, other : &Self) -> bool {
         self.name != other.name
     }*/
+}
+
+impl std::fmt::Debug for Ident {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Ident")
+         .field("n", &self.name)
+         .finish()
+    }
+}
+
+impl std::hash::Hash for Ident {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.name.hash(state);
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -128,7 +142,7 @@ impl BuiltinType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Projector {
     Int(usize),
     Name(Ident),
@@ -189,5 +203,29 @@ impl UnaOperator {
             Self::Neg => ("Neg", ""),
             Self::Not => ("Not", ""),
         }
+    }
+}
+
+
+pub struct IdCounter {
+    id : usize
+}
+
+
+impl IdCounter {
+    pub fn new() -> Self {
+        Self {
+            id : 0
+        }
+    }
+
+    pub fn incr(&mut self) -> usize {
+        let i = self.id;
+        self.id += 1;
+        i
+    }
+
+    pub fn new_name(&mut self) -> String {
+        format!("@{}", self.incr())
     }
 }
