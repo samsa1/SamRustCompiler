@@ -7,6 +7,7 @@ mod borrow_checker;
 mod structs;
 pub mod types;
 mod inferencer;
+pub mod errors;
 
 fn type_funs(
     funs: Vec<rust::DeclFun>,
@@ -65,24 +66,25 @@ fn type_funs(
             .map(|((name, b, _pre_type), post_type)| (name, b, post_type))
             .collect();
         let in_types2 : Vec<(String, bool, &typed_rust::PostType)> = in_types.iter().map(|(id, b, typ)| (id.get_content().to_string(), *b, typ)).collect();
-        match inferencer::type_funs(known_types, &in_types2, &output, fun_decl.content.clone()) {
-            Ok(_) => (),
+        let (content, types) = match inferencer::type_funs(known_types, &in_types2, &output, fun_decl.content.clone()) {
+            Ok(out) => out,
             Err(errs) => {
                 for err in errs.into_iter() {
                     println!("{err:?}")
                 }
                 std::process::exit(1);
             },
-        }
-/*        {println!("typing not finished"); std::process::exit(0)},
+        };
+//        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
-        let content = expr::type_block(
-            fun_decl.content,
+/*        let content = expr::type_block(
+            content,
             known_types,
             &mut local_ctxt,
             &output,
             Some(&output),
+            &types
         );*/
         if !fun_names.insert(fun_decl.name.get_content().to_string()) {
             println!("Function {} is declared multiple times", fun_decl.name.get_content());
@@ -117,18 +119,8 @@ pub fn type_inferencer(file: rust::File) -> typed_rust::File {
         /* v[0] = .. when v is a non mutable ref */
         assert_ne!("tests/typing/bad/testfile-borrow-1.rs", &file.name);
 
-        /* take mutable ref of non mutable */
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-1.rs", &file.name);
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-5.rs", &file.name);
-
-        /* affect unref of non mutable ref */
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-2.rs", &file.name);
-
         /* expected "&mut _" but got "& _" */
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-4.rs", &file.name);
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-6.rs", &file.name);
         assert_ne!("tests/typing/bad/testfile-borrow_mut-7.rs", &file.name);
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-8.rs", &file.name);
         assert_ne!("tests/typing/bad/testfile-borrow_mut-9.rs", &file.name);
 
         /* affected field of non mutable structure */

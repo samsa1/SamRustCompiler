@@ -35,7 +35,7 @@ pub enum Types {
     Enum(String),
     Fun(Vec<usize>, usize),
     Struct(String, Vec<usize>),
-    Ref(usize),
+    Ref(Option<bool>, usize),
     Deref(usize),
     SameAs(usize),
     Tuple(Vec<usize>),
@@ -71,20 +71,20 @@ impl Types {
         Self::Tuple(vec_types)
     }
 
-    pub fn refed(type_id : usize) -> Self {
-        Self::Ref(type_id)
+    pub fn refed(mutable : bool, type_id : usize) -> Self {
+        Self::Ref(Some(mutable), type_id)
     }
 
     pub fn boxed(type_id : usize) -> Self {
         Self::Struct("Box".to_string(), vec![type_id])
     }
 
-    pub fn unref(&self) -> Option<usize> {
+    pub fn unref(&self) -> Option<(bool, usize)> {
         match self {
-            Self::Ref(type_id) => Some(*type_id),
+            Self::Ref(mutable, type_id) => Some((mutable.unwrap_or(true), *type_id)),
             Self::Struct(name, args)
                 if name == "Box" && args.len() == 1 => {
-                    Some(args[0])
+                    Some((false, args[0]))
                 },
             _ => None,
         }
@@ -162,6 +162,29 @@ impl TypeStorage {
     pub fn set(&mut self, id : usize, typ : Types) {
         assert!(self.map.contains_key(&id));
         self.map.insert(id, typ);
+    }
+
+    pub fn new_ref_unmarked(&mut self, type_id : usize) -> usize {
+        match self.map.get(&type_id).unwrap() {
+            Types::Bool | Types::Enum(_) | Types::Unknown
+             | Types::Int(_, _) | Types::Fun(_, _) => type_id,
+            Types::SameAs(type_id) => self.new_ref_unmarked(*type_id),
+            Types::Array(_, _) => todo!(),
+            Types::Deref(_) => todo!(),
+            Types::Ref(_, type_id) => {
+                let type_id = self.new_ref_unmarked(*type_id);
+                self.insert_type(Types::Ref(None, type_id))
+            },
+            Types::Tuple(_) => todo!(),
+            Types::Struct(name, args) => {
+                let mut args2 = Vec::new();
+                let name = name.to_string();
+                for type_id in args.clone().into_iter() {
+                    args2.push(self.new_ref_unmarked(type_id))
+                };
+                self.insert_type(Types::Struct(name, args2))
+            },
+        }
     }
 }
 
@@ -269,7 +292,7 @@ pub enum ExprInner<T = Option<PreType>> {
     Int(usize),
     Var(common::Ident),
     Method(Expr<T>, common::Ident, Vec<Expr<T>>),
-    FunCall(common::Ident, Vec<Expr<T>>),
+    FunCall(Vec<T>, common::Ident, Vec<Expr<T>>),
     MacroCall(common::Ident, Vec<Expr<T>>),
     BinaryOp(common::BinOperator, Expr<T>, Expr<T>),
     UnaryOp(common::UnaOperator, Expr<T>),

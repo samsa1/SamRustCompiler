@@ -1,7 +1,7 @@
 use crate::ast::common::{BuiltinType, Sizes};
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
-
+use std::collections::HashMap;
 use super::context::GlobalContext;
 
 pub fn compute_size(typ: &PreType, sizes: &GlobalContext) -> usize {
@@ -115,7 +115,8 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
             } else {
                 false
             }
-        }
+        },
+        (PostTypeInner::FreeType(id1), PostTypeInner::FreeType(id2)) if id1 == id2 => panic!("Weird"), 
         _ => {
             println!("not compatible :\n {:?}\n {:?}", expected, got);
             todo!()
@@ -203,4 +204,25 @@ pub fn builtin_name(typ: &BuiltinType) -> &'static str {
         },
         BuiltinType::Bool => "bool",
     }
+}
+
+pub fn substitute(typ : PostType, hash_map : &HashMap<String, PostType>) -> PostType {
+    let content = match typ.content {
+        PostTypeInner::Box(typ) =>
+        PostTypeInner::Box(Box::new(substitute(*typ, hash_map))),
+        PostTypeInner::BuiltIn(built_in) => PostTypeInner::BuiltIn(built_in),
+        PostTypeInner::Diverge => PostTypeInner::Diverge,
+        PostTypeInner::Enum(name) => PostTypeInner::Enum(name),
+        PostTypeInner::FreeType(t) =>
+            return hash_map.get(&t).unwrap().clone(),
+        PostTypeInner::Fun(_, _, _) => todo!(),
+        PostTypeInner::Ref(mutable, typ) =>
+            PostTypeInner::Ref(mutable, Box::new(substitute(*typ, hash_map))),
+        PostTypeInner::String => PostTypeInner::String,
+        PostTypeInner::Struct(name, args) =>
+            PostTypeInner::Struct(name, args.into_iter().map(|t| substitute(t, hash_map)).collect()),
+        PostTypeInner::Tuple(types) => 
+            PostTypeInner::Tuple(types.into_iter().map(|t| substitute(t, hash_map)).collect()),
+    };
+    PostType { content, }
 }

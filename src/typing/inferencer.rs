@@ -3,122 +3,7 @@ use crate::ast::typed_rust::{PostType, PostTypeInner};
 use crate::ast::common::{BinOperator, UnaOperator, Ident, BuiltinType, Sizes, Projector, Location, ComputedValue};
 use super::context::GlobalContext;
 use std::collections::HashMap;
-
-#[derive(Debug)]
-pub enum TypeErrorInfo {
-    ExpectedStruct(Types),
-    ExpectedTuple(Types),
-    Unknown,
-    NotCompatible(Types, Types),
-    TryUnref(Types),
-    UndeclaredVariable(String),
-    CannotAffectValue,
-    UndeclaredStruct(String),
-    WrongNbArgs(usize, usize),
-    ExpectedFun(PostTypeInner),
-    StructDoesNotHasField(String, String),
-    MissingField(String, String),
-}
-
-#[derive(Debug)]
-pub struct TypeError {
-    loc : Location,
-    info : TypeErrorInfo,
-}
-
-impl TypeError {
-    fn new(loc : Location, info : TypeErrorInfo) -> Self {
-        Self {
-            loc,
-            info,
-        }
-    }
-
-    fn expected_struct(typ : Types, loc : Location) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::ExpectedStruct(typ),
-        }
-    }
-
-    fn expected_tuple(typ : Types, loc : Location) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::ExpectedTuple(typ),
-        }
-    }
-
-    fn unknown_error(loc : Location) -> Self {
-        todo!();
-        Self {
-            loc,
-            info : TypeErrorInfo::Unknown,
-        }
-    }
-
-    fn not_compatible(loc : Location, typ1 : Types, typ2 : Types) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::NotCompatible(typ1, typ2)
-        }
-    }
-
-    fn cannot_unref(loc : Location, typ : Types) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::TryUnref(typ)
-        }
-    }
-
-    fn cannot_affect(loc : Location) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::CannotAffectValue
-        }
-    }
-
-    fn unknown_var(id : Ident) -> Self {
-        Self {
-            loc : id.get_loc(),
-            info : TypeErrorInfo::UndeclaredVariable(id.content())
-        }
-    }
-
-    fn unknown_struct(id : Ident) -> Self {
-        Self {
-            loc : id.get_loc(),
-            info : TypeErrorInfo::UndeclaredStruct(id.content())
-        }
-    }
-
-    fn wrong_nb_args(loc : Location, got : usize, expected : usize) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::WrongNbArgs(got, expected),
-        }
-    }
-
-    fn expected_fun(loc : Location, typ : PostTypeInner) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::ExpectedFun(typ)
-        }
-    }
-
-    fn struct_no_field(loc : Location, struct_name : String, field_name : String) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::StructDoesNotHasField(struct_name, field_name)
-        }
-    }
-
-    fn missing_field(loc : Location, struct_name : String, field_name : String) -> Self {
-        Self {
-            loc,
-            info : TypeErrorInfo::MissingField(struct_name, field_name)
-        }
-    }
-}
+use super::errors::TypeError;
 
 #[derive(Clone, Debug)]
 pub struct LocalContext {
@@ -179,22 +64,22 @@ impl LocalContext {
 
 }
 
-fn get_struct_name(types : &TypeStorage, type_id : usize, loc : Location) -> Result<Option<(&str, &Vec<usize>)>, Vec<TypeError>> {
+fn get_struct_name(types : &TypeStorage, type_id : usize, loc : Location, affectable : bool) -> Result<Option<(bool, &str, &Vec<usize>)>, Vec<TypeError>> {
     match types.get(type_id) {
         None => panic!("ICE"),
-        Some(Types::Struct(name, params)) => Ok(Some((name, params))),
+        Some(Types::Struct(name, params)) => Ok(Some((affectable, name, params))),
         Some(Types::Unknown) => Ok(None),
-        Some(Types::Ref(type_id)) => get_struct_name(types, *type_id, loc),
+        Some(Types::Ref(mutable, type_id)) => get_struct_name(types, *type_id, loc, mutable.unwrap_or(true)),
         Some(typ) => Err(vec![TypeError::expected_struct(typ.clone(), loc)]),
     }
 }
 
-fn get_tuple(types : &TypeStorage, type_id : usize, loc : Location) -> Result<Option<&Vec<usize>>, Vec<TypeError>> {
+fn get_tuple(types : &TypeStorage, type_id : usize, loc : Location, affectable : bool) -> Result<Option<(bool, &Vec<usize>)>, Vec<TypeError>> {
     match types.get(type_id) {
         None => panic!("ICE"),
-        Some(Types::Tuple(vec)) => Ok(Some(vec)),
+        Some(Types::Tuple(vec)) => Ok(Some((affectable, vec))),
         Some(Types::Unknown) => Ok(None),
-        Some(Types::Ref(type_id)) => get_tuple(types, *type_id, loc),
+        Some(Types::Ref(mutable, type_id)) => get_tuple(types, *type_id, loc, mutable.unwrap_or(true)),
         Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
     }
 }
@@ -206,26 +91,52 @@ fn check_coherence(types : &mut TypeStorage, type_id : usize, type_2 : Option<Pr
     }
 }
 
+#[derive(Copy, Clone)]
+enum UnificationMethod {
+    Smallest,
+    StrictSnd,
+    StrictFst,
+    NoRef,
+}
+
+fn compute_mut(mut1 : bool, mut2 : bool, unif_method : UnificationMethod) -> Result<bool, Vec<TypeError>> {
+    match unif_method {
+        UnificationMethod::Smallest => Ok(mut1 && mut2),
+        UnificationMethod::StrictFst if !mut1 || mut2 => Ok(mut1), 
+        UnificationMethod::StrictSnd if mut1 || !mut2 => Ok(mut2),
+        UnificationMethod::NoRef => panic!("ICE"),
+        _ => Err(vec![])
+    }
+}
+
 // result must be "<= min(type_id1, type_id2)"
 // but we also have "if type_id_ != output { types.get(type_id_) = SameAs(output) }"
-fn make_coherent(types : &mut TypeStorage, type_id1 : usize, type_id2 : usize, loc : Location) -> Result<usize, Vec<TypeError>> {
+fn make_coherent(types : &mut TypeStorage, type_id1 : usize, type_id2 : usize, loc : Location, unification_method : UnificationMethod) -> Result<usize, Vec<TypeError>> {
     let (typ1, typ2) = match (types.get(type_id1), types.get(type_id2)) {
         (Some(typ1), Some(typ2)) => (typ1, typ2),
         _ => panic!("ICE")
     };
-    let id = match (typ1, typ2) {
-        (Types::Unknown, _) => type_id2,
-        (_, Types::Unknown) => type_id1,
+    match (typ1, typ2) {
+        (Types::Unknown, _) => {
+            let type_id = types.new_ref_unmarked(type_id2);
+            if type_id1 != type_id {types.set(type_id1, Types::SameAs(type_id)) };
+            Ok(type_id2)
+        },
+        (_, Types::Unknown) => { // we know that type_id1 != type_id2
+            let type_id = types.new_ref_unmarked(type_id1);
+            types.set(type_id, Types::SameAs(type_id1));
+            Ok(type_id1)
+        },
 
         (Types::SameAs(type_id1b), Types::SameAs(type_id2b)) => 
-            make_coherent(types, *type_id1b, *type_id2b, loc)?,
+            make_coherent(types, *type_id1b, *type_id2b, loc, unification_method),
         (_, Types::SameAs(type_id2b)) =>
-            make_coherent(types, type_id1, *type_id2b, loc)?,
+            make_coherent(types, type_id1, *type_id2b, loc, unification_method),
         (Types::SameAs(type_id1b), _) =>
-            make_coherent(types, *type_id1b, type_id2, loc)?,
+            make_coherent(types, *type_id1b, type_id2, loc, unification_method),
 
-        (Types::Bool, Types::Bool) => type_id1,
-        (Types::Bool, _) | (_, Types::Bool) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
+        (Types::Bool, Types::Bool) => Ok(type_id1),
+        (Types::Bool, _) | (_, Types::Bool) => Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
 
         (Types::Int(b1, s1), Types::Int(b2, s2)) => {
             let b = match (b1, b2) {
@@ -240,58 +151,58 @@ fn make_coherent(types : &mut TypeStorage, type_id1 : usize, type_id2 : usize, l
                 (Some(s1), Some(s2)) if s1 == s2 => Some(*s1),
                 _ => return Err(vec![TypeError::unknown_error(loc)]),
             };
+            types.set(type_id2, Types::SameAs(type_id1));
             types.set(type_id1, Types::Int(b, s));
-            type_id1
+            Ok(type_id1)
         },
-        (Types::Int(_, _), _) | (_, Types::Int(_, _)) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
+        (Types::Int(_, _), _) | (_, Types::Int(_, _)) => Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
 
         (Types::Tuple(vec1), Types::Tuple(vec2)) if vec1.len() == vec2.len() => {
             let mut vec = Vec::new();
             for (t1, t2) in vec1.clone().into_iter().zip(vec2.clone().into_iter()) {
-                vec.push(make_coherent(types, t1, t2, loc)?);
+                vec.push(make_coherent(types, t1, t2, loc, unification_method)?);
             }
-            types.set(type_id1, Types::Tuple(vec));
-            type_id1
+            Ok(types.insert_type(Types::Tuple(vec)))
         }
-        (Types::Tuple(_), _) | (_, Types::Tuple(_)) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
+        (Types::Tuple(_), _) | (_, Types::Tuple(_)) => Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
 
-        (Types::Ref(type_id1b), Types::Ref(type_id2b)) => {
-            let type_id = make_coherent(types, *type_id1b, *type_id2b, loc)?;
-            types.set(type_id1, Types::refed(type_id));
-            type_id1
+        (Types::Ref(mut1, type_id1b), Types::Ref(mut2, type_id2b)) => {
+            match (mut1, mut2) {
+                (Some(mut1), Some(mut2)) => {
+                    let mutable = compute_mut(*mut1, *mut2, unification_method)?;
+                    let type_id = make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
+                    Ok(types.insert_type(Types::refed(mutable, type_id)))
+                },
+                _ => todo!(),
+            }
         },
-        (Types::Ref(_), _) | (_, Types::Ref(_)) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
+        (Types::Ref(_, _), _) | (_, Types::Ref(_, _)) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
 
         (Types::Struct(name1, vec1), Types::Struct(name2, vec2)) if vec1.len() == vec2.len() => {
             if name1 == name2 {
                 let mut type_vec = Vec::new();
                 let name = name1.clone();
                 for (typ1, typ2) in vec1.clone().into_iter().zip(vec2.clone().into_iter()) {
-                    type_vec.push(make_coherent(types, typ1, typ2, loc)?)
+                    type_vec.push(make_coherent(types, typ1, typ2, loc, unification_method)?)
                 };
-                types.set(type_id1, Types::Struct(name, type_vec));
-                type_id1
+                Ok(types.insert_type(Types::Struct(name, type_vec)))
             } else {
-                return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())])
+                Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())])
             }
         },
-        (Types::Struct(_, _), _) | (_, Types::Struct(_, _)) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
+        (Types::Struct(_, _), _) | (_, Types::Struct(_, _)) => Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
 
         (t1, t2) => {println!("not implemented for {t1:?} {t2:?}"); todo!()},
-    };
-    if type_id1 != id { types.set(type_id1, Types::SameAs(id)); };
-    if type_id2 != id { types.set(type_id2, Types::SameAs(id)); };
-    Ok(id)
-
+    }
 }
 
-fn try_deref(types : &mut TypeStorage, type_id : usize, loc : Location) -> Result<usize, Vec<TypeError>> {
+fn try_deref(types : &mut TypeStorage, type_id : usize, loc : Location) -> Result<(bool, usize), Vec<TypeError>> {
     match types.get(type_id) {
         None => panic!("ICE"),
         Some(Types::SameAs(type_id)) => try_deref(types, *type_id, loc),
         Some(typ) => match typ.unref() {
             None => Err(vec![TypeError::cannot_unref(loc, typ.clone())]),
-            Some(type_id) => Ok(type_id)
+            Some((bool, type_id)) => Ok((bool, type_id))
         }
     }
 }
@@ -323,9 +234,9 @@ fn add_type(types : &mut TypeStorage, post_type : &PostType, free_types : &HashM
             };
             types.insert_type(Types::Struct(param.to_string(), vec))
         },
-        PostTypeInner::Ref(_, typ) => {
+        PostTypeInner::Ref(mutable, typ) => {
             let type_id = add_type(types, typ, free_types);
-            types.insert_type(Types::refed(type_id))
+            types.insert_type(Types::refed(*mutable, type_id))
         },
         PostTypeInner::String => types.insert_string(),
         PostTypeInner::Tuple(type_vec) => {
@@ -339,9 +250,9 @@ fn add_type(types : &mut TypeStorage, post_type : &PostType, free_types : &HashM
 }
 
 // Used in function call and in building structures
-fn forces_to(types : &mut TypeStorage, type_id : usize, typ : &PostType, loc : Location, free_types : &HashMap<String, usize>) -> Result<(), Vec<TypeError>> {
+fn forces_to(types : &mut TypeStorage, type_id : usize, typ : &PostType, loc : Location, free_types : &HashMap<String, usize>, unification_method : UnificationMethod) -> Result<(), Vec<TypeError>> {
     let type_id2 = add_type(types, typ, free_types);
-    make_coherent(types, type_id, type_id2, loc)?;
+    make_coherent(types, type_id, type_id2, loc, unification_method)?;
     Ok(())
 
     /*if let PostTypeInner::FreeType(name) = &typ.content {
@@ -412,7 +323,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             let (affectable, expr1) = type_expr(ctxt, local_ctxt, expr1, types, out_type)?;
             if affectable {
                 let expr2 = type_expr(ctxt, local_ctxt, expr2, types, out_type)?.1;
-                make_coherent(types, expr1.typed, expr2.typed, expr1.loc)?;
+                make_coherent(types, expr1.typed, expr2.typed, expr1.loc, UnificationMethod::StrictFst)?;
                 let type_id = types.insert_unit();
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                 Ok((false, Expr {
@@ -430,8 +341,8 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             let expr2 = type_expr(ctxt, local_ctxt, expr2, types, out_type)?.1;
             if op == BinOperator::And || op == BinOperator::Or {
                 let type_id = types.insert_bool();
-                make_coherent(types, expr1.typed, type_id, expr1.loc)?;
-                make_coherent(types, expr2.typed, type_id, expr2.loc)?;
+                make_coherent(types, expr1.typed, type_id, expr1.loc, UnificationMethod::NoRef)?;
+                make_coherent(types, expr2.typed, type_id, expr2.loc, UnificationMethod::NoRef)?;
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                 Ok((false, Expr {
                     content : Box::new(ExprInner::BinaryOp(op, expr1, expr2)),
@@ -441,7 +352,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             } else if op == BinOperator::Eq || op == BinOperator::Ne
                     || op == BinOperator::Greater || op == BinOperator::GreaterEq
                     || op == BinOperator::Lower || op == BinOperator::LowerEq {
-                make_coherent(types, expr1.typed, expr2.typed, top_expr.loc)?;
+                make_coherent(types, expr1.typed, expr2.typed, top_expr.loc, UnificationMethod::Smallest)?;
                 let type_id = types.insert_bool();
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                 Ok((false, Expr {
@@ -452,9 +363,10 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             } else if op == BinOperator::Add || op == BinOperator::Sub
                     || op == BinOperator::Mod || op == BinOperator::Mul
                     || op == BinOperator::Div {
-                let type_id = make_coherent(types, expr1.typed, expr2.typed, top_expr.loc)?;
+                make_coherent(types, expr1.typed, expr2.typed, top_expr.loc, UnificationMethod::NoRef)?;
+                let type_id = expr1.typed;
                 let type_id2 = types.insert_type(Types::Int(None, None));
-                let type_id = make_coherent(types, type_id, type_id2, top_expr.loc)?;
+                make_coherent(types, type_id, type_id2, top_expr.loc, UnificationMethod::NoRef)?;
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                 Ok((false, Expr {
                     typed : type_id,
@@ -491,7 +403,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                 for (name, expr) in args.into_iter() {
                     let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                     if let Some(typ) = struct_info.get_typ(name.get_content()) {
-                        forces_to(types, expr.typed, typ, top_expr.loc, &HashMap::new())?;
+                        forces_to(types, expr.typed, typ, top_expr.loc, &HashMap::new(), UnificationMethod::StrictSnd)?;
                         args2.push((name, expr));
                     } else {
                         return Err(vec![TypeError::struct_no_field(top_expr.loc, struct_name.content(), name.content())])
@@ -515,35 +427,39 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
 
         ExprInner::Deref(expr) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-            let type_id = try_deref(types, expr.typed, expr.loc)?;
+            let (affectable, type_id) = try_deref(types, expr.typed, expr.loc)?;
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
-            Ok((true, Expr {
+            Ok((affectable, Expr {
                 content : Box::new(ExprInner::Deref(expr)),
                 loc : top_expr.loc,
                 typed : type_id,
             }))
         },
 
-        ExprInner::FunCall(name, exprs) => {
+        ExprInner::FunCall(args, name, exprs) => {
+            assert!(args.is_empty());
             match local_ctxt.get_typ(&name) {
                 None => {
                     if let Some(typ) = ctxt.get_typ(name.get_content()) {
                         match &typ.content {
                             PostTypeInner::Fun(free, args, out) if args.len() == exprs.len() => {
                                 let mut free_types = HashMap::new();
+                                let mut vec_types = Vec::new();
                                 for name in free.iter() {
-                                    free_types.insert(name.clone(), types.insert_type(Types::unknown()));
+                                    let type_id = types.insert_type(Types::unknown());
+                                    vec_types.push(type_id);
+                                    free_types.insert(name.clone(), type_id);
                                 }
                                 let mut exprs_out = Vec::new();
                                 for (expr, typ) in exprs.into_iter().zip(args.iter()) {
                                     let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                                    forces_to(types, expr.typed, typ, expr.loc, &free_types)?;
+                                    forces_to(types, expr.typed, typ, expr.loc, &free_types, UnificationMethod::StrictSnd)?;
                                     exprs_out.push(expr)
                                 };
                                 let type_id = add_type(types, out, &free_types);
                                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                                 Ok((false, Expr {
-                                    content : Box::new(ExprInner::FunCall(name, exprs_out)),
+                                    content : Box::new(ExprInner::FunCall(vec_types, name, exprs_out)),
                                     loc : top_expr.loc,
                                     typed : type_id,
                                 }))
@@ -574,8 +490,8 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             let (type_id1, bloc1) = type_bloc(ctxt, local_ctxt, bloc1, types, out_type, None)?;
             let (type_id2, bloc2) = type_bloc(ctxt, local_ctxt, bloc2, types, out_type, None)?;
             let type_id = types.insert_bool();
-            make_coherent(types, expr.typed, type_id, expr.loc)?;
-            let type_id = make_coherent(types, type_id1, type_id2, top_expr.loc)?;
+            make_coherent(types, expr.typed, type_id, expr.loc, UnificationMethod::NoRef)?;
+            let type_id = make_coherent(types, type_id1, type_id2, top_expr.loc, UnificationMethod::Smallest)?;
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
             Ok((false, Expr {
                 content : Box::new(ExprInner::If(expr, bloc1, bloc2)),
@@ -585,15 +501,15 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         },
 
         ExprInner::Index(expr_val, expr_index) => {
-            let expr_val = type_expr(ctxt, local_ctxt, expr_val, types, out_type)?.1;
+            let (affectable, expr_val) = type_expr(ctxt, local_ctxt, expr_val, types, out_type)?;
             let expr_index = type_expr(ctxt, local_ctxt, expr_index, types, out_type)?.1;
             types.forces_to(expr_index.typed, Types::usize()).unwrap();
-            if let Some((name, args)) = get_struct_name(types, expr_val.typed, expr_val.loc)? {
+            if let Some((affectable, name, args)) = get_struct_name(types, expr_val.typed, expr_val.loc, affectable)? {
                 if name == "Vec" && args.len() == 1 {
                     let type_id = args[0];
                     // can be improved
                     check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
-                    Ok((true, Expr {
+                    Ok((affectable, Expr {
                         content : Box::new(ExprInner::Index(expr_val, expr_index)),
                         loc : top_expr.loc,
                         typed : type_id,
@@ -621,7 +537,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             if exprs.len() == 1 {
                 let expr = type_expr(ctxt, local_ctxt, exprs.pop().unwrap(), types, out_type)?.1;
                 let type_id = types.insert_string();
-                make_coherent(types, expr.typed, type_id, expr.loc)?;
+                make_coherent(types, expr.typed, type_id, expr.loc, UnificationMethod::NoRef)?;
                 let type_id = types.insert_unit();
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                 Ok((false, Expr {
@@ -638,28 +554,29 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
 
         ExprInner::Method(expr, method_name, exprs) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-            if let Some((struct_name, params)) = get_struct_name(types, expr.typed, expr.loc)? {
+            if let Some((_, struct_name, params)) = get_struct_name(types, expr.typed, expr.loc, false)? {
                 if let Some(method) = ctxt.get_method_function(struct_name, &method_name).unwrap() {
                     let typ = ctxt.get_typ(method).unwrap();
                     match &typ.content {
                         PostTypeInner::Fun(frees, args, out) => {
                             assert_eq!(frees.len(), params.len());
+                            let params = params.clone();
                             let mut free_types = HashMap::new();
                             for (name, id) in frees.iter().zip(params.iter()) {
                                 assert!(free_types.insert(name.to_string(), *id).is_none());
                             };
-                            let mut exprs_out = Vec::new();
+                            let mut exprs_out = vec![expr];
                             let mut args = args.iter();
                             args.next(); println!("warning todo in method");
                             for (expr, typ) in exprs.into_iter().zip(args) {
                                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                                forces_to(types, expr.typed, typ, expr.loc, &free_types)?;
+                                forces_to(types, expr.typed, typ, expr.loc, &free_types, UnificationMethod::StrictSnd)?;
                                 exprs_out.push(expr)
                             };
                             let type_id = add_type(types, out, &free_types);
                             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                             Ok((false, Expr {
-                                content : Box::new(ExprInner::FunCall(Ident::new(method, method_name.get_loc()), exprs_out)),
+                                content : Box::new(ExprInner::FunCall(params, Ident::new(method, method_name.get_loc()), exprs_out)),
                                 loc : top_expr.loc,
                                 typed : type_id,
                             }))
@@ -681,18 +598,18 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         },
 
         ExprInner::Proj(expr, Projector::Int(proj_id)) => {
-            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-            let type_id = if let Some(tuple) = get_tuple(types, expr.typed, expr.loc)? {
+            let (affectable, expr) = type_expr(ctxt, local_ctxt, expr, types, out_type)?;
+            let (affectable, type_id) = if let Some((affectable, tuple)) = get_tuple(types, expr.typed, expr.loc, affectable)? {
                 if proj_id >= tuple.len() {
                     return Err(vec![TypeError::unknown_error(top_expr.loc)])
                 } else {
-                    tuple[proj_id]
+                    (affectable, tuple[proj_id])
                 }
             } else {
-                types.insert_type(Types::unknown())
+                (true, types.insert_type(Types::unknown()))
             };
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
-            Ok((true, Expr {
+            Ok((affectable, Expr {
                 content : Box::new(ExprInner::Proj(expr, Projector::Int(proj_id))),
                 loc : top_expr.loc,
                 typed : type_id,
@@ -700,21 +617,21 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         },
 
         ExprInner::Proj(expr, Projector::Name(proj_name)) => {
-            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-            let type_id = 
-            if let Some((struct_name, params)) = get_struct_name(types, expr.typed, expr.loc)? {
+            let (affectable, expr) = type_expr(ctxt, local_ctxt, expr, types, out_type)?;
+            let (affectable, type_id) = 
+            if let Some((affectable, struct_name, params)) = get_struct_name(types, expr.typed, expr.loc, affectable)? {
                 assert!(params.is_empty());
                 let struct_info = ctxt.get_struct(struct_name).unwrap();
                 if let Some(field_typ) = struct_info.get_field_typ(proj_name.get_content()) {
-                    add_type(types, field_typ, &HashMap::new())
+                    (affectable, add_type(types, field_typ, &HashMap::new()))
                 } else {
                     return Err(vec![TypeError::struct_no_field(top_expr.loc, struct_name.to_string(), proj_name.content())])
                 }
             } else {
-                types.insert_type(Types::unknown())
+                (true, types.insert_type(Types::unknown()))
             };
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
-            Ok((true, Expr {
+            Ok((affectable, Expr {
                 content : Box::new(ExprInner::Proj(expr, Projector::Name(proj_name))),
                 loc : top_expr.loc,
                 typed : type_id
@@ -722,8 +639,11 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         },
 
         ExprInner::Ref(mutable, expr) => {
-            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-            let type_id = types.insert_type(Types::Ref(expr.typed));
+            let (affectable, expr) = type_expr(ctxt, local_ctxt, expr, types, out_type)?;
+            if mutable && !affectable {
+                return Err(vec![TypeError::cannot_borrow_as_mut(top_expr.loc)])
+            }
+            let type_id = types.insert_type(Types::Ref(Some(mutable), expr.typed));
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
             Ok((false, Expr {
                 content : Box::new(ExprInner::Ref(mutable, expr)),
@@ -762,7 +682,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         ExprInner::UnaryOp(UnaOperator::Not, expr) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             let type_id = types.insert_bool();
-            make_coherent(types, expr.typed, type_id, expr.loc)?;
+            make_coherent(types, expr.typed, type_id, expr.loc, UnificationMethod::NoRef)?;
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
             Ok((false, Expr {
                 content : Box::new(ExprInner::UnaryOp(UnaOperator::Not, expr)),
@@ -774,7 +694,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         ExprInner::UnaryOp(UnaOperator::Neg, expr) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             let type_id = types.insert_type(Types::Int(Some(true), None));
-            make_coherent(types, expr.typed, type_id, expr.loc)?;
+            make_coherent(types, expr.typed, type_id, expr.loc, UnificationMethod::NoRef)?;
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
             Ok((false, Expr {
                 content : Box::new(ExprInner::UnaryOp(UnaOperator::Neg, expr)),
@@ -819,19 +739,19 @@ fn type_bloc(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, bloc : Bloc,
             },
             Instr::Return(None) => {
                 let type_id = types.insert_unit();
-                make_coherent(types, type_id, out_type, Location::default())?;
+                make_coherent(types, type_id, out_type, Location::default(), UnificationMethod::NoRef)?;
                 content.push(Instr::Return(None));
             },
             Instr::Return(Some(expr)) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                make_coherent(types, expr.typed, out_type, expr.loc)?;
+                make_coherent(types, expr.typed, out_type, expr.loc, UnificationMethod::StrictSnd)?;
                 content.push(Instr::Return(Some(expr)))
             },
 
             Instr::While(expr, bloc) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                 let type_id = types.insert_bool();
-                make_coherent(types, expr.typed, type_id, expr.loc)?;
+                make_coherent(types, expr.typed, type_id, expr.loc, UnificationMethod::NoRef)?;
                 let bloc = type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?.1;
                 content.push(Instr::While(expr, bloc))
             },
@@ -853,12 +773,12 @@ fn type_bloc(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, bloc : Bloc,
                 Some(type_id) => {
                     match &instr {
                         Instr::Expr(ComputedValue::Keep, expr) => {
-                            make_coherent(types, type_id, expr.typed, bloc.loc)?
+                            make_coherent(types, type_id, expr.typed, bloc.loc, UnificationMethod::StrictFst)?
                         },
                         Instr::Return(_) => types.insert_type(Types::unknown()),
                         _ => {
                             let type_id2 = types.insert_unit();
-                            make_coherent(types, type_id, type_id2, bloc.loc)?
+                            make_coherent(types, type_id, type_id2, bloc.loc, UnificationMethod::NoRef)?
                         }
                     }
                 }

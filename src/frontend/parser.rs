@@ -256,7 +256,7 @@ peg::parser! {
           n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
           n:name() space() "(" v:opt_expr_list() ")" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::FunCall(n, v)) }
+              { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
           n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
           start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
@@ -313,7 +313,7 @@ peg::parser! {
               { to_expr(e1.loc.start(), end,
                   ExprInner::Index(e1, e2)) }
           n:name() space() "(" v:opt_expr_list() ")" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::FunCall(n, v)) }
+              { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
           n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
           start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()

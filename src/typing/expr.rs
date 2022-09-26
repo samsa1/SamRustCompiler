@@ -3,6 +3,7 @@ use super::types::*;
 use crate::ast::common::*;
 use crate::ast::{rust, typed_rust};
 use std::str::FromStr;
+use std::collections::HashMap;
 
 fn compatible_types(
     type1: &Option<typed_rust::PostType>,
@@ -10,7 +11,7 @@ fn compatible_types(
 ) -> typed_rust::PostType {
     match type1 {
         None => type2,
-        Some(_type1) => todo! {},
+        Some(_type1) => {return type2; todo! {}},
     }
 }
 
@@ -101,14 +102,56 @@ fn bool_fun_name(binop: BinOperator) -> Option<&'static str> {
     }
 }
 
+fn build_type(types : &rust::TypeStorage, type_id : usize) -> Option<typed_rust::PostType> {
+    match types.get(type_id).unwrap() {
+        rust::Types::SameAs(type_id) => build_type(types, *type_id),
+        rust::Types::Array(_, _) => todo!(),
+        rust::Types::Bool => Some(typed_rust::PostType::bool()),
+        rust::Types::Deref(_) => None,
+        rust::Types::Ref(None, type_id) => todo!(),
+        rust::Types::Ref(Some(mutable), type_id) => Some(typed_rust::PostType {
+            content : typed_rust::PostTypeInner::Ref(*mutable, Box::new(build_type(types, *type_id)?)),
+        }),
+        rust::Types::Enum(_) => todo!(),
+        rust::Types::Fun(_, _) => todo!(),
+        rust::Types::Int(signed, size) => 
+            Some(typed_rust::PostType {
+                content : typed_rust::PostTypeInner::BuiltIn(
+                    BuiltinType::Int(signed.unwrap_or(false), size.unwrap_or(Sizes::SUsize))
+                ),
+            }),
+        rust::Types::Struct(name, args) => {
+            let mut args2 = Vec::new();
+            for typ in args.iter() {
+                args2.push(build_type(types, *typ)?);
+            }
+            Some(typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Struct(name.to_string(), args2)
+            })
+        },
+        rust::Types::Tuple(types_vec) => {
+            let mut vec = Vec::new();
+            for typ in types_vec.iter() {
+                vec.push(build_type(types, *typ)?)
+            }
+            Some(typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Tuple(vec)
+            })
+        },
+        rust::Types::Unknown => None,
+    }
+}
+
 pub fn type_checker(
     ctxt: &context::GlobalContext,
-    expr: rust::Expr,
+    expr: rust::Expr<usize>,
     loc_ctxt: &mut context::LocalContext,
     out: &typed_rust::PostType,
     expected_typ: Option<&typed_rust::PostType>,
+    typing_info : &rust::TypeStorage,
 ) -> (bool, typed_rust::Expr) {
-    let mut translated_typ = expr.typed.map(|t| translate_typ(t, ctxt));
+    println!("working on {expr:?}");
+    let mut translated_typ = build_type(typing_info, expr.typed);
     let (affectable, found_type, content) = match *expr.content {
         rust::ExprInner::Bool(b) => (
             false,
@@ -147,10 +190,10 @@ pub fn type_checker(
                 None => None,
                 Some(typ) => match &typ.content {
                     typed_rust::PostTypeInner::Ref(b2, typ) if b || !b2 => Some(&**typ),
-                    _ => todo!(),
+                    _ => {println!("{b} {typ:?}"); todo!()},
                 },
             };
-            let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, expected_typ);
+            let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, expected_typ, typing_info);
             println!("warning typing/expr.rs line 154");
             if b && !affectable {
                 todo!()
@@ -164,10 +207,10 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Index(e1, e2) => {
-            let (affectable, e1) = type_checker(ctxt, e1, loc_ctxt, out, None);
-            let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
+            let (affectable, e1) = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info);
+            let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info).1;
             if let Some((index_function, return_type)) = get_index_function(ctxt, &e1.typed) {
-                if typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(true, Sizes::S32))
+                if typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize))
                     == e2.typed.content
                 {
                     (
@@ -188,8 +231,8 @@ pub fn type_checker(
         }
 
         rust::ExprInner::BinaryOp(BinOperator::Set, e1, e2) => {
-            let (affectable, e1) = type_checker(ctxt, e1, loc_ctxt, out, None);
-            let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
+            let (affectable, e1) = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info);
+            let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info).1;
             if affectable && are_compatible(&e1.typed, &e2.typed) {
                 (
                     false,
@@ -203,8 +246,8 @@ pub fn type_checker(
         }
 
         rust::ExprInner::BinaryOp(binop, e1, e2) => {
-            let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
-            let e2 = type_checker(ctxt, e2, loc_ctxt, out, None).1;
+            let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info).1;
+            let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info).1;
             if let Some(fun_name) = get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed) {
                 if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
                     (
@@ -224,7 +267,7 @@ pub fn type_checker(
         }
 
         rust::ExprInner::UnaryOp(unaop, e1) => {
-            let e1 = type_checker(ctxt, e1, loc_ctxt, out, None).1;
+            let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info).1;
             if let Some(fun_name) = get_unaop_fun_name(ctxt, unaop, &e1.typed) {
                 if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
                     (
@@ -244,7 +287,7 @@ pub fn type_checker(
             }
         }
 
-        rust::ExprInner::FunCall(var_name, args) => {
+        rust::ExprInner::FunCall(specialisation, var_name, args) => {
             let typ = match loc_ctxt.get_typ(&var_name) {
                 Some((_, typ)) => typ.clone(),
                 None => match ctxt.get_typ(var_name.get_content()) {
@@ -254,21 +297,29 @@ pub fn type_checker(
             };
             if let typed_rust::PostTypeInner::Fun(freetypes, args_typ, output) = typ.content {
                 if args.len() != args_typ.len() {
-                    panic!("not allowed")
+                    panic!("{} not allowed", var_name.get_content())
                 }
+                assert_eq!(specialisation.len(), freetypes.len());
+                let mut hashmap = HashMap::new();
+                for (name, type_id) in freetypes.iter().zip(specialisation.into_iter()) {
+                    hashmap.insert(name.to_string(), build_type(typing_info, type_id).unwrap());
+                }
+
 
                 let mut args2 = Vec::new();
                 for (expr, arg) in args.into_iter().zip(args_typ.iter()) {
-                    let expr = type_checker(ctxt, expr, loc_ctxt, out, Some(arg)).1;
-                    if are_compatible(arg, &expr.typed) {
+                    let arg = substitute(arg.clone(), &hashmap);
+                    let expr = type_checker(ctxt, expr, loc_ctxt, out, Some(&arg), typing_info).1;
+                    if are_compatible(&arg, &expr.typed) {
                         args2.push(expr)
                     } else {
                         todo!()
                     };
-                }
+                };
+                let output = substitute(*output, &hashmap);
                 (
                     false,
-                    *output,
+                    output,
                     typed_rust::ExprInner::FunCall(var_name, args2),
                 )
             } else {
@@ -306,7 +357,7 @@ pub fn type_checker(
             };
             let mut typ = el_expected_type.cloned();
             for expr in vec.into_iter() {
-                let expr = type_checker(ctxt, expr, loc_ctxt, out, el_expected_type).1;
+                let expr = type_checker(ctxt, expr, loc_ctxt, out, el_expected_type, typing_info).1;
                 match &typ {
                     None => typ = Some(expr.typed.clone()),
                     Some(typ2) => {
@@ -336,7 +387,7 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Method(expr, name, args) => {
-            let expr = type_checker(ctxt, expr, loc_ctxt, out, None);
+            let expr = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info);
             if name.get_content() == "len" && args.is_empty() {
                 match &expr.1.typed.content {
                     typed_rust::PostTypeInner::Struct(id, args)
@@ -376,7 +427,7 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Bloc(bloc) => {
-            let bloc = type_block(bloc, ctxt, loc_ctxt, out, expected_typ);
+            let bloc = type_block(bloc, ctxt, loc_ctxt, out, expected_typ, typing_info);
             (
                 false,
                 bloc.last_type.clone(),
@@ -385,7 +436,7 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Deref(expr) => {
-            let expr = type_checker(ctxt, expr, loc_ctxt, out, None).1;
+            let expr = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info).1;
             match &expr.typed.content {
                 typed_rust::PostTypeInner::Box(typ) => {
                     (false, *typ.clone(), typed_rust::ExprInner::Deref(expr))
@@ -402,12 +453,12 @@ pub fn type_checker(
 
         rust::ExprInner::If(e1, bloc1, bloc2) => {
             let expr1 =
-                type_checker(ctxt, e1, loc_ctxt, out, Some(&typed_rust::PostType::bool())).1;
+                type_checker(ctxt, e1, loc_ctxt, out, Some(&typed_rust::PostType::bool()), typing_info).1;
             if expr1.typed.content != typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) {
                 panic!("Type error")
             }
-            let bloc1 = type_block(bloc1, ctxt, loc_ctxt, out, expected_typ);
-            let bloc2 = type_block(bloc2, ctxt, loc_ctxt, out, expected_typ);
+            let bloc1 = type_block(bloc1, ctxt, loc_ctxt, out, expected_typ, typing_info);
+            let bloc2 = type_block(bloc2, ctxt, loc_ctxt, out, expected_typ, typing_info);
 
             if let Some(typ) = biggest_compatible(&bloc1.last_type, &bloc2.last_type) {
                 (false, typ, typed_rust::ExprInner::If(expr1, bloc1, bloc2))
@@ -421,7 +472,7 @@ pub fn type_checker(
                 let mut args2 = Vec::new();
                 for (name, expr) in args.into_iter() {
                     if let Some(typ) = struct_info.get_typ(name.get_content()) {
-                        let expr = type_checker(ctxt, expr, loc_ctxt, out, Some(typ)).1;
+                        let expr = type_checker(ctxt, expr, loc_ctxt, out, Some(typ), typing_info).1;
                         if are_compatible(typ, &expr.typed) {
                             args2.push((name, expr));
                         } else {
@@ -463,7 +514,7 @@ pub fn type_checker(
 
             for (i, expr) in vec1.into_iter().enumerate() {
                 let expr =
-                    type_checker(ctxt, expr, loc_ctxt, out, expected_typ_vec.map(|v| &v[i])).1;
+                    type_checker(ctxt, expr, loc_ctxt, out, expected_typ_vec.map(|v| &v[i]), typing_info).1;
                 vec_type.push(expr.typed.clone());
                 vec_expr.push(expr);
             }
@@ -481,7 +532,7 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Proj(expr, Projector::Name(name)) => {
-            let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, None);
+            let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info);
             match &expr.typed.content {
                 typed_rust::PostTypeInner::Struct(s, vec) if vec.is_empty() => match ctxt.get_struct(s) {
                     None => panic!("should not happend"),
@@ -519,7 +570,7 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Parenthesis(expr) => {
-            return type_checker(ctxt, expr, loc_ctxt, out, expected_typ);
+            return type_checker(ctxt, expr, loc_ctxt, out, expected_typ, typing_info);
         }
 
         rust::ExprInner::String(s) => (
@@ -541,11 +592,12 @@ pub fn type_checker(
 }
 
 pub fn type_block(
-    bloc: rust::Bloc,
+    bloc: rust::Bloc<usize>,
     ctxt: &context::GlobalContext,
     loc_ctxt: &mut context::LocalContext,
     output: &typed_rust::PostType,
     expected_typ: Option<&typed_rust::PostType>,
+    typing_info : &rust::TypeStorage,
 ) -> typed_rust::Bloc {
     loc_ctxt.add_layer();
     let mut content = Vec::new();
@@ -553,12 +605,12 @@ pub fn type_block(
     for instr in bloc.content {
         match instr {
             rust::Instr::Expr(b, expr) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, output, None).1;
+                let expr = type_checker(ctxt, expr, loc_ctxt, output, None, typing_info).1;
                 content.push(typed_rust::Instr::Expr(b, expr));
                 //                todo!();
             }
             rust::Instr::Binding(mutable, ident, expr) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, output, None).1;
+                let expr = type_checker(ctxt, expr, loc_ctxt, output, None, typing_info).1;
                 loc_ctxt.add_var(&ident, mutable, &expr.typed);
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
                 //                todo!();
@@ -570,12 +622,13 @@ pub fn type_block(
                     loc_ctxt,
                     output,
                     Some(&typed_rust::PostType::bool()),
+                    typing_info,
                 )
                 .1;
                 if !are_compatible(&typed_rust::PostType::bool(), &condition.typed) {
                     todo!()
                 };
-                let bloc = type_block(bloc, ctxt, loc_ctxt, output, None);
+                let bloc = type_block(bloc, ctxt, loc_ctxt, output, None, typing_info);
                 content.push(typed_rust::Instr::While(condition, bloc));
             }
             rust::Instr::Return(None) => match &output.content {
@@ -586,7 +639,7 @@ pub fn type_block(
                 _ => todo!(),
             },
             rust::Instr::Return(Some(expr)) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, output, Some(output)).1;
+                let expr = type_checker(ctxt, expr, loc_ctxt, output, Some(output), typing_info).1;
                 if are_compatible(output, &expr.typed) {
                     content.push(typed_rust::Instr::Return(Some(expr)));
                     reachable = false;

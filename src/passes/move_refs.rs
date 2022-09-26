@@ -5,7 +5,7 @@ fn is_ref(mutable : bool, mut top_expr : Expr, context : &mut Vec<Instr>, counte
     match *top_expr.content {
         ExprInner::Bool(_) | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
-        | ExprInner::FunCall(_, _) | ExprInner::If(_, _, _)
+        | ExprInner::FunCall(_, _, _) | ExprInner::If(_, _, _)
         | ExprInner::Int(_) | ExprInner::BinaryOp(_, _, _)
         | ExprInner::Ref(_, _) | ExprInner::UnaryOp(_, _)
         | ExprInner::MacroCall(_, _)
@@ -147,9 +147,9 @@ fn rewrite_expr(top_expr : Expr, context : &mut Vec<Instr>, counter : &mut IdCou
             }
         },
 
-        ExprInner::FunCall(name, exprs) => {
+        ExprInner::FunCall(args, name, exprs) => {
             Expr {
-                content : Box::new(ExprInner::FunCall(name,
+                content : Box::new(ExprInner::FunCall(args, name,
                     exprs.into_iter().map(|e| rewrite_expr(e, context, counter)).collect()
                     )),
                 ..top_expr
