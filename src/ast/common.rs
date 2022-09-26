@@ -229,3 +229,9 @@ impl IdCounter {
         format!("@{}", self.incr())
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ComputedValue {
+    Drop,
+    Keep,
+}

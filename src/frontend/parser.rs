@@ -180,14 +180,14 @@ peg::parser! {
 
       rule bloc_inner() -> (Vec<Instr>, usize) = precedence! {
           i:instr() space() "}" end:position!() { (vec![i], end) }
-          e:expr() space() "}" end:position!() { (vec![Instr::Expr(false, e)], end) }
+          e:expr() space() "}" end:position!() { (vec![Instr::Expr(ComputedValue::Keep, e)], end) }
           i:instr() space() t:@
               { let (mut v, end) = t; v.push(i); (v, end)}
           "}" end:position!() { (Vec::new(), end) }
       }
 
       rule instr() -> Instr = precedence! {
-          ";" { Instr::Expr(true, Expr::unit()) }
+          ";" { Instr::Expr(ComputedValue::Drop, Expr::unit()) }
           "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";"
               { Instr::Binding(b != None, n, e) }
           "while" spaces() e:expr() space() b:bloc()
@@ -196,8 +196,8 @@ peg::parser! {
               { Instr::Return(None) }
           "return" spaces() e:expr() ";"
               { Instr::Return(Some(e)) }
-          e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(true, e) }
-          i:if() { Instr::Expr(false, i) }
+          e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(ComputedValue::Drop, e) }
+          i:if() { Instr::Expr(ComputedValue::Keep, i) }
       }
 
       rule if() -> Expr = precedence! {

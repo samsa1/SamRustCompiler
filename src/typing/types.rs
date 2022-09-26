@@ -58,7 +58,7 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> PostType {
                 if args.len() == 1 {
                     let typ = translate_typ(args.pop().unwrap(), sizes);
                     PostType {
-                        content: PostTypeInner::IdentParametrized(String::from("Vec"), vec![typ]),
+                        content: PostTypeInner::Struct(String::from("Vec"), vec![typ]),
                     }
                 } else {
                     todo!()
@@ -89,7 +89,6 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
     match (&expected.content, &got.content) {
         (_, PostTypeInner::Diverge) => true,
         (PostTypeInner::BuiltIn(b1), PostTypeInner::BuiltIn(b2)) => b1 == b2,
-        (PostTypeInner::Struct(name1), PostTypeInner::Struct(name2)) => name1 == name2,
         (PostTypeInner::Box(box1), PostTypeInner::Box(box2)) => are_compatible(&**box1, &**box2),
         (PostTypeInner::Ref(mut1, box1), PostTypeInner::Ref(mut2, box2)) => {
             (*mut2 || !*mut1) && are_compatible(&**box1, &**box2)
@@ -103,8 +102,8 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
             true
         }
         (
-            PostTypeInner::IdentParametrized(name1, args1),
-            PostTypeInner::IdentParametrized(name2, args2),
+            PostTypeInner::Struct(name1, args1),
+            PostTypeInner::Struct(name2, args2),
         ) => {
             if name1 == name2 {
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
@@ -148,7 +147,13 @@ pub fn biggest_compatible(typ1: &PostType, typ2: &PostType) -> Option<PostType> 
                 //                size : typ1.size,
             })
         }
-        (PostTypeInner::Struct(s1), PostTypeInner::Struct(s2)) if s1 == s2 => Some(typ1.clone()),
+        (PostTypeInner::Struct(s1, args1), PostTypeInner::Struct(s2, args2)) if s1 == s2 && args1.len() == args2.len() => {
+            if args1.is_empty() {
+                Some(typ1.clone())
+            } else {
+                todo!()
+            }
+        },
 
         _ => {
             println!(

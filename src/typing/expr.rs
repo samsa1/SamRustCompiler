@@ -19,11 +19,11 @@ fn get_index_function(
     typ: &typed_rust::PostType,
 ) -> Option<(&'static str, typed_rust::PostType)> {
     match &typ.content {
-        typed_rust::PostTypeInner::IdentParametrized(id, param) if id == "Vec" => {
+        typed_rust::PostTypeInner::Struct(id, param) if id == "Vec" => {
             Some(("get_element_vec", param[0].clone()))
         }
         typed_rust::PostTypeInner::Ref(_, typ) => match &typ.content {
-            typed_rust::PostTypeInner::IdentParametrized(id, param) if id == "Vec" => {
+            typed_rust::PostTypeInner::Struct(id, param) if id == "Vec" => {
                 Some(("get_element_vec", param[0].clone()))
             }
             _ => None,
@@ -296,7 +296,7 @@ pub fn type_checker(
             let el_expected_type: Option<&typed_rust::PostType> = match expected_typ {
                 None => None,
                 Some(typ) => match &typ.content {
-                    typed_rust::PostTypeInner::IdentParametrized(id, args)
+                    typed_rust::PostTypeInner::Struct(id, args)
                         if id == "Vec" && args.len() == 1 =>
                     {
                         Some(&args[0])
@@ -322,7 +322,7 @@ pub fn type_checker(
             (
                 false,
                 typed_rust::PostType {
-                    content: typed_rust::PostTypeInner::IdentParametrized(
+                    content: typed_rust::PostTypeInner::Struct(
                         String::from("Vec"),
                         vec![typ.unwrap()],
                     ),
@@ -339,7 +339,7 @@ pub fn type_checker(
             let expr = type_checker(ctxt, expr, loc_ctxt, out, None);
             if name.get_content() == "len" && args.is_empty() {
                 match &expr.1.typed.content {
-                    typed_rust::PostTypeInner::IdentParametrized(id, args)
+                    typed_rust::PostTypeInner::Struct(id, args)
                         if id == "Vec" && args.len() == 1 =>
                     {
                         (
@@ -352,7 +352,7 @@ pub fn type_checker(
                         )
                     }
                     typed_rust::PostTypeInner::Ref(mutable, typ) => match &typ.content {
-                        typed_rust::PostTypeInner::IdentParametrized(id, args)
+                        typed_rust::PostTypeInner::Struct(id, args)
                             if id == "Vec" && args.len() == 1 =>
                         {
                             (
@@ -483,7 +483,7 @@ pub fn type_checker(
         rust::ExprInner::Proj(expr, Projector::Name(name)) => {
             let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, None);
             match &expr.typed.content {
-                typed_rust::PostTypeInner::Struct(s) => match ctxt.get_struct(s) {
+                typed_rust::PostTypeInner::Struct(s, vec) if vec.is_empty() => match ctxt.get_struct(s) {
                     None => panic!("should not happend"),
                     Some(struct_info) => {
                         if let Some(typ) = struct_info.get_field_typ(name.get_content()) {
@@ -498,7 +498,7 @@ pub fn type_checker(
                     }
                 },
                 typed_rust::PostTypeInner::Ref(affectable, typ) => match &typ.content {
-                    typed_rust::PostTypeInner::Struct(s) => match ctxt.get_struct(s) {
+                    typed_rust::PostTypeInner::Struct(s, vec) if vec.is_empty() => match ctxt.get_struct(s) {
                         None => panic!("should not happend"),
                         Some(struct_info) => {
                             if let Some(typ) = struct_info.get_field_typ(name.get_content()) {
@@ -604,7 +604,7 @@ pub fn type_block(
             (None, _) => todo!(),
             (Some(instr), None) => {
                 let typ = match &instr {
-                    typed_rust::Instr::Expr(false, e) => e.typed.clone(),
+                    typed_rust::Instr::Expr(ComputedValue::Keep, e) => e.typed.clone(),
                     _ => typed_rust::PostType::unit(),
                 };
                 content.push(instr);
@@ -612,7 +612,7 @@ pub fn type_block(
             }
             (Some(instr), Some(expected_typ)) => {
                 let got_typ = match &instr {
-                    typed_rust::Instr::Expr(false, e) => e.typed.clone(),
+                    typed_rust::Instr::Expr(ComputedValue::Keep, e) => e.typed.clone(),
                     _ => typed_rust::PostType::unit(),
                 };
                 content.push(instr);
@@ -627,7 +627,7 @@ pub fn type_block(
         match (content.pop(), expected_typ) {
             (Some(instr), None) => content.push(instr),
             (Some(instr), Some(typ)) => {
-                if let typed_rust::Instr::Expr(false, expr) = &instr {
+                if let typed_rust::Instr::Expr(ComputedValue::Keep, expr) = &instr {
                     if !are_compatible(typ, &expr.typed) {
                         todo!()
                     }

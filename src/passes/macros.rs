@@ -50,22 +50,22 @@ fn rewrite_expr(top_expr : Expr, counter : &mut IdCounter) -> Expr {
             vec.push(Instr::Binding(true,
                 Ident::new(&vec_name, top_expr.loc),
                 Expr {
-                    content : Box::new(ExprInner::FunCall(Ident::new("std::vec::Vec::new()", top_expr.loc), Vec::new())),
+                    content : Box::new(ExprInner::FunCall(Ident::new("std::vec::Vec::new", top_expr.loc), Vec::new())),
                     loc : top_expr.loc,
                     typed : None,
                 }
             ));
             for expr in exprs.into_iter() {
                 let expr = rewrite_expr(expr, counter);
-                vec.push(Instr::Expr(true,
+                vec.push(Instr::Expr(ComputedValue::Drop,
                     Expr {
-                        content : Box::new(ExprInner::Method(Expr::var(&vec_name, top_expr.loc), Ident::new(&vec_name, top_expr.loc), vec![expr])),
+                        content : Box::new(ExprInner::Method(Expr::var(&vec_name, top_expr.loc), Ident::new("push", top_expr.loc), vec![expr])),
                         loc : top_expr.loc,
                         typed : None,
                     }
                 ))
             };
-            vec.push(Instr::Expr(false, Expr::var(&vec_name, top_expr.loc)));
+            vec.push(Instr::Expr(ComputedValue::Keep, Expr::var(&vec_name, top_expr.loc)));
             Expr {
                 content : Box::new(ExprInner::Bloc(Bloc {
                     content : vec,

@@ -92,10 +92,10 @@ impl PostType {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
-    Struct(String),
+    Struct(String, Vec<PostType>),
     Enum(String),
     Box(Box<PostType>),
-    IdentParametrized(String, Vec<PostType>),
+/*    IdentParametrized(String, Vec<PostType>),*/
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     FreeType(String),
@@ -115,7 +115,7 @@ pub struct Bloc {
 
 #[derive(Debug)]
 pub enum Instr {
-    Expr(bool, Expr),
+    Expr(common::ComputedValue, Expr),
     Binding(bool, common::Ident, Expr),
     While(Expr, Bloc),
     Return(Option<Expr>),

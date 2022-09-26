@@ -34,18 +34,17 @@ pub enum Types {
     Int(Option<bool>, Option<common::Sizes>),
     Enum(String),
     Fun(Vec<usize>, usize),
-    Parametrized(String, Vec<usize>),
+    Struct(String, Vec<usize>),
     Ref(usize),
     Deref(usize),
     SameAs(usize),
-    Struct(String),
     Tuple(Vec<usize>),
     Unknown,
 }
 
 impl Types {
     pub fn string() -> Self {
-        Self::Struct("String".to_string())
+        Self::Struct("String".to_string(), Vec::new())
     }
 
     pub const fn int() -> Self {
@@ -65,7 +64,7 @@ impl Types {
     }
 
     pub fn struct_from_str(name : &str) -> Self {
-        Self::Struct(name.to_string())
+        Self::Struct(name.to_string(), Vec::new())
     }
 
     pub fn tuple(vec_types : Vec<usize>) -> Self {
@@ -77,13 +76,13 @@ impl Types {
     }
 
     pub fn boxed(type_id : usize) -> Self {
-        Self::Parametrized("Box".to_string(), vec![type_id])
+        Self::Struct("Box".to_string(), vec![type_id])
     }
 
     pub fn unref(&self) -> Option<usize> {
         match self {
             Self::Ref(type_id) => Some(*type_id),
-            Self::Parametrized(name, args)
+            Self::Struct(name, args)
                 if name == "Box" && args.len() == 1 => {
                     Some(args[0])
                 },
@@ -209,7 +208,7 @@ impl<T> Bloc<T> {
     pub fn from_expr(expr : Expr<T>) -> Self {
         Self {
             loc : expr.loc,
-            content : vec![Instr::Expr(true, expr)],
+            content : vec![Instr::Expr(common::ComputedValue::Keep, expr)],
         }
     }
 
@@ -223,7 +222,7 @@ impl<T> Bloc<T> {
 
 #[derive(Debug, Clone)]
 pub enum Instr<T = Option<PreType>> {
-    Expr(bool, Expr<T>),
+    Expr(common::ComputedValue, Expr<T>),
     Binding(bool, common::Ident, Expr<T>),
     While(Expr<T>, Bloc<T>),
     Return(Option<Expr<T>>),
@@ -239,8 +238,9 @@ pub struct Expr<T = Option<PreType>> {
 impl<T: std::fmt::Debug> std::fmt::Debug for Expr<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Expr")
-         .field("c", &*self.content)
-         .finish()
+        .field("c", &*self.content)
+        .field("t", &self.typed)
+        .finish()
     }
 }
 

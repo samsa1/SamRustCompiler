@@ -165,7 +165,7 @@ pub fn type_structs(
                 fun_name.push('<');
                 fun_name.push_str(name);
                 fun_name.push('>');
-                sizes.implement_trait(
+                sizes.impl_trait(
                     &typ,
                     Trait::Parametrized(logic_trait.to_string(), Some(typ.clone())),
                     fun_name.clone(),
@@ -184,7 +184,7 @@ pub fn type_structs(
             let mut fun_name = name.to_string();
             fun_name.push_str("::");
             fun_name.push_str("Not");
-            sizes.implement_trait(&typ, Trait::Name("Not".to_string()), fun_name.clone());
+            sizes.impl_trait(&typ, Trait::Name("Not".to_string()), fun_name.clone());
             sizes.insert(
                 fun_name,
                 typed_rust::PostType {
@@ -205,7 +205,7 @@ pub fn type_structs(
                 fun_name.push('<');
                 fun_name.push_str(name);
                 fun_name.push('>');
-                sizes.implement_trait(
+                sizes.impl_trait(
                     &typ,
                     Trait::Parametrized(arith_trait.to_string(), Some(typ.clone())),
                     fun_name.clone(),
@@ -227,7 +227,7 @@ pub fn type_structs(
             fun_name.push('<');
             fun_name.push_str(name);
             fun_name.push('>');
-            sizes.implement_trait(
+            sizes.impl_trait(
                 &typ,
                 Trait::Parametrized("PartialOrd".to_string(), Some(typ.clone())),
                 fun_name.clone(),
@@ -251,7 +251,7 @@ pub fn type_structs(
             let mut fun_name = name.to_string();
             fun_name.push_str("::");
             fun_name.push_str("Neg");
-            sizes.implement_trait(&typ, Trait::Name("Neg".to_string()), fun_name.clone());
+            sizes.impl_trait(&typ, Trait::Name("Neg".to_string()), fun_name.clone());
             sizes.insert(
                 fun_name,
                 typed_rust::PostType {
@@ -267,12 +267,12 @@ pub fn type_structs(
         let mut fun_name = name.to_string();
         fun_name.push_str("::");
         fun_name.push_str("Copy");
-        sizes.implement_trait(&typ, Trait::Name("Copy".to_string()), fun_name.clone());
+        sizes.impl_trait(&typ, Trait::Name("Copy".to_string()), fun_name.clone());
 
         let mut fun_name = name.to_string();
         fun_name.push_str("::");
         fun_name.push_str("Clone");
-        sizes.implement_trait(&typ, Trait::Name("Clone".to_string()), fun_name.clone());
+        sizes.impl_trait(&typ, Trait::Name("Clone".to_string()), fun_name.clone());
 
         let mut fun_name = name.to_string();
         fun_name.push_str("::");
@@ -280,7 +280,7 @@ pub fn type_structs(
         fun_name.push('<');
         fun_name.push_str(name);
         fun_name.push('>');
-        sizes.implement_trait(
+        sizes.impl_trait(
             &typ,
             Trait::Parametrized("PartialEq".to_string(), Some(typ.clone())),
             fun_name.clone(),
@@ -324,7 +324,7 @@ pub fn type_structs(
                 struct_decl.name.get_content().to_string(),
                 typed_rust::PostType {
                     content: typed_rust::PostTypeInner::Struct(
-                        struct_decl.name.get_content().to_string()
+                        struct_decl.name.get_content().to_string(), vec![]
                     ),
                 }
             )
@@ -347,7 +347,7 @@ pub fn type_structs(
             struct_decl.name.get_content().to_string(),
             typed_rust::PostType {
                 content: typed_rust::PostTypeInner::Struct(
-                    struct_decl.name.get_content().to_string(),
+                    struct_decl.name.get_content().to_string(), vec![]
                 ),
             },
             args.clone(),

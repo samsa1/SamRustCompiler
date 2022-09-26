@@ -44,6 +44,8 @@ impl Trait {
 #[derive(Clone, Debug)]
 pub struct StructInfo {
     hashmap: HashMap<String, (bool, PostType)>,
+    traits : HashSet<TraitInner>,
+    methods : HashMap<String, String>,
 }
 
 impl StructInfo {
@@ -71,19 +73,34 @@ impl StructInfo {
         for (name, typ) in args.into_iter() {
             hashmap.insert(name, (false, typ));
         }
-        Self { hashmap }
+        Self {
+            hashmap,
+            traits : HashSet::new(),
+            methods : HashMap::new()
+        }
     }
 
     pub fn get_field_typ(&self, name: &str) -> Option<&PostType> {
         self.hashmap.get(name).map(|x| &x.1)
     }
+
+    pub fn impl_trait(&mut self, t : Trait, fun : String) -> bool {
+        self.traits.insert(TraitInner {
+            content : t,
+            fun,
+        })
+    }
+
+    pub fn impl_method(&mut self, method_name : String, fun_name : String) {
+        self.methods.insert(method_name, fun_name);
+    }
 }
 
 #[derive(Clone, Debug)]
 pub struct GlobalContext {
-    enums: HashMap<String, HashSet<String>>,
     structs: HashMap<String, StructInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
+    methods : HashMap<String, HashMap<String, String>>,
     known_types: HashMap<String, PostType>,
     sizes: HashMap<String, usize>,
 }
@@ -91,9 +108,9 @@ pub struct GlobalContext {
 impl GlobalContext {
     pub fn new() -> Self {
         Self {
-            enums: HashMap::new(),
             structs: HashMap::new(),
             implemented_traits: HashMap::new(),
+            methods : HashMap::new(),
             known_types: HashMap::new(),
             sizes: HashMap::new(),
         }
@@ -107,7 +124,21 @@ impl GlobalContext {
         self.known_types.insert(name, typ)
     }
 
-    pub fn implement_trait(&mut self, typ: &PostType, t: Trait, fun_name: String) -> bool {
+    pub fn impl_method(&mut self, name : &str, method_name : String, fun_name : String) -> Option<String> {
+        match self.methods.get_mut(name) {
+            None => {
+                let mut hash_map = HashMap::new();
+                hash_map.insert(method_name, fun_name);
+                self.methods.insert(name.to_string(), hash_map);
+                None
+            },
+            Some(methods) => {
+                methods.insert(method_name, fun_name)
+            }
+        }
+    }
+
+    pub fn impl_trait(&mut self, typ: &PostType, t: Trait, fun_name: String) -> bool {
         match self.implemented_traits.get_mut(typ) {
             None => {
                 let mut hashset = HashSet::new();
@@ -158,6 +189,10 @@ impl GlobalContext {
 
     pub fn struct_infos(&self, name: &str) -> Option<StructInfo> {
         self.structs.get(name).cloned()
+    }
+
+    pub fn get_method_function(&self, type_name : &str, method : &Ident) -> Option<Option<&String>> {
+        self.methods.get(type_name).map(|hm| hm.get(method.get_content()))
     }
 
     pub fn add_struct(
