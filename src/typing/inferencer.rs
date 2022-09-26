@@ -12,6 +12,12 @@ pub enum TypeErrorInfo {
     NotCompatible(Types, Types),
     TryUnref(Types),
     UndeclaredVariable(String),
+    CannotAffectValue,
+    UndeclaredStruct(String),
+    WrongNbArgs(usize, usize),
+    ExpectedFun(PostTypeInner),
+    StructDoesNotHasField(String, String),
+    MissingField(String, String),
 }
 
 #[derive(Debug)]
@@ -62,13 +68,54 @@ impl TypeError {
             loc,
             info : TypeErrorInfo::TryUnref(typ)
         }
+    }
 
+    fn cannot_affect(loc : Location) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::CannotAffectValue
+        }
     }
 
     fn unknown_var(id : Ident) -> Self {
         Self {
             loc : id.get_loc(),
             info : TypeErrorInfo::UndeclaredVariable(id.content())
+        }
+    }
+
+    fn unknown_struct(id : Ident) -> Self {
+        Self {
+            loc : id.get_loc(),
+            info : TypeErrorInfo::UndeclaredStruct(id.content())
+        }
+    }
+
+    fn wrong_nb_args(loc : Location, got : usize, expected : usize) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::WrongNbArgs(got, expected),
+        }
+    }
+
+    fn expected_fun(loc : Location, typ : PostTypeInner) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::ExpectedFun(typ)
+        }
+    }
+
+    fn struct_no_field(loc : Location, struct_name : String, field_name : String) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::StructDoesNotHasField(struct_name, field_name)
+        }
+    }
+
+    fn missing_field(loc : Location, struct_name : String, field_name : String) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::MissingField(struct_name, field_name)
         }
     }
 }
@@ -82,6 +129,10 @@ impl LocalContext {
     pub fn new(in_types: Vec<(String, (bool, usize))>) -> Self {
         let mut in_types2 = HashMap::new();
         for (name, type_id) in in_types.into_iter() {
+            if in_types2.contains_key(&name) {
+                println!("Multiple arguments with the same name {}", name);
+                std::process::exit(1)
+            }
             assert!(in_types2
                 .insert(name, type_id)
                 .is_none())
@@ -289,7 +340,11 @@ fn add_type(types : &mut TypeStorage, post_type : &PostType, free_types : &HashM
 
 // Used in function call and in building structures
 fn forces_to(types : &mut TypeStorage, type_id : usize, typ : &PostType, loc : Location, free_types : &HashMap<String, usize>) -> Result<(), Vec<TypeError>> {
-    if let PostTypeInner::FreeType(name) = &typ.content {
+    let type_id2 = add_type(types, typ, free_types);
+    make_coherent(types, type_id, type_id2, loc)?;
+    Ok(())
+
+    /*if let PostTypeInner::FreeType(name) = &typ.content {
         let id = free_types.get(name).unwrap();
         make_coherent(types, type_id, *id, loc)?;
         return Ok(())
@@ -345,7 +400,7 @@ fn forces_to(types : &mut TypeStorage, type_id : usize, typ : &PostType, loc : L
             }
         }
         typ2 => {println!("{typ2:?} forced to {typ:?}"); todo!()},
-    }
+    }*/
 }
 
 fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : Expr, types : &mut TypeStorage, out_type : usize) -> Result<(bool, Expr<usize>), Vec<TypeError>> {
@@ -355,16 +410,19 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
 
         ExprInner::BinaryOp(BinOperator::Set, expr1, expr2) => {
             let (affectable, expr1) = type_expr(ctxt, local_ctxt, expr1, types, out_type)?;
-            assert!(affectable);
-            let expr2 = type_expr(ctxt, local_ctxt, expr2, types, out_type)?.1;
-            make_coherent(types, expr1.typed, expr2.typed, expr1.loc)?;
-            let type_id = types.insert_unit();
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
-            Ok((false, Expr {
-                content : Box::new(ExprInner::BinaryOp(BinOperator::Set, expr1, expr2)),
-                typed : type_id,
-                loc : top_expr.loc,
-            }))
+            if affectable {
+                let expr2 = type_expr(ctxt, local_ctxt, expr2, types, out_type)?.1;
+                make_coherent(types, expr1.typed, expr2.typed, expr1.loc)?;
+                let type_id = types.insert_unit();
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                Ok((false, Expr {
+                    content : Box::new(ExprInner::BinaryOp(BinOperator::Set, expr1, expr2)),
+                    typed : type_id,
+                    loc : top_expr.loc,
+                }))
+            } else {
+                Err(vec![TypeError::cannot_affect(expr1.loc)])
+            }
         },
 
         ExprInner::BinaryOp(op, expr1, expr2) => {
@@ -436,11 +494,11 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                         forces_to(types, expr.typed, typ, top_expr.loc, &HashMap::new())?;
                         args2.push((name, expr));
                     } else {
-                        todo!()
+                        return Err(vec![TypeError::struct_no_field(top_expr.loc, struct_name.content(), name.content())])
                     }
                 };
                 match struct_info.check_finished() {
-                    Some(_) => todo!(),
+                    Some(field_name) => return Err(vec![TypeError::missing_field(top_expr.loc, struct_name.content(), field_name)]),
                     None => (),
                 };
                 let type_id = types.insert_type(Types::struct_from_str(struct_name.get_content()));
@@ -451,7 +509,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                     typed : type_id,
                 }))
             } else {
-                Err(vec![TypeError::unknown_error(top_expr.loc)])
+                Err(vec![TypeError::unknown_struct(struct_name)])
             }
         },
 
@@ -490,7 +548,10 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                                     typed : type_id,
                                 }))
                             },
-                            _ => Err(vec![TypeError::unknown_error(name.get_loc())])
+                            PostTypeInner::Fun(_, args, _) => {
+                                Err(vec![TypeError::wrong_nb_args(top_expr.loc, exprs.len(), args.len())])
+                            }
+                            typ => Err(vec![TypeError::expected_fun(name.get_loc(), typ.clone())])
                         }
                     } else {
                         Err(vec![TypeError::unknown_var(name)])
@@ -527,14 +588,23 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
             let expr_val = type_expr(ctxt, local_ctxt, expr_val, types, out_type)?.1;
             let expr_index = type_expr(ctxt, local_ctxt, expr_index, types, out_type)?.1;
             types.forces_to(expr_index.typed, Types::usize()).unwrap();
-            let type_id = types.insert_type(Types::unknown());
-            // can be improved
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
-            Ok((true, Expr {
-                content : Box::new(ExprInner::Index(expr_val, expr_index)),
-                loc : top_expr.loc,
-                typed : type_id,
-            }))
+            if let Some((name, args)) = get_struct_name(types, expr_val.typed, expr_val.loc)? {
+                if name == "Vec" && args.len() == 1 {
+                    let type_id = args[0];
+                    // can be improved
+                    check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                    Ok((true, Expr {
+                        content : Box::new(ExprInner::Index(expr_val, expr_index)),
+                        loc : top_expr.loc,
+                        typed : type_id,
+                    }))
+        
+                } else {
+                    todo!()
+                }
+            } else {
+                todo!()
+            }
         },
 
         ExprInner::Int(int) => {
@@ -638,7 +708,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                 if let Some(field_typ) = struct_info.get_field_typ(proj_name.get_content()) {
                     add_type(types, field_typ, &HashMap::new())
                 } else {
-                    return Err(vec![TypeError::unknown_error(top_expr.loc)])
+                    return Err(vec![TypeError::struct_no_field(top_expr.loc, struct_name.to_string(), proj_name.content())])
                 }
             } else {
                 types.insert_type(Types::unknown())
@@ -722,7 +792,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                     typed : type_id,
                 }))
             } else {
-                todo!()
+                Err(vec![TypeError::unknown_var(var_name)])
             }
         },
     };
@@ -797,6 +867,7 @@ fn type_bloc(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, bloc : Bloc,
             type_id
         } 
     };
+    local_ctxt.pop_layer();
 
     Ok((type_id, Bloc {
         content,

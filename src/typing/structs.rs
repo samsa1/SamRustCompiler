@@ -35,13 +35,12 @@ impl Graph {
 
     fn add_node(&mut self, name: String) {
         if self.names.get(&name) == None {
-            if self.names.insert(name, self.size).is_some() {
-                todo!()
-            };
+            assert!(self.names.insert(name, self.size).is_none());
             self.size += 1;
             self.edges.push(HashSet::new());
         } else {
-            todo!() // multiple declarations for a single typ
+            println!("Type {name} has been declared multiple times");
+            std::process::exit(1)
         }
     }
 
@@ -49,6 +48,28 @@ impl Graph {
         let id1 = self.names.get(n1)?;
         let id2 = self.names.get(n2)?;
         Some(self.edges[*id1].insert(*id2))
+    }
+}
+
+fn test_is_not(parent : &str, typ : &rust::PreType) {
+    match &typ.content {
+        rust::PreTypeInner::IdentParametrized(id, _)
+         | rust::PreTypeInner::Ident(id) if id.get_content() == parent => {
+            println!("Structure {parent} depends on itself and thus is empty type");
+            std::process::exit(1)
+        },
+        rust::PreTypeInner::Ident(_) => (),
+
+        rust::PreTypeInner::Tuple(vec)
+         | rust::PreTypeInner::IdentParametrized(_, vec) => {
+            for typ in vec.into_iter() {
+                test_is_not(parent, typ)
+            }
+        },
+
+        rust::PreTypeInner::Ref(_, typ) => test_is_not(parent, typ),
+
+        rust::PreTypeInner::Fun(_, _) => (),
     }
 }
 
@@ -70,7 +91,10 @@ fn explore_dependensies(
         rust::PreTypeInner::IdentParametrized(id, _) if id.get_content() == "Vec" => (),
         rust::PreTypeInner::IdentParametrized(id, _) if id.get_content() == "Box" => (),
         rust::PreTypeInner::IdentParametrized(_, _) => todo!(),
-        rust::PreTypeInner::Ref(_, _) => todo!(),
+        rust::PreTypeInner::Ref(_, sub_type) => {
+            test_is_not(parent, sub_type);
+            todo!()
+        },
         rust::PreTypeInner::Tuple(v) => {
             for typ in v.iter() {
                 explore_dependensies(typ, parent, graph, set)
@@ -110,14 +134,16 @@ fn topological_sort(structs: Vec<rust::DeclStruct>, graph: &mut Graph) -> Vec<ru
     let mut out_vec = Vec::new();
     for node in 0..graph.size {
         if !permanent_marks[node] {
-            visit(
+            if let Err(id) = visit(
                 node,
                 &mut permanent_marks,
                 &mut temporary_marks,
                 graph,
                 &mut out_vec,
-            )
-            .unwrap();
+            ) {
+                println!("{} has infinite size", structs[id].name.get_content());
+                std::process::exit(1)
+            }
         }
     }
 
@@ -338,9 +364,11 @@ pub fn type_structs(
         let mut args = HashMap::new();
         for (name, typ) in struct_decl.args.into_iter() {
             let typ = translate_typ(typ, &sizes);
-            match args.insert(name.content(), typ) {
-                None => (),
-                Some(_) => todo!(),
+            if args.contains_key(name.get_content()) {
+                println!("Type {} was declared multiple times", name.content());
+                std::process::exit(1)
+            } else {
+                assert!(args.insert(name.content(), typ).is_none())
             }
         }
         sizes.add_struct(

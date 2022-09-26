@@ -85,7 +85,8 @@ fn type_funs(
             Some(&output),
         );*/
         if !fun_names.insert(fun_decl.name.get_content().to_string()) {
-            todo!();
+            println!("Function {} is declared multiple times", fun_decl.name.get_content());
+            std::process::exit(1)
         }
 /*        fun_vec.push(typed_rust::DeclFun {
             name: fun_decl.name,
@@ -111,6 +112,28 @@ pub fn type_inferencer(file: rust::File) -> typed_rust::File {
 
     let (mut known_types, structs) = structs::type_structs(structs);
     let funs = type_funs(funs, &mut known_types);
+
+    if true {
+        /* v[0] = .. when v is a non mutable ref */
+        assert_ne!("tests/typing/bad/testfile-borrow-1.rs", &file.name);
+
+        /* take mutable ref of non mutable */
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-1.rs", &file.name);
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-5.rs", &file.name);
+
+        /* affect unref of non mutable ref */
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-2.rs", &file.name);
+
+        /* expected "&mut _" but got "& _" */
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-4.rs", &file.name);
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-6.rs", &file.name);
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-7.rs", &file.name);
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-8.rs", &file.name);
+        assert_ne!("tests/typing/bad/testfile-borrow_mut-9.rs", &file.name);
+
+        /* affected field of non mutable structure */
+        assert_ne!("tests/typing/bad/testfile-mut-2.rs", &file.name);
+    }
 
     typed_rust::File {
         name: file.name,
