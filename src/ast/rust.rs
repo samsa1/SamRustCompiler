@@ -171,6 +171,10 @@ impl TypeStorage {
             Types::SameAs(type_id) => self.new_ref_unmarked(*type_id),
             Types::Array(_, _) => todo!(),
             Types::Deref(_) => todo!(),
+            Types::Ref(Some(false), type_id) => {
+                let type_id = self.new_ref_unmarked(*type_id);
+                self.insert_type(Types::Ref(Some(false), type_id))
+            },
             Types::Ref(_, type_id) => {
                 let type_id = self.new_ref_unmarked(*type_id);
                 self.insert_type(Types::Ref(None, type_id))

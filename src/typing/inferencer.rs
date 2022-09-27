@@ -91,7 +91,7 @@ fn check_coherence(types : &mut TypeStorage, type_id : usize, type_2 : Option<Pr
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum UnificationMethod {
     Smallest,
     StrictSnd,
@@ -116,6 +116,7 @@ fn make_coherent(types : &mut TypeStorage, type_id1 : usize, type_id2 : usize, l
         (Some(typ1), Some(typ2)) => (typ1, typ2),
         _ => panic!("ICE")
     };
+    println!("-> {:?} {:?} {:?}", typ1, typ2, unification_method);
     match (typ1, typ2) {
         (Types::Unknown, _) => {
             let type_id = types.new_ref_unmarked(type_id2);
@@ -124,8 +125,8 @@ fn make_coherent(types : &mut TypeStorage, type_id1 : usize, type_id2 : usize, l
         },
         (_, Types::Unknown) => { // we know that type_id1 != type_id2
             let type_id = types.new_ref_unmarked(type_id1);
-            types.set(type_id, Types::SameAs(type_id1));
-            Ok(type_id1)
+            types.set(type_id2, Types::SameAs(type_id));
+            Ok(type_id)
         },
 
         (Types::SameAs(type_id1b), Types::SameAs(type_id2b)) => 
@@ -167,13 +168,65 @@ fn make_coherent(types : &mut TypeStorage, type_id1 : usize, type_id2 : usize, l
         (Types::Tuple(_), _) | (_, Types::Tuple(_)) => Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
 
         (Types::Ref(mut1, type_id1b), Types::Ref(mut2, type_id2b)) => {
-            match (mut1, mut2) {
-                (Some(mut1), Some(mut2)) => {
-                    let mutable = compute_mut(*mut1, *mut2, unification_method)?;
+            match (mut1, mut2, unification_method) {
+                (_, _, UnificationMethod::NoRef) => panic!("ICE"),
+                (Some(mut2), Some(mut1), UnificationMethod::StrictFst)
+                | (Some(mut1), Some(mut2), UnificationMethod::StrictSnd) => {
+                    let mut2 = *mut2;
+                    if !mut2 || *mut1 {
+                        let type_id = make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
+                        Ok(types.insert_type(Types::refed(mut2, type_id)))    
+                    } else {
+                        Err(vec![])
+                    }
+                }
+                (Some(mut1), Some(mut2), UnificationMethod::Smallest) => {
+                    let mutable = *mut1 && *mut2;
                     let type_id = make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
                     Ok(types.insert_type(Types::refed(mutable, type_id)))
                 },
-                _ => todo!(),
+                (Some(true), None, UnificationMethod::Smallest)
+                | (Some(true), None, UnificationMethod::StrictSnd)
+                | (None, Some(true), UnificationMethod::Smallest)
+                | (None, Some(true), UnificationMethod::StrictFst) => {
+                    let type_id = make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
+                    Ok(types.insert_type(Types::Ref(None, type_id)))
+                },
+                (Some(true), None, UnificationMethod::StrictFst)
+                | (None, Some(true), UnificationMethod::StrictSnd) => {
+                    let type_id1b = *type_id1b;
+                    let type_id2b = *type_id2b;
+                    let type_id = make_coherent(types, type_id1b, type_id2b, loc, unification_method)?;
+                    types.set(type_id1, Types::refed(true, type_id1b));
+                    types.set(type_id2, Types::refed(true, type_id2b));
+                    Ok(types.insert_type(Types::refed(true, type_id)))
+                }
+
+                (None, None, _) => {
+                    let type_id = make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
+                    Ok(types.insert_type(Types::Ref(None, type_id)))
+                },
+                (None, Some(false), UnificationMethod::Smallest)
+                | (Some(false), None, UnificationMethod::Smallest) => {
+                    let type_id1b = *type_id1b;
+                    let type_id2b = *type_id2b;
+                    let type_id = make_coherent(types, type_id1b, type_id2b, loc, unification_method)?;
+                    Ok(types.insert_type(Types::refed(false, type_id)))
+                },
+                (None, Some(false), UnificationMethod::StrictFst)
+                | (Some(false), None, UnificationMethod::StrictFst)
+                | (None, Some(false), UnificationMethod::StrictSnd)
+                | (Some(false), None, UnificationMethod::StrictSnd) => {
+                    let type_id1b = *type_id1b;
+                    let type_id2b = *type_id2b;
+                    let type_id = make_coherent(types, type_id1b, type_id2b, loc, unification_method)?;
+                    println!("{types:?}");
+                    types.set(type_id1, Types::refed(false, type_id1b));
+                    types.set(type_id2, Types::refed(false, type_id2b));
+                    println!("{types:?}");
+                    Ok(types.insert_type(Types::refed(false, type_id)))
+                },
+//                _ => todo!(),
             }
         },
         (Types::Ref(_, _), _) | (_, Types::Ref(_, _)) => return Err(vec![TypeError::not_compatible(loc, typ1.clone(), typ2.clone())]),
@@ -438,6 +491,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
 
         ExprInner::FunCall(args, name, exprs) => {
             assert!(args.is_empty());
+            println!("Fun {name:?}");
             match local_ctxt.get_typ(&name) {
                 None => {
                     if let Some(typ) = ctxt.get_typ(name.get_content()) {
