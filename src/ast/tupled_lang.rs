@@ -1,19 +1,24 @@
-use super::common;
+use super::common::{BuiltinType, Location};
 use std::collections::HashMap;
 
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub enum Ident {
+    Name(String),
+    Temp(usize),
+}
+
 pub struct File {
-    pub name : common::Ident,
+    pub name : Ident,
     pub content : Vec<Decl>,
 }
 
 pub enum Decl {
     Fun(DeclFun),
-    Struct(DeclStruct),
 }
 
 pub struct DeclFun {
-    pub name : common::Ident,
-    pub args : Vec<(common::Ident, bool, Type)>,
+    pub name : Ident,
+    pub args : Vec<(Ident, bool, Type)>,
     pub output : Type,
     pub content : Bloc,
 }
@@ -35,10 +40,10 @@ impl Type {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum TypeInner {
-    BuildIn(common::BuildinType),
-    Struct(common::Ident),
-    Enum(common::Ident),
-    IdentParametrized(common::Ident, Vec<Type>),
+    BuildIn(BuildinType),
+    Struct(Ident),
+    Enum(Ident),
+    IdentParametrized(Ident, Vec<Type>),
     Ref(Box<Type>),
     Tuple(Vec<Type>),
     Fun(Vec<Type>, Box<Type>),
@@ -62,12 +67,12 @@ impl TypeInner {
 
 pub struct Bloc {
     pub content : Vec<Instr>,
-    pub values : HashMap<common::Ident, Type>
+    pub values : HashMap<Ident, Type>
 }
 
 pub enum Instr {
     Expr(Expr),
-    Binding(bool, common::Ident, Expr),
+    Binding(bool, Ident, Expr),
     While(Expr, Bloc),
     Return(Option<Expr>),
 }
@@ -75,21 +80,25 @@ pub enum Instr {
 pub struct Expr {
     pub content : Box<ExprInner>,
     pub typed : Type,
+    pub loc : Location,
+}
+
+pub enum VarWrapped {
+    Direct(bool, Ident), /* bool : can be cloned */
+    Ref(bool, Ident), /* bool : mutable */
 }
 
 pub enum ExprInner {
     If(Expr, Expr, Expr),
     Bool(bool),
     Int(usize),
-    Var(common::Ident),
-    FunCall(common::Ident, Vec<Expr>),
-    Constructor(usize, Vec<Expr>),
+    Var(VarWrapped),
+    FunCall(Ident, Vec<Expr>),
     Box(Expr),
     Free(Expr),
     Bloc(Bloc),
-    Ref(bool, Expr),
+    Ref(bool, VarWrapped),
     Deref(Expr),
     Tuple(Vec<Expr>),
-/*    BuildStruct(common::Ident, Vec<Expr>),*/
     Proj(Expr, usize),
 }
