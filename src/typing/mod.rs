@@ -78,25 +78,24 @@ fn type_funs(
 //        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
-/*        let content = expr::type_block(
+        let content = expr::type_block(
             content,
             known_types,
             &mut local_ctxt,
             &output,
             Some(&output),
             &types
-        );*/
+        );
         if !fun_names.insert(fun_decl.name.get_content().to_string()) {
             println!("Function {} is declared multiple times", fun_decl.name.get_content());
             std::process::exit(1)
         }
-/*        fun_vec.push(typed_rust::DeclFun {
+        fun_vec.push(typed_rust::DeclFun {
             name: fun_decl.name,
             args: in_types,
             output,
             content,
         });
-*/
     }
 
     fun_vec
@@ -114,18 +113,6 @@ pub fn type_inferencer(file: rust::File) -> typed_rust::File {
 
     let (mut known_types, structs) = structs::type_structs(structs);
     let funs = type_funs(funs, &mut known_types);
-
-    if true {
-        /* v[0] = .. when v is a non mutable ref */
-        assert_ne!("tests/typing/bad/testfile-borrow-1.rs", &file.name);
-
-        /* expected "&mut _" but got "& _" */
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-7.rs", &file.name);
-        assert_ne!("tests/typing/bad/testfile-borrow_mut-9.rs", &file.name);
-
-        /* affected field of non mutable structure */
-        assert_ne!("tests/typing/bad/testfile-mut-2.rs", &file.name);
-    }
 
     typed_rust::File {
         name: file.name,
