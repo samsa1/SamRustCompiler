@@ -10,6 +10,7 @@ fn is_ref(mutable : bool, mut top_expr : Expr, context : &mut Vec<Instr>, counte
         | ExprInner::Ref(_, _) | ExprInner::UnaryOp(_, _)
         | ExprInner::MacroCall(_, _)
         | ExprInner::Tuple(_) | ExprInner::Array(_)
+        | ExprInner::Method(_, _, _)
             => {
             top_expr = rewrite_expr(top_expr, context, counter);
             let name = counter.new_name();
@@ -31,8 +32,6 @@ fn is_ref(mutable : bool, mut top_expr : Expr, context : &mut Vec<Instr>, counte
         },
         ExprInner::Deref(_) => top_expr,
         ExprInner::String(_) => top_expr,
-
-        ExprInner::Method(expr, name, args) => todo!(),
 
         ExprInner::Index(expr1, expr2) => {
             let expr1 = is_ref(true, expr1, context, counter);

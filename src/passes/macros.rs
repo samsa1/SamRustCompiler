@@ -76,7 +76,7 @@ fn rewrite_expr(top_expr : Expr, counter : &mut IdCounter) -> Expr {
             }
         },
 
-        ExprInner::MacroCall(name, exprs) => {
+        ExprInner::MacroCall(_name, _exprs) => {
             todo!()
         },
 

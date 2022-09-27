@@ -29,15 +29,15 @@ impl ScopeScanResult {
     }
 }
 
-fn check_scopes(
+fn check_scopes_expr(
     ctxt: &GlobalContext,
     expr: &Expr,
-    ref_autorized: bool,
+    _ref_autorized: bool,
     scope_scan: &mut ScopeScanResult,
 ) {
     match &*expr.content {
         ExprInner::Bool(_) | ExprInner::Int(_) => (),
-        ExprInner::Bloc(_bloc) => todo!(),
+        ExprInner::Bloc(bloc) => check_scopes_bloc(ctxt, bloc, scope_scan),
         ExprInner::Var(id) => {
             if ctxt
                 .has_trait(&expr.typed, &Trait::Name("Copy".to_string()))
@@ -60,4 +60,12 @@ fn check_scopes(
         ExprInner::Vec(_) => todo!(),
         ExprInner::If(_, _, _) => todo!(),
     }
+}
+
+fn check_scopes_bloc(
+    _ctxt: &GlobalContext,
+    _bloc: &Bloc,
+    _scope_scan: &mut ScopeScanResult,
+) {
+    todo!()
 }

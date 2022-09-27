@@ -302,6 +302,21 @@ fn add_type(types : &mut TypeStorage, post_type : &PostType, free_types : &HashM
     }
 }
 
+fn is_ref(typ : &PostType) -> Option<bool> {
+    match &typ.content {
+        PostTypeInner::Ref(b, _) => Some(*b),
+        _ => None
+    }
+}
+
+fn is_ref_typ(types : &TypeStorage, type_id : usize) -> Option<&Option<bool>> {
+    match types.get(type_id).unwrap() {
+        Types::SameAs(type_id) => is_ref_typ(types, *type_id),
+        Types::Ref(opt, _) => Some(opt),
+        _ => None,
+    }
+}
+
 // Used in function call and in building structures
 fn forces_to(types : &mut TypeStorage, type_id : usize, typ : &PostType, loc : Location, free_types : &HashMap<String, usize>, unification_method : UnificationMethod) -> Result<(), Vec<TypeError>> {
     let type_id2 = add_type(types, typ, free_types);
@@ -607,7 +622,7 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
         ExprInner::MacroCall(_, _) => todo!(),
 
         ExprInner::Method(expr, method_name, exprs) => {
-            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+            let mut expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             if let Some((_, struct_name, params)) = get_struct_name(types, expr.typed, expr.loc, false)? {
                 if let Some(method) = ctxt.get_method_function(struct_name, &method_name).unwrap() {
                     let typ = ctxt.get_typ(method).unwrap();
@@ -619,9 +634,18 @@ fn type_expr(ctxt : &GlobalContext, local_ctxt : &mut LocalContext, top_expr : E
                             for (name, id) in frees.iter().zip(params.iter()) {
                                 assert!(free_types.insert(name.to_string(), *id).is_none());
                             };
-                            let mut exprs_out = vec![expr];
                             let mut args = args.iter();
-                            args.next(); println!("warning todo in method");
+                            let fst = args.next().unwrap();
+                            if let Some(b) = is_ref(fst) {
+                                if is_ref_typ(types, expr.typed).is_none() {
+                                    expr = Expr {
+                                        typed : types.insert_type(Types::refed(b, expr.typed)),
+                                        loc : expr.loc,
+                                        content : Box::new(ExprInner::Ref(b, expr)),
+                                    }
+                                }
+                            };
+                            let mut exprs_out = vec![expr];
                             for (expr, typ) in exprs.into_iter().zip(args) {
                                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                                 forces_to(types, expr.typed, typ, expr.loc, &free_types, UnificationMethod::StrictSnd)?;
