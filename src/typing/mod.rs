@@ -3,7 +3,7 @@ use std::collections::HashSet;
 
 pub mod context;
 mod expr;
-mod borrow_checker;
+mod lifetime_analysis;
 mod structs;
 pub mod types;
 mod inferencer;
@@ -38,18 +38,24 @@ fn type_funs(
         content : typed_rust::PostTypeInner::Struct("Vec".to_string(),
         vec![free_type.clone()]),
     };
+    let ref_vec_type = typed_rust::PostType {
+        content : typed_rust::PostTypeInner::Ref(false, Box::new(vec_type.clone())),
+    };
+    let mut_ref_vec_type = typed_rust::PostType {
+        content : typed_rust::PostTypeInner::Ref(true, Box::new(vec_type.clone())),
+    };
     let fun_typ = typed_rust::PostType {
-        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type.clone())),
+        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type)),
     };
 
     known_types.insert("std::vec::Vec::new".to_string(), fun_typ);
     let fun_typ = typed_rust::PostType {
-        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![vec_type.clone()], Box::new(known_types.get_typ("usize").unwrap().clone())),
+        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![ref_vec_type], Box::new(known_types.get_typ("usize").unwrap().clone())),
     };
     known_types.insert("std::vec::Vec::len".to_string(), fun_typ);
 
     let fun_typ = typed_rust::PostType {
-        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![vec_type, free_type], Box::new(typed_rust::PostType::unit())),
+        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![mut_ref_vec_type, free_type], Box::new(typed_rust::PostType::unit())),
     };
     known_types.insert("std::vec::Vec::push".to_string(), fun_typ);
     known_types.impl_method("Vec", "len".to_string(), "std::vec::Vec::len".to_string());
