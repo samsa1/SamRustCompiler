@@ -95,7 +95,7 @@ pub enum PostTypeInner {
     Struct(String, Vec<PostType>),
     Enum(String),
     Box(Box<PostType>),
-/*    IdentParametrized(String, Vec<PostType>),*/
+    /*    IdentParametrized(String, Vec<PostType>),*/
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     FreeType(String),
@@ -140,9 +140,7 @@ impl Expr {
 
 impl std::fmt::Debug for Expr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Expr")
-         .field("c", &self.content)
-         .finish()
+        f.debug_struct("Expr").field("c", &self.content).finish()
     }
 }
 
@@ -150,7 +148,7 @@ impl std::fmt::Debug for Expr {
 pub enum ExprInner {
     If(Expr, Bloc, Bloc),
     Bool(bool),
-    Int(usize),
+    Int(u64),
     Var(common::Ident),
     /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(common::Ident, Vec<Expr>),

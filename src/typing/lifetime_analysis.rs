@@ -46,7 +46,7 @@ fn check_scopes_expr(
             {
                 todo!()
             }
-        },
+        }
         ExprInner::FunCall(_, _) => todo!(),
         ExprInner::Constructor(_, _) => todo!(),
         ExprInner::Ref(_, _) => todo!(),
@@ -62,10 +62,6 @@ fn check_scopes_expr(
     }
 }
 
-fn check_scopes_bloc(
-    _ctxt: &GlobalContext,
-    _bloc: &Bloc,
-    _scope_scan: &mut ScopeScanResult,
-) {
+fn check_scopes_bloc(_ctxt: &GlobalContext, _bloc: &Bloc, _scope_scan: &mut ScopeScanResult) {
     todo!()
 }

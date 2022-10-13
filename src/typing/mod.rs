@@ -2,16 +2,17 @@ use crate::ast::{common::*, rust, typed_rust};
 use std::collections::HashSet;
 
 pub mod context;
+pub mod errors;
 mod expr;
+mod inferencer;
 mod lifetime_analysis;
 mod structs;
 pub mod types;
-mod inferencer;
-pub mod errors;
 
 fn type_funs(
     funs: Vec<rust::DeclFun>,
     known_types: &mut context::GlobalContext,
+    err_reporter: &ErrorReporter,
 ) -> Vec<typed_rust::DeclFun> {
     let mut fun_types = Vec::new();
     let mut fun_names = HashSet::new();
@@ -30,19 +31,17 @@ fn type_funs(
         known_types.insert(fun_decl.name.get_content().to_string(), fun_typ);
     }
 
-
     let free_type = typed_rust::PostType {
-        content : typed_rust::PostTypeInner::FreeType("T".to_string()),
+        content: typed_rust::PostTypeInner::FreeType("T".to_string()),
     };
     let vec_type = typed_rust::PostType {
-        content : typed_rust::PostTypeInner::Struct("Vec".to_string(),
-        vec![free_type.clone()]),
+        content: typed_rust::PostTypeInner::Struct("Vec".to_string(), vec![free_type.clone()]),
     };
     let ref_vec_type = typed_rust::PostType {
-        content : typed_rust::PostTypeInner::Ref(false, Box::new(vec_type.clone())),
+        content: typed_rust::PostTypeInner::Ref(false, Box::new(vec_type.clone())),
     };
     let mut_ref_vec_type = typed_rust::PostType {
-        content : typed_rust::PostTypeInner::Ref(true, Box::new(vec_type.clone())),
+        content: typed_rust::PostTypeInner::Ref(true, Box::new(vec_type.clone())),
     };
     let fun_typ = typed_rust::PostType {
         content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type)),
@@ -50,12 +49,20 @@ fn type_funs(
 
     known_types.insert("std::vec::Vec::new".to_string(), fun_typ);
     let fun_typ = typed_rust::PostType {
-        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![ref_vec_type], Box::new(known_types.get_typ("usize").unwrap().clone())),
+        content: typed_rust::PostTypeInner::Fun(
+            vec!["T".to_string()],
+            vec![ref_vec_type],
+            Box::new(known_types.get_typ("usize").unwrap().clone()),
+        ),
     };
     known_types.insert("std::vec::Vec::len".to_string(), fun_typ);
 
     let fun_typ = typed_rust::PostType {
-        content: typed_rust::PostTypeInner::Fun(vec!["T".to_string()], vec![mut_ref_vec_type, free_type], Box::new(typed_rust::PostType::unit())),
+        content: typed_rust::PostTypeInner::Fun(
+            vec!["T".to_string()],
+            vec![mut_ref_vec_type, free_type],
+            Box::new(typed_rust::PostType::unit()),
+        ),
     };
     known_types.insert("std::vec::Vec::push".to_string(), fun_typ);
     known_types.impl_method("Vec", "len".to_string(), "std::vec::Vec::len".to_string());
@@ -71,17 +78,22 @@ fn type_funs(
             .zip(args_typ.into_iter())
             .map(|((name, b, _pre_type), post_type)| (name, b, post_type))
             .collect();
-        let in_types2 : Vec<(String, bool, &typed_rust::PostType)> = in_types.iter().map(|(id, b, typ)| (id.get_content().to_string(), *b, typ)).collect();
-        let (content, types) = match inferencer::type_funs(known_types, &in_types2, &output, fun_decl.content.clone()) {
-            Ok(out) => out,
-            Err(errs) => {
-                for err in errs.into_iter() {
-                    println!("{err:?}")
+        let in_types2: Vec<(String, bool, &typed_rust::PostType)> = in_types
+            .iter()
+            .map(|(id, b, typ)| (id.get_content().to_string(), *b, typ))
+            .collect();
+        let (content, types) =
+            match inferencer::type_funs(known_types, &in_types2, &output, fun_decl.content.clone())
+            {
+                Ok(out) => out,
+                Err(errs) => {
+                    for err in errs.into_iter() {
+                        err.report_error(err_reporter);
+                    }
+                    std::process::exit(1);
                 }
-                std::process::exit(1);
-            },
-        };
-//        {println!("typing not finished"); std::process::exit(0)},
+            };
+        //        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
         let content = expr::type_block(
@@ -90,10 +102,13 @@ fn type_funs(
             &mut local_ctxt,
             &output,
             Some(&output),
-            &types
+            &types,
         );
         if !fun_names.insert(fun_decl.name.get_content().to_string()) {
-            println!("Function {} is declared multiple times", fun_decl.name.get_content());
+            println!(
+                "Function {} is declared multiple times",
+                fun_decl.name.get_content()
+            );
             std::process::exit(1)
         }
         fun_vec.push(typed_rust::DeclFun {
@@ -107,7 +122,7 @@ fn type_funs(
     fun_vec
 }
 
-pub fn type_inferencer(file: rust::File) -> typed_rust::File {
+pub fn type_inferencer(file: rust::File, needs_main: bool) -> typed_rust::File {
     let mut funs = Vec::new();
     let mut structs = Vec::new();
     for decl in file.content.into_iter() {
@@ -118,7 +133,16 @@ pub fn type_inferencer(file: rust::File) -> typed_rust::File {
     }
 
     let (mut known_types, structs) = structs::type_structs(structs);
-    let funs = type_funs(funs, &mut known_types);
+    let funs = type_funs(funs, &mut known_types, &file.err_reporter);
+    let mut has_main = false;
+    for fun in funs.iter() {
+        has_main |= fun.name.get_content() == "main"
+    }
+
+    if needs_main && !has_main {
+        println!("No main");
+        std::process::exit(1)
+    }
 
     typed_rust::File {
         name: file.name,

@@ -1,8 +1,8 @@
+use super::context::GlobalContext;
 use crate::ast::common::{BuiltinType, Sizes};
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use std::collections::HashMap;
-use super::context::GlobalContext;
 
 pub fn compute_size(typ: &PreType, sizes: &GlobalContext) -> usize {
     match &typ.content {
@@ -101,10 +101,7 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
             }
             true
         }
-        (
-            PostTypeInner::Struct(name1, args1),
-            PostTypeInner::Struct(name2, args2),
-        ) => {
+        (PostTypeInner::Struct(name1, args1), PostTypeInner::Struct(name2, args2)) => {
             if name1 == name2 {
                 for (t1, t2) in args1.iter().zip(args2.iter()) {
                     if !are_compatible(t1, t2) {
@@ -115,8 +112,10 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
             } else {
                 false
             }
-        },
-        (PostTypeInner::FreeType(id1), PostTypeInner::FreeType(id2)) if id1 == id2 => panic!("Weird"), 
+        }
+        (PostTypeInner::FreeType(id1), PostTypeInner::FreeType(id2)) if id1 == id2 => {
+            panic!("Weird")
+        }
         _ => {
             println!("not compatible :\n {:?}\n {:?}", expected, got);
             todo!()
@@ -148,13 +147,15 @@ pub fn biggest_compatible(typ1: &PostType, typ2: &PostType) -> Option<PostType> 
                 //                size : typ1.size,
             })
         }
-        (PostTypeInner::Struct(s1, args1), PostTypeInner::Struct(s2, args2)) if s1 == s2 && args1.len() == args2.len() => {
+        (PostTypeInner::Struct(s1, args1), PostTypeInner::Struct(s2, args2))
+            if s1 == s2 && args1.len() == args2.len() =>
+        {
             if args1.is_empty() {
                 Some(typ1.clone())
             } else {
                 todo!()
             }
-        },
+        }
 
         _ => {
             println!(
@@ -206,23 +207,25 @@ pub fn builtin_name(typ: &BuiltinType) -> &'static str {
     }
 }
 
-pub fn substitute(typ : PostType, hash_map : &HashMap<String, PostType>) -> PostType {
+pub fn substitute(typ: PostType, hash_map: &HashMap<String, PostType>) -> PostType {
     let content = match typ.content {
-        PostTypeInner::Box(typ) =>
-        PostTypeInner::Box(Box::new(substitute(*typ, hash_map))),
+        PostTypeInner::Box(typ) => PostTypeInner::Box(Box::new(substitute(*typ, hash_map))),
         PostTypeInner::BuiltIn(built_in) => PostTypeInner::BuiltIn(built_in),
         PostTypeInner::Diverge => PostTypeInner::Diverge,
         PostTypeInner::Enum(name) => PostTypeInner::Enum(name),
-        PostTypeInner::FreeType(t) =>
-            return hash_map.get(&t).unwrap().clone(),
+        PostTypeInner::FreeType(t) => return hash_map.get(&t).unwrap().clone(),
         PostTypeInner::Fun(_, _, _) => todo!(),
-        PostTypeInner::Ref(mutable, typ) =>
-            PostTypeInner::Ref(mutable, Box::new(substitute(*typ, hash_map))),
+        PostTypeInner::Ref(mutable, typ) => {
+            PostTypeInner::Ref(mutable, Box::new(substitute(*typ, hash_map)))
+        }
         PostTypeInner::String => PostTypeInner::String,
-        PostTypeInner::Struct(name, args) =>
-            PostTypeInner::Struct(name, args.into_iter().map(|t| substitute(t, hash_map)).collect()),
-        PostTypeInner::Tuple(types) => 
-            PostTypeInner::Tuple(types.into_iter().map(|t| substitute(t, hash_map)).collect()),
+        PostTypeInner::Struct(name, args) => PostTypeInner::Struct(
+            name,
+            args.into_iter().map(|t| substitute(t, hash_map)).collect(),
+        ),
+        PostTypeInner::Tuple(types) => {
+            PostTypeInner::Tuple(types.into_iter().map(|t| substitute(t, hash_map)).collect())
+        }
     };
-    PostType { content, }
+    PostType { content }
 }

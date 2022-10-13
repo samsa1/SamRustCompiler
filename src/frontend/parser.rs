@@ -61,9 +61,6 @@ peg::parser! {
           n:num() { n }
       }
 
-      pub rule file() -> Vec<Decl> =
-          space() d:decl()* { d }
-
       rule not_return() -> () = !"\n" ['\x00'..='\x7f'] { }
       rule not_end_comment() -> () = !"*/" !"/*" n:([^'*'] / ['*']) { }
 
@@ -73,15 +70,46 @@ peg::parser! {
       }
 
       rule sgn_space() -> () = precedence! {
-          [' ' | '\n']  {}
+          [' ' | '\n' | '\t']  {}
           ("//" [^'\n']* "\n") {}
           comment() {}
       }
 
       rule spaces() -> () = (quiet!{sgn_space()+} / expected!("space")) { }
-      rule _spaces() -> () = sgn_space()+ { }
 
       rule space() -> () = quiet!{sgn_space()*} { }
+
+      pub rule file() -> (Vec<Open>, Vec<Decl>) =
+          space() o:open()*
+          d:decl()* { (o, d) }
+
+      rule open() -> Open = precedence!{
+          "use" spaces() p:path() r:rename()? space() ";" space()
+            { Open::Use(p, r) }
+          p:("pub" spaces())? "mod" spaces() n:name() r:rename()? space() ";" space()
+            { Open::Mod(p.is_some(), n, r) }
+      }
+
+      rule path() -> Path<PreType> = precedence!{
+        n:name() "::" p:path_tl() {
+            let (end, mut path_rev) = p;
+            let loc = Location::new(n.get_loc().start(), end);
+            path_rev.push(NamePath::Name(n));
+            Path::new(path_rev.into_iter().rev().collect(), loc)
+        }
+        n:name() {
+            let loc = n.get_loc();
+            Path::new(vec![NamePath::Name(n)], loc)
+        }
+      }
+
+      rule path_tl() -> (usize, Vec<NamePath<PreType>>) = precedence!{
+        n:name() "::" p:path_tl() { let (pos, mut p) = p; p.push(NamePath::Name(n)); (pos, p) }
+        n:name() pos:position!() { (pos, vec![NamePath::Name(n)]) }
+      }
+
+      rule rename() -> Ident =
+        spaces() "as" spaces() n:name() { n }
 
       rule decl() -> Decl = precedence!{
           df:decl_fun() space() { Decl::Fun(df) }
@@ -103,11 +131,13 @@ peg::parser! {
 
 
       rule decl_fun() -> DeclFun =
+          p:("pub" spaces())?
           "fn" spaces() n:name() "(" args:fun_args() ")"
                   space()
                   out:arrow_typ() b:bloc()
               {
                   DeclFun {
+                      public : None::<()>.is_some(),
                       name : n,
                       args,
                       output : out,
@@ -125,17 +155,23 @@ peg::parser! {
       }
 
       rule decl_struct() -> DeclStruct =
+          p:("pub" spaces())?
           "struct" spaces() n:name() space() "{"
               args:typ_decls() "}" {
               DeclStruct {
+                  public : None::<()>.is_some(),
                   name : n,
                   args,
               }
       }
 
-      rule reserved() =
-          "true" / "false" / "if" / "else" / "while" / "fn" / "pub" / "struct" / "as" / "let" / "mut"
-          / "return"
+      rule reserved_inner() =
+          "fn" / "pub" / "struct" / "enum" / "mod" / "use"
+          / "as" / "let" / "mut"
+          / "true" / "false"
+          / "if" / "else" / "while" / "for" / "in" / "return"
+
+      rule reserved() = reserved_inner() [^('0'..='9' | 'a'..='z' | 'A' ..='Z' | '_')]
 
       rule name() -> Ident =
           start:position!() n:name_inner() end:position!() {
@@ -230,7 +266,7 @@ peg::parser! {
           start:position!() "false" end:position!() { to_expr(start, end, ExprInner::Bool(false)) }
 
       rule small_expr() -> Expr = precedence! {
-          n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1 as usize)) }
+          n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1)) }
           t:true_expr()   { t }
           f:false_expr()  { f }
           n:name() { to_expr(n.get_loc().start(), n.get_loc().end(), ExprInner::Var(n)) }
@@ -378,9 +414,14 @@ pub fn parse_file(name: String) -> File {
     let contents = fs::read_to_string(&name).expect("Error reading file");
 
     match list_parser::file(&contents) {
-        Ok(content) => File { content, name },
+        Ok((dep, content)) => File {
+            err_reporter: ErrorReporter::new(name.clone(), contents),
+            dep,
+            content,
+            name,
+        },
         Err(err) => {
-            println!("error {:?} in file {}", err, name);
+            println!("parsing error {:?} in file {}", err, name);
             std::process::exit(1)
         }
     }

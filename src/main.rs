@@ -1,9 +1,10 @@
 #![allow(dead_code)]
 
 pub mod ast;
+mod backend;
 mod frontend;
-mod typing;
 mod passes;
+mod typing;
 
 fn main() {
     let mut filenames = Vec::new();
@@ -32,7 +33,8 @@ fn main() {
         panic!("must give exactly one file to compile")
     }
 
-    let parsed_file = frontend::parser::parse_file(filenames.pop().unwrap());
+    let parsed_file = frontend::Module::new(filenames.pop().unwrap());
+    let parsed_file = parsed_file.content;
     if parse_only {
         std::process::exit(0)
     }
@@ -40,7 +42,7 @@ fn main() {
     let unfolded_macros = passes::macros::rewrite_file(parsed_file);
     let moved_refs = passes::move_refs::rewrite_file(unfolded_macros);
 
-    let typed_file = typing::type_inferencer(moved_refs);
+    let typed_file = typing::type_inferencer(moved_refs, true);
 
     println!("{:?}", typed_file);
 

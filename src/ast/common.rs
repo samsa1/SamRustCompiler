@@ -23,6 +23,36 @@ pub enum UnOp {
     Deref,
 }
 
+#[derive(Debug, Clone)]
+pub enum NamePath<T> {
+    Name(Ident),
+    Specialisation(Vec<T>),
+}
+
+#[derive(Debug, Clone)]
+pub struct Path<T> {
+    name: Vec<NamePath<T>>,
+    loc: Location,
+}
+
+impl<T> Path<T> {
+    pub fn new(name: Vec<NamePath<T>>, loc: Location) -> Self {
+        Self { name, loc }
+    }
+
+    pub fn get_content(&self) -> &Vec<NamePath<T>> {
+        &self.name
+    }
+
+    pub fn content(self) -> Vec<NamePath<T>> {
+        self.name
+    }
+
+    pub fn get_loc(&self) -> Location {
+        self.loc
+    }
+}
+
 #[derive(Clone)]
 pub struct Ident {
     name: String,
@@ -80,9 +110,7 @@ impl PartialEq for Ident {
 
 impl std::fmt::Debug for Ident {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Ident")
-         .field("n", &self.name)
-         .finish()
+        f.debug_struct("Ident").field("n", &self.name).finish()
     }
 }
 
@@ -206,17 +234,13 @@ impl UnaOperator {
     }
 }
 
-
 pub struct IdCounter {
-    id : usize
+    id: usize,
 }
-
 
 impl IdCounter {
     pub fn new() -> Self {
-        Self {
-            id : 0
-        }
+        Self { id: 0 }
     }
 
     pub fn incr(&mut self) -> usize {
@@ -234,4 +258,68 @@ impl IdCounter {
 pub enum ComputedValue {
     Drop,
     Keep,
+}
+
+pub struct ErrorReporter {
+    lines: Vec<String>,
+    lines_index: Vec<usize>,
+    file_name: String,
+}
+
+impl ErrorReporter {
+    pub fn new(file_name: String, file: String) -> Self {
+        let mut vec_str = Vec::new();
+        let mut count = 0;
+        let mut vec_index = vec![count];
+        let mut current_str = String::new();
+        for char in file.chars() {
+            count += 1;
+            current_str.push(char);
+            if char == '\n' {
+                vec_str.push(current_str);
+                vec_index.push(count);
+                current_str = String::new();
+            };
+        }
+        vec_str.push(current_str);
+        Self {
+            lines: vec_str,
+            lines_index: vec_index,
+            file_name,
+        }
+    }
+
+    fn get_line_id(&self, loc: usize) -> usize {
+        let mut fst = 0;
+        let mut last = self.lines_index.len();
+        while fst + 1 < last {
+            let mid = (fst + last) / 2;
+            if self.lines_index[mid] <= loc {
+                fst = mid
+            } else {
+                last = mid
+            }
+        }
+        fst
+    }
+
+    pub fn get_fst_line_id(&self, loc: Location) -> usize {
+        self.get_line_id(loc.start())
+    }
+
+    pub fn get_last_line_id(&self, loc: Location) -> usize {
+        self.get_line_id(loc.end())
+    }
+
+    pub fn get_line(&self, id: usize) -> Option<&String> {
+        self.lines.get(id)
+    }
+
+    pub fn get_line_start_char(&self, id: usize) -> Option<&usize> {
+        self.lines_index.get(id)
+    }
+
+    pub fn get_file_name(&self) -> &String {
+        &self.file_name
+    }
 }

@@ -51,21 +51,21 @@ impl Graph {
     }
 }
 
-fn test_is_not(parent : &str, typ : &rust::PreType) {
+fn test_is_not(parent: &str, typ: &rust::PreType) {
     match &typ.content {
-        rust::PreTypeInner::IdentParametrized(id, _)
-         | rust::PreTypeInner::Ident(id) if id.get_content() == parent => {
+        rust::PreTypeInner::IdentParametrized(id, _) | rust::PreTypeInner::Ident(id)
+            if id.get_content() == parent =>
+        {
             println!("Structure {parent} depends on itself and thus is empty type");
             std::process::exit(1)
-        },
+        }
         rust::PreTypeInner::Ident(_) => (),
 
-        rust::PreTypeInner::Tuple(vec)
-         | rust::PreTypeInner::IdentParametrized(_, vec) => {
+        rust::PreTypeInner::Tuple(vec) | rust::PreTypeInner::IdentParametrized(_, vec) => {
             for typ in vec.into_iter() {
                 test_is_not(parent, typ)
             }
-        },
+        }
 
         rust::PreTypeInner::Ref(_, typ) => test_is_not(parent, typ),
 
@@ -94,7 +94,7 @@ fn explore_dependensies(
         rust::PreTypeInner::Ref(_, sub_type) => {
             test_is_not(parent, sub_type);
             todo!()
-        },
+        }
         rust::PreTypeInner::Tuple(v) => {
             for typ in v.iter() {
                 explore_dependensies(typ, parent, graph, set)
@@ -261,7 +261,7 @@ pub fn type_structs(
             for tail in ["_le", "_lo", "_gr", "_ge"] {
                 let mut fun_name2 = fun_name.clone();
                 fun_name2.push_str(tail);
-//                println!("implementing {}", fun_name2);
+                //                println!("implementing {}", fun_name2);
                 sizes.insert(
                     fun_name2,
                     typed_rust::PostType {
@@ -314,7 +314,7 @@ pub fn type_structs(
         for tail in ["_eq", "_ne"] {
             let mut fun_name2 = fun_name.clone();
             fun_name2.push_str(tail);
-//            println!("implementing {}", fun_name2);
+            //            println!("implementing {}", fun_name2);
             sizes.insert(
                 fun_name2,
                 typed_rust::PostType {
@@ -350,7 +350,8 @@ pub fn type_structs(
                 struct_decl.name.get_content().to_string(),
                 typed_rust::PostType {
                     content: typed_rust::PostTypeInner::Struct(
-                        struct_decl.name.get_content().to_string(), vec![]
+                        struct_decl.name.get_content().to_string(),
+                        vec![]
                     ),
                 }
             )
@@ -375,7 +376,8 @@ pub fn type_structs(
             struct_decl.name.get_content().to_string(),
             typed_rust::PostType {
                 content: typed_rust::PostTypeInner::Struct(
-                    struct_decl.name.get_content().to_string(), vec![]
+                    struct_decl.name.get_content().to_string(),
+                    vec![],
                 ),
             },
             args.clone(),

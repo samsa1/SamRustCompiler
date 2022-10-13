@@ -4,6 +4,13 @@ use std::collections::HashMap;
 pub struct File {
     pub name: String,
     pub content: Vec<Decl>,
+    pub dep: Vec<Open>,
+    pub err_reporter: common::ErrorReporter,
+}
+
+pub enum Open {
+    Mod(bool, common::Ident, Option<common::Ident>),
+    Use(common::Path<PreType>, Option<common::Ident>),
 }
 
 pub enum Decl<DF = DeclFun, DS = DeclStruct> {
@@ -11,7 +18,14 @@ pub enum Decl<DF = DeclFun, DS = DeclStruct> {
     Struct(DS),
 }
 
+pub struct DeclStruct {
+    pub public: bool,
+    pub name: common::Ident,
+    pub args: Vec<(common::Ident, PreType)>,
+}
+
 pub struct DeclFun {
+    pub public: bool,
     pub name: common::Ident,
     pub args: Vec<(common::Ident, bool, PreType)>,
     pub output: PreType,
@@ -20,9 +34,10 @@ pub struct DeclFun {
 }
 
 pub struct TypedDeclFun {
+    pub public: bool,
     pub name: common::Ident,
     pub args: Vec<(common::Ident, bool, usize)>,
-    pub types : Types,
+    pub types: Types,
     pub output: PreType,
     pub content: Bloc<usize>,
 }
@@ -63,29 +78,26 @@ impl Types {
         Self::Unknown
     }
 
-    pub fn struct_from_str(name : &str) -> Self {
+    pub fn struct_from_str(name: &str) -> Self {
         Self::Struct(name.to_string(), Vec::new())
     }
 
-    pub fn tuple(vec_types : Vec<usize>) -> Self {
+    pub fn tuple(vec_types: Vec<usize>) -> Self {
         Self::Tuple(vec_types)
     }
 
-    pub fn refed(mutable : bool, type_id : usize) -> Self {
+    pub fn refed(mutable: bool, type_id: usize) -> Self {
         Self::Ref(Some(mutable), type_id)
     }
 
-    pub fn boxed(type_id : usize) -> Self {
+    pub fn boxed(type_id: usize) -> Self {
         Self::Struct("Box".to_string(), vec![type_id])
     }
 
     pub fn unref(&self) -> Option<(bool, usize)> {
         match self {
             Self::Ref(mutable, type_id) => Some((mutable.unwrap_or(true), *type_id)),
-            Self::Struct(name, args)
-                if name == "Box" && args.len() == 1 => {
-                    Some((false, args[0]))
-                },
+            Self::Struct(name, args) if name == "Box" && args.len() == 1 => Some((false, args[0])),
             _ => None,
         }
     }
@@ -93,15 +105,15 @@ impl Types {
 
 #[derive(Debug)]
 pub struct TypeStorage {
-    count : usize,
-    map : HashMap<usize, Types>
+    count: usize,
+    map: HashMap<usize, Types>,
 }
 
 impl TypeStorage {
     pub fn new() -> Self {
         Self {
-            count : 0,
-            map : HashMap::new(),
+            count: 0,
+            map: HashMap::new(),
         }
     }
 
@@ -127,7 +139,7 @@ impl TypeStorage {
         i
     }
 
-    pub fn insert_type(&mut self, typ : Types) -> usize {
+    pub fn insert_type(&mut self, typ: Types) -> usize {
         let i = self.incr();
         assert!(self.map.insert(i, typ).is_none());
         i
@@ -135,66 +147,66 @@ impl TypeStorage {
 
     // /!\ Only a few cases are implemented because
     // only a few case can be encountered at runtime /!\
-    pub fn forces_to(&mut self, id : usize, typ : Types) -> Result<usize, ()> {
+    pub fn forces_to(&mut self, id: usize, typ: Types) -> Result<usize, ()> {
         match (self.map.get(&id), typ) {
             (None, _) => panic!("ICE"),
-            (Some(Types::Unknown), typ) => {*self.map.get_mut(&id).unwrap() = typ; Ok(id)},
+            (Some(Types::Unknown), typ) => {
+                *self.map.get_mut(&id).unwrap() = typ;
+                Ok(id)
+            }
             (Some(Types::Bool), Types::Bool) => Ok(id),
             (Some(_), Types::Bool) => Err(()),
             (Some(Types::Int(b1, s1)), Types::Int(b2, s2)) => {
                 if (b1.is_none() || b1 == &b2) && (s1.is_none() || s1 == &s2) {
-                    *self.map.get_mut(&id).unwrap() = Types::Int(b2, s2); Ok(id)
+                    *self.map.get_mut(&id).unwrap() = Types::Int(b2, s2);
+                    Ok(id)
                 } else {
                     Err(())
                 }
-            },
+            }
             (_, Types::Int(_, _)) => Err(()),
 
             _ => todo!(),
         }
     }
 
-    pub fn get(&self, id : usize) -> Option<&Types> {
+    pub fn get(&self, id: usize) -> Option<&Types> {
         self.map.get(&id)
     }
 
     // Use carefully
-    pub fn set(&mut self, id : usize, typ : Types) {
+    pub fn set(&mut self, id: usize, typ: Types) {
         assert!(self.map.contains_key(&id));
         self.map.insert(id, typ);
     }
 
-    pub fn new_ref_unmarked(&mut self, type_id : usize) -> usize {
+    pub fn new_ref_unmarked(&mut self, type_id: usize) -> usize {
         match self.map.get(&type_id).unwrap() {
-            Types::Bool | Types::Enum(_) | Types::Unknown
-             | Types::Int(_, _) | Types::Fun(_, _) => type_id,
+            Types::Bool | Types::Enum(_) | Types::Unknown | Types::Int(_, _) | Types::Fun(_, _) => {
+                type_id
+            }
             Types::SameAs(type_id) => self.new_ref_unmarked(*type_id),
             Types::Array(_, _) => todo!(),
             Types::Deref(_) => todo!(),
             Types::Ref(Some(false), type_id) => {
                 let type_id = self.new_ref_unmarked(*type_id);
                 self.insert_type(Types::Ref(Some(false), type_id))
-            },
+            }
             Types::Ref(_, type_id) => {
                 let type_id = self.new_ref_unmarked(*type_id);
                 self.insert_type(Types::Ref(None, type_id))
-            },
+            }
             Types::Tuple(_) => todo!(),
             Types::Struct(name, args) => {
                 let mut args2 = Vec::new();
                 let name = name.to_string();
                 for type_id in args.clone().into_iter() {
                     args2.push(self.new_ref_unmarked(type_id))
-                };
+                }
                 self.insert_type(Types::Struct(name, args2))
-            },
+            }
         }
     }
-}
-
-pub struct DeclStruct {
-    pub name: common::Ident,
-    pub args: Vec<(common::Ident, PreType)>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -232,17 +244,17 @@ pub struct Bloc<T = Option<PreType>> {
 }
 
 impl<T> Bloc<T> {
-    pub fn from_expr(expr : Expr<T>) -> Self {
+    pub fn from_expr(expr: Expr<T>) -> Self {
         Self {
-            loc : expr.loc,
-            content : vec![Instr::Expr(common::ComputedValue::Keep, expr)],
+            loc: expr.loc,
+            content: vec![Instr::Expr(common::ComputedValue::Keep, expr)],
         }
     }
 
     pub fn empty() -> Self {
         Self {
-            content : Vec::new(),
-            loc : common::Location::default(),
+            content: Vec::new(),
+            loc: common::Location::default(),
         }
     }
 }
@@ -265,9 +277,9 @@ pub struct Expr<T = Option<PreType>> {
 impl<T: std::fmt::Debug> std::fmt::Debug for Expr<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Expr")
-        .field("c", &*self.content)
-        .field("t", &self.typed)
-        .finish()
+            .field("c", &*self.content)
+            .field("t", &self.typed)
+            .finish()
     }
 }
 
@@ -280,11 +292,11 @@ impl<T> Expr<Option<T>> {
         }
     }
 
-    pub fn var(name : &str, loc : common::Location) -> Self {
+    pub fn var(name: &str, loc: common::Location) -> Self {
         Self {
-            content : Box::new(ExprInner::Var(common::Ident::new(name, loc))),
+            content: Box::new(ExprInner::Var(common::Ident::new(name, loc))),
             loc,
-            typed : None,
+            typed: None,
         }
     }
 }
@@ -293,7 +305,7 @@ impl<T> Expr<Option<T>> {
 pub enum ExprInner<T = Option<PreType>> {
     If(Expr<T>, Bloc<T>, Bloc<T>),
     Bool(bool),
-    Int(usize),
+    Int(u64),
     Var(common::Ident),
     Method(Expr<T>, common::Ident, Vec<Expr<T>>),
     FunCall(Vec<T>, common::Ident, Vec<Expr<T>>),
