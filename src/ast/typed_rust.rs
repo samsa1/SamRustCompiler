@@ -71,6 +71,10 @@ impl PostType {
         }
     }
 
+    pub fn is_ref(&self) -> bool {
+        matches!(&self.content, PostTypeInner::Ref(_, _))
+    }
+
     pub fn is_mut_ref(&self) -> bool {
         matches!(&self.content, PostTypeInner::Ref(true, _))
     }

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 #[derive(Debug, Clone)]
 struct StructInfo {
     size: usize,
-    binding: HashMap<String, usize>,
+    binding: HashMap<String, (usize, usize)>,
 }
 
 impl StructInfo {
@@ -17,7 +17,7 @@ impl StructInfo {
         }
     }
 
-    fn new_full(binding: HashMap<String, usize>, size: usize) -> Self {
+    fn new_full(binding: HashMap<String, (usize, usize)>, size: usize) -> Self {
         Self { size, binding }
     }
 
@@ -27,7 +27,14 @@ impl StructInfo {
 
     fn get_pos(&self, id: &str) -> usize {
         match self.binding.get(id) {
-            Some(id) => *id,
+            Some((pos, _size)) => *pos,
+            None => panic!("ICE"),
+        }
+    }
+
+    fn get_proj_size(&self, id : &str) -> usize {
+        match self.binding.get(id) {
+            Some((_pos, size)) => *size,
             None => panic!("ICE"),
         }
     }
@@ -67,9 +74,10 @@ impl DataStruct {
             let mut binding = HashMap::new();
             //            println!("{:?}", struct_raw);
             for (argname, typ) in struct_raw.args {
-                binding.insert(argname, offset);
+                let size = data_struct.compute_size(&typ);
+                binding.insert(argname, (offset, size));
                 //                println!("Computing size of {:?}", typ.content);
-                offset += data_struct.compute_size(&typ);
+                offset += size;
             }
             assert_eq!(offset, struct_raw.size);
             structs2.insert(
@@ -157,14 +165,18 @@ impl DataStruct {
         }
     }
 
-    fn compute_offset(&self, typ: &tr::PostType, id: usize) -> usize {
+    fn get_pointer_size(&self) -> usize {
+        self.pointer_size
+    }
+
+    fn compute_offset(&self, typ: &tr::PostType, id: usize) -> (usize, usize) {
         match &typ.content {
             tr::PostTypeInner::Tuple(exprs) => {
                 let mut offset = 0;
                 for sub_typ in exprs.iter().take(id) {
                     offset += self.compute_size(sub_typ)
                 }
-                offset
+                (self.compute_size(&exprs[id]), offset)
             }
 
             _ => panic!("ICE"),
@@ -177,12 +189,14 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         tr::ExprInner::Bloc(bloc) => llr::Expr {
             content: Box::new(llr::ExprInner::Bloc(rewrite_bloc(bloc, names_info))),
             loc: top_expr.loc,
+            size : names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
         tr::ExprInner::Bool(b) => llr::Expr {
             content: Box::new(llr::ExprInner::Bool(b)),
             loc: top_expr.loc,
             typed: top_expr.typed,
+            size : 1,
         },
         tr::ExprInner::BuildStruct(name, args) => {
             let struct_info = names_info.get_struct_info(name.get_content()).clone();
@@ -199,11 +213,13 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 content: Box::new(llr::ExprInner::BuildStruct(struct_info.get_size(), args2)),
                 loc: top_expr.loc,
                 typed: top_expr.typed,
+                size : struct_info.get_size(),
             }
         }
         tr::ExprInner::Deref(expr) => llr::Expr {
             content: Box::new(llr::ExprInner::Deref(rewrite_expr(expr, names_info))),
             loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
 
@@ -219,6 +235,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             llr::Expr {
                 content: Box::new(expr_inner),
                 loc: top_expr.loc,
+                size : names_info.compute_size(&top_expr.typed),
                 typed: top_expr.typed,
             }
         }
@@ -230,6 +247,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 rewrite_bloc(bloc2, names_info),
             )),
             loc: top_expr.loc,
+            size : names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
         tr::ExprInner::Int(i) => llr::Expr {
@@ -238,6 +256,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 top_expr.typed.get_int_size().unwrap(),
             )),
             loc: top_expr.loc,
+            size : top_expr.typed.get_int_size().unwrap().to_byte_size(),
             typed: top_expr.typed,
         },
         tr::ExprInner::Print(str) => {
@@ -246,15 +265,17 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 content: Box::new(llr::ExprInner::Print(label)),
                 loc: top_expr.loc,
                 typed: top_expr.typed,
+                size : 0,
             }
         }
 
         tr::ExprInner::Proj(expr, Projector::Int(id)) => {
-            let id = names_info.compute_offset(&expr.typed, id);
+            let (size, id) = names_info.compute_offset(&expr.typed, id);
             llr::Expr {
                 content: Box::new(llr::ExprInner::Proj(rewrite_expr(expr, names_info), id)),
                 loc: top_expr.loc,
                 typed: top_expr.typed,
+                size,
             }
         }
 
@@ -266,11 +287,13 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 }
                 _ => panic!("ICE"),
             };
+            let size = struct_info.get_proj_size(id.get_content());
             let id = struct_info.get_pos(id.get_content());
             llr::Expr {
                 content: Box::new(llr::ExprInner::Proj(rewrite_expr(expr, names_info), id)),
                 loc: top_expr.loc,
                 typed: top_expr.typed,
+                size,
             }
         }
 
@@ -278,6 +301,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             content: Box::new(llr::ExprInner::Ref(rewrite_expr(expr, names_info))),
             loc: top_expr.loc,
             typed: top_expr.typed,
+            size : names_info.get_pointer_size()
         },
         tr::ExprInner::Set(expr1, expr2) => llr::Expr {
             content: Box::new(llr::ExprInner::Set(
@@ -287,6 +311,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             )),
             loc: top_expr.loc,
             typed: top_expr.typed,
+            size : 0,
         },
         tr::ExprInner::String(str) => {
             let label = names_info.insert_string(str);
@@ -294,8 +319,9 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 content: Box::new(llr::ExprInner::Constant(label)),
                 loc: top_expr.loc,
                 typed: top_expr.typed,
+                size : names_info.get_pointer_size(),
             }
-            .to_ref()
+            .to_ref(names_info.get_pointer_size())
         }
         tr::ExprInner::Tuple(exprs) => llr::Expr {
             content: Box::new(llr::ExprInner::Tuple(
@@ -306,6 +332,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                     .collect(),
             )),
             loc: top_expr.loc,
+            size : names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
 
@@ -313,11 +340,13 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             Some(id) => llr::Expr {
                 content: Box::new(llr::ExprInner::VarId(id)),
                 loc: top_expr.loc,
+                size : names_info.compute_size(&top_expr.typed),
                 typed: top_expr.typed,
             },
             None => llr::Expr {
                 content: Box::new(llr::ExprInner::Constant(var_name.content())),
                 loc: top_expr.loc,
+                size : names_info.compute_size(&top_expr.typed),
                 typed: top_expr.typed,
             },
         },
@@ -329,6 +358,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 rewrite_expr(expr2, names_info),
             )),
             loc: top_expr.loc,
+            size : names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
     }
