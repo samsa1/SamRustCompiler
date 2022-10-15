@@ -359,7 +359,7 @@ pub fn type_checker(
             }
         }
 
-        rust::ExprInner::MacroCall(name, vec) if name.get_content() == "vec" => {
+        /*rust::ExprInner::MacroCall(name, vec) if name.get_content() == "vec" => {
             let mut vec2 = Vec::new();
             let el_expected_type: Option<&typed_rust::PostType> = match expected_typ {
                 None => None,
@@ -397,8 +397,7 @@ pub fn type_checker(
                 },
                 typed_rust::ExprInner::Vec(vec2),
             )
-        }
-
+        }*/
         rust::ExprInner::MacroCall(_name, _vec) => {
             panic!("should not happen")
         }

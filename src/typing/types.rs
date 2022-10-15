@@ -212,7 +212,7 @@ pub fn substitute(typ: PostType, hash_map: &HashMap<String, PostType>) -> PostTy
         PostTypeInner::Box(typ) => PostTypeInner::Box(Box::new(substitute(*typ, hash_map))),
         PostTypeInner::BuiltIn(built_in) => PostTypeInner::BuiltIn(built_in),
         PostTypeInner::Diverge => PostTypeInner::Diverge,
-        PostTypeInner::Enum(name) => PostTypeInner::Enum(name),
+        //        PostTypeInner::Enum(name) => PostTypeInner::Enum(name),
         PostTypeInner::FreeType(t) => return hash_map.get(&t).unwrap().clone(),
         PostTypeInner::Fun(_, _, _) => todo!(),
         PostTypeInner::Ref(mutable, typ) => {

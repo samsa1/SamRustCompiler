@@ -17,6 +17,7 @@ enum TypeErrorInfo {
     StructDoesNotHasField(String, String),
     MissingField(String, String),
     CannotBorrowAsMutable,
+    SameArgName(String, String),
 }
 
 #[derive(Debug)]
@@ -119,6 +120,13 @@ impl TypeError {
         Self {
             loc,
             info: TypeErrorInfo::CannotBorrowAsMutable,
+        }
+    }
+
+    pub fn same_arg_name(fun_name: Ident, arg_name: String) -> Self {
+        Self {
+            loc: fun_name.get_loc(),
+            info: TypeErrorInfo::SameArgName(fun_name.content(), arg_name),
         }
     }
 

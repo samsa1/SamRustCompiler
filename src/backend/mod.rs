@@ -1,9 +1,9 @@
-use crate::ast::typed_rust::*;
+use crate::ast::low_level_repr as llr;
 
 mod asm;
 use asm::*;
 mod context;
-
+/*
 #[derive(Debug, Clone)]
 enum Target {
     Op(reg::Operand<reg::RegQ>),
@@ -38,7 +38,6 @@ fn compile_expr_pointer(ctxt: &mut context::Context, expr: Expr, target: Target)
         ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::Bool(_)
-        | ExprInner::Constructor(_, _)
         | ExprInner::Deref(_)
         | ExprInner::FunCall(_, _)
         | ExprInner::If(_, _, _)
@@ -59,7 +58,7 @@ fn compile_expr_pointer(ctxt: &mut context::Context, expr: Expr, target: Target)
             movq(reg::Operand::Label(label), target.to_op())
         }
         ExprInner::Var(name) => movq(ctxt.get_pos_var(name.get_content()), target.to_op()),
-        ExprInner::Vec(_) => panic!("ICE"),
+        ExprInner::BinOp(_, _, _) => todo!(),
     }
 }
 
@@ -69,7 +68,6 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: Expr, target: Target) -> 
         ExprInner::Int(id) => movq(immq(id), target.to_op()),
         ExprInner::Bool(b) => movq(immq(if b { 1 } else { 0 }), target.to_op()),
         ExprInner::BuildStruct(_, _) => todo!(),
-        ExprInner::Constructor(_, _) => todo!(),
         ExprInner::Deref(_) => todo!(),
         ExprInner::FunCall(_, _) => todo!(),
         ExprInner::If(_, _, _) => todo!(),
@@ -83,11 +81,14 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: Expr, target: Target) -> 
         ExprInner::String(_) => todo!(),
         ExprInner::Tuple(_) => todo!(),
         ExprInner::Var(_) => todo!(),
-        ExprInner::Vec(_) => todo!(),
         _ => todo!(),
     }
 }
 
 fn compile_bloc(ctxt: &mut context::Context, bloc: Bloc, target: Target) -> Asm {
+    todo!()
+}*/
+
+fn to_asm(file: llr::File) -> asm::file::File {
     todo!()
 }

@@ -1,6 +1,16 @@
 use super::context::{GlobalContext, Trait};
+use crate::ast::common::Location;
 use crate::ast::typed_rust::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+
+struct LifeTimeIn {
+    values_dependancies: HashMap<String, HashSet<String>>,
+}
+
+struct LifeTimeOut {
+    moved_values: HashMap<String, Location>,
+    result_dependance: HashSet<String>,
+}
 
 struct ScopeScanResult {
     moved_values: HashSet<String>,
@@ -48,7 +58,7 @@ fn check_scopes_expr(
             }
         }
         ExprInner::FunCall(_, _) => todo!(),
-        ExprInner::Constructor(_, _) => todo!(),
+        //        ExprInner::Constructor(_, _) => todo!(),
         ExprInner::Ref(_, _) => todo!(),
         ExprInner::Deref(_) => todo!(),
         ExprInner::Tuple(_) => todo!(),
@@ -57,8 +67,9 @@ fn check_scopes_expr(
         ExprInner::Set(_, _) => todo!(),
         ExprInner::Print(_) => todo!(),
         ExprInner::String(_) => todo!(),
-        ExprInner::Vec(_) => todo!(),
+        //        ExprInner::Vec(_) => todo!(),
         ExprInner::If(_, _, _) => todo!(),
+        ExprInner::BinOp(_, _, _) => todo!(),
     }
 }
 

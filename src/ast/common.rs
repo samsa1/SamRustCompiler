@@ -51,6 +51,14 @@ impl<T> Path<T> {
     pub fn get_loc(&self) -> Location {
         self.loc
     }
+
+    pub fn last(&self) -> Option<Ident> {
+        let i = self.name.len();
+        match &self.name[i] {
+            NamePath::Name(id) => Some(id.clone()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -84,6 +92,13 @@ impl Ident {
 
     pub fn get_loc(&self) -> Location {
         self.loc
+    }
+
+    pub fn to_path(&self) -> Path<super::rust::PreType> {
+        Path {
+            name: vec![NamePath::Name(self.clone())],
+            loc: self.loc,
+        }
     }
 }
 
@@ -152,6 +167,19 @@ pub enum Sizes {
     S32,
     S64,
     SUsize,
+}
+
+impl Sizes {
+    pub fn to_byte_size(&self) -> usize {
+        match self {
+            Self::S32 => 4,
+            Self::S64 => 8,
+            Self::SUsize => {
+                println!("Warning line 177 of common.rs");
+                8
+            }
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
@@ -234,6 +262,7 @@ impl UnaOperator {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 pub struct IdCounter {
     id: usize,
 }
@@ -322,4 +351,21 @@ impl ErrorReporter {
     pub fn get_file_name(&self) -> &String {
         &self.file_name
     }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum TypedBinop {
+    Add(bool, Sizes),
+    Mul(bool, Sizes),
+    Sub(bool, Sizes),
+    Div(bool, Sizes),
+    Mod(bool, Sizes),
+    And(Sizes),
+    Or(Sizes),
+    Eq(Sizes),
+    Neq(Sizes),
+    Lower(bool, Sizes),
+    LowerEq(bool, Sizes),
+    Greater(bool, Sizes),
+    GreaterEq(bool, Sizes),
 }

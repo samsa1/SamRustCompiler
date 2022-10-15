@@ -13,19 +13,18 @@ pub struct LocalContext {
 }
 
 impl LocalContext {
-    pub fn new(in_types: Vec<(String, (bool, usize))>) -> Self {
+    pub fn new(in_types: Vec<(String, (bool, usize))>) -> Result<Self, String> {
         let mut in_types2 = HashMap::new();
         for (name, type_id) in in_types.into_iter() {
             if in_types2.contains_key(&name) {
-                println!("Multiple arguments with the same name {}", name);
-                std::process::exit(1)
+                return Err(name);
             }
             assert!(in_types2.insert(name, type_id).is_none())
         }
 
-        Self {
+        Ok(Self {
             vars: vec![in_types2],
-        }
+        })
     }
 
     pub fn add_layer(&mut self) {
@@ -278,8 +277,7 @@ fn make_coherent(
                     types.set(type_id2, Types::refed(false, type_id2b));
                     println!("{types:?}");
                     Ok(types.insert_type(Types::refed(false, type_id)))
-                }
-                //                _ => todo!(),
+                } //                _ => todo!(),
             }
         }
         (Types::Ref(_, _), _) | (_, Types::Ref(_, _)) => {
@@ -352,7 +350,7 @@ fn add_type(
             types.insert_type(Types::Int(Some(*signed), Some(*size)))
         }
         PostTypeInner::Diverge => todo!(),
-        PostTypeInner::Enum(_) => todo!(),
+        //        PostTypeInner::Enum(_) => todo!(),
         PostTypeInner::Fun(free, type_vec, out_type) => {
             let mut free_types2 = free_types.clone();
             for name in free.iter() {
@@ -1192,6 +1190,7 @@ fn type_bloc(
 }
 
 pub fn type_funs(
+    name_fun: &Ident,
     ctxt: &GlobalContext,
     args: &[(String, bool, &PostType)],
     out_type: &PostType,
@@ -1208,7 +1207,11 @@ pub fn type_funs(
             )
         })
         .collect();
-    let mut local_ctxt = LocalContext::new(vec);
+    let mut local_ctxt = match LocalContext::new(vec) {
+        Ok(ctxt) => ctxt,
+        Err(name) => return Err(vec![TypeError::same_arg_name(name_fun.clone(), name)]),
+    };
+
     let (_, bloc) = type_bloc(
         ctxt,
         &mut local_ctxt,

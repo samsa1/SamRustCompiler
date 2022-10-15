@@ -82,17 +82,21 @@ fn type_funs(
             .iter()
             .map(|(id, b, typ)| (id.get_content().to_string(), *b, typ))
             .collect();
-        let (content, types) =
-            match inferencer::type_funs(known_types, &in_types2, &output, fun_decl.content.clone())
-            {
-                Ok(out) => out,
-                Err(errs) => {
-                    for err in errs.into_iter() {
-                        err.report_error(err_reporter);
-                    }
-                    std::process::exit(1);
+        let (content, types) = match inferencer::type_funs(
+            &fun_decl.name,
+            known_types,
+            &in_types2,
+            &output,
+            fun_decl.content.clone(),
+        ) {
+            Ok(out) => out,
+            Err(errs) => {
+                for err in errs.into_iter() {
+                    err.report_error(err_reporter);
                 }
-            };
+                std::process::exit(1);
+            }
+        };
         //        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
@@ -116,6 +120,7 @@ fn type_funs(
             args: in_types,
             output,
             content,
+            id_counter: fun_decl.id_counter,
         });
     }
 

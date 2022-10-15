@@ -4,6 +4,7 @@ pub mod ast;
 mod backend;
 mod frontend;
 mod passes;
+mod to_llr;
 mod typing;
 
 fn main() {
@@ -40,15 +41,24 @@ fn main() {
     }
 
     let unfolded_macros = passes::macros::rewrite_file(parsed_file);
-    let moved_refs = passes::move_refs::rewrite_file(unfolded_macros);
+    let distinct_names = passes::give_uniq_id::rewrite_file(unfolded_macros);
+    let moved_refs = passes::move_refs::rewrite_file(distinct_names);
 
     let typed_file = typing::type_inferencer(moved_refs, true);
 
-    println!("{:?}", typed_file);
+    let checked_lifetime = typed_file;
+
+    println!("{:?}", checked_lifetime);
 
     if type_only {
         std::process::exit(0)
     }
 
-    todo!()
+    let made_linear = passes::linear_programs::rewrite_file(checked_lifetime);
+
+    let llr_form = to_llr::rewrite_file(made_linear);
+
+    let asm = backend::to_asm(llr_form);
+
+    asm.print_in("a.out");
 }

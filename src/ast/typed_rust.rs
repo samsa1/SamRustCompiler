@@ -14,6 +14,7 @@ pub struct DeclFun {
     pub args: Vec<(common::Ident, bool, PostType)>,
     pub output: PostType,
     pub content: Bloc,
+    pub id_counter: common::IdCounter,
 }
 
 #[derive(Debug)]
@@ -87,13 +88,31 @@ impl PostType {
             _ => None,
         }
     }
+
+    pub fn get_int_size(&self) -> Option<common::Sizes> {
+        match &self.content {
+            PostTypeInner::BuiltIn(common::BuiltinType::Int(_, size)) => Some(*size),
+            _ => None,
+        }
+    }
+
+    pub fn get_struct(&self) -> Option<(&str, &Vec<PostType>)> {
+        match &self.content {
+            PostTypeInner::Struct(name, args) => Some((name, args)),
+            PostTypeInner::Ref(_, typ) => match &typ.content {
+                PostTypeInner::Struct(name, args) => Some((name, args)),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
     Struct(String, Vec<PostType>),
-    Enum(String),
+    //    Enum(String),
     Box(Box<PostType>),
     /*    IdentParametrized(String, Vec<PostType>),*/
     Ref(bool, Box<PostType>),
@@ -152,7 +171,7 @@ pub enum ExprInner {
     Var(common::Ident),
     /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(common::Ident, Vec<Expr>),
-    Constructor(common::Ident, Vec<Expr>),
+    //    Constructor(common::Ident, Vec<Expr>),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
@@ -162,5 +181,6 @@ pub enum ExprInner {
     Set(Expr, Expr),
     Print(String),
     String(String),
-    Vec(Vec<Expr>),
+    //    Vec(Vec<Expr>),
+    BinOp(common::TypedBinop, Expr, Expr),
 }
