@@ -7,7 +7,7 @@ pub struct File {
 }
 
 impl File {
-    pub fn print_in(self, file_name : &str) {
+    pub fn print_in(self, file_name: &str) {
         todo!()
     }
 }

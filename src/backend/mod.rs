@@ -48,22 +48,29 @@ fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr) -> Asm {
         | llr::ExprInner::Set(_, _, _)
         | llr::ExprInner::Tuple(_, _)
         | llr::ExprInner::Deref(_) => panic!("ICE"),
-        llr::ExprInner::Constant(str)
-        | llr::ExprInner::VarGlobal(str) => {
+        llr::ExprInner::Constant(str) | llr::ExprInner::VarGlobal(str) => {
             todo!()
-        },
+        }
         llr::ExprInner::Proj(expr, proj) => {
             let expr = if expr.typed.is_ref() {
                 compile_expr_val(ctxt, expr)
             } else {
                 compile_expr_pointer(ctxt, expr)
             };
-            expr + addq(reg::Operand::Imm(proj as u64), reg::Operand::Reg(reg::RegQ::Rax))
-        },
+            expr + addq(
+                reg::Operand::Imm(proj as u64),
+                reg::Operand::Reg(reg::RegQ::Rax),
+            )
+        }
         llr::ExprInner::VarId(id) => {
-            movq(reg::Operand::Reg(reg::RegQ::Rbp), reg::Operand::Reg(reg::RegQ::Rax))
-            + addq(reg::Operand::Imm(ctxt.find(id)), reg::Operand::Reg(reg::RegQ::Rax))
-        },
+            movq(
+                reg::Operand::Reg(reg::RegQ::Rbp),
+                reg::Operand::Reg(reg::RegQ::Rax),
+            ) + addq(
+                reg::Operand::Imm(ctxt.find(id)),
+                reg::Operand::Reg(reg::RegQ::Rax),
+            )
+        }
     }
 }
 
@@ -88,7 +95,7 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr) -> Asm {
         llr::ExprInner::Print(_) => todo!(),
         llr::ExprInner::Proj(expr, id) => {
             todo!()
-        },
+        }
         llr::ExprInner::Ref(expr) => compile_expr_pointer(ctxt, expr),
         llr::ExprInner::Ref(_) => todo!(),
         llr::ExprInner::Set(_, _, _) => todo!(),

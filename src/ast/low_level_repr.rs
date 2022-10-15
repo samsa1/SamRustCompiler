@@ -37,16 +37,16 @@ pub struct Expr {
     pub content: Box<ExprInner>,
     pub loc: common::Location,
     pub typed: super::typed_rust::PostType,
-    pub size : usize,
+    pub size: usize,
 }
 
 impl Expr {
-    pub fn to_ref(self, pointer_size : usize) -> Self {
+    pub fn to_ref(self, pointer_size: usize) -> Self {
         Self {
             typed: self.typed.clone().to_ref(false),
             loc: self.loc,
             content: Box::new(ExprInner::Ref(self)),
-            size : pointer_size,
+            size: pointer_size,
         }
     }
 }

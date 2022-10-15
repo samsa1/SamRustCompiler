@@ -5,8 +5,8 @@ use crate::ast::typed_rust::*;
 use std::collections::HashMap;
 
 pub struct Context {
- //   nb_str: usize,
-//    strings: HashMap<String, Label>,
+    //   nb_str: usize,
+    //    strings: HashMap<String, Label>,
 }
 
 impl Context {
@@ -17,7 +17,7 @@ impl Context {
         }
     }
 
-/*    pub fn get_proj_offset(&self, typ: &PostType, proj: &Projector) -> usize {
+    /*    pub fn get_proj_offset(&self, typ: &PostType, proj: &Projector) -> usize {
         todo!()
     }
 
@@ -39,7 +39,7 @@ impl Context {
         todo!()
     }*/
 
-    pub fn find(&self, id : usize) -> u64 {
+    pub fn find(&self, id: usize) -> u64 {
         todo!()
     }
 }
