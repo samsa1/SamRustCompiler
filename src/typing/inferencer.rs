@@ -143,7 +143,7 @@ fn make_coherent(
         (Some(typ1), Some(typ2)) => (typ1, typ2),
         _ => panic!("ICE"),
     };
-    println!("-> {:?} {:?} {:?}", typ1, typ2, unification_method);
+//    println!("-> {:?} {:?} {:?}", typ1, typ2, unification_method);
     match (typ1, typ2) {
         (Types::Unknown, _) => {
             let type_id = types.new_ref_unmarked(type_id2);
@@ -272,10 +272,10 @@ fn make_coherent(
                     let type_id2b = *type_id2b;
                     let type_id =
                         make_coherent(types, type_id1b, type_id2b, loc, unification_method)?;
-                    println!("{types:?}");
+//                    println!("{types:?}");
                     types.set(type_id1, Types::refed(false, type_id1b));
                     types.set(type_id2, Types::refed(false, type_id2b));
-                    println!("{types:?}");
+//                    println!("{types:?}");
                     Ok(types.insert_type(Types::refed(false, type_id)))
                 } //                _ => todo!(),
             }
@@ -480,7 +480,7 @@ fn type_expr(
     types: &mut TypeStorage,
     out_type: usize,
 ) -> Result<(bool, Expr<usize>), Vec<TypeError>> {
-    println!("processing {top_expr:?}");
+//    println!("processing {top_expr:?}");
     let out = match *top_expr.content {
         ExprInner::Array(_) => todo!(),
 
@@ -689,7 +689,7 @@ fn type_expr(
 
         ExprInner::FunCall(args, name, exprs) => {
             assert!(args.is_empty());
-            println!("Fun {name:?}");
+//            println!("Fun {name:?}");
             match local_ctxt.get_typ(&name) {
                 None => {
                     if let Some(typ) = ctxt.get_typ(name.get_content()) {
@@ -1080,9 +1080,10 @@ fn type_expr(
             }
         }
     };
-    println!("");
+/*    println!("");
     println!("{:?}", types);
     println!("{:?}", out);
+*/
     out
 }
 
@@ -1145,10 +1146,11 @@ fn type_bloc(
                 content.push(Instr::While(expr, bloc))
             }
         };
-        println!("");
+/*        println!("");
         println!("{types:?}");
         println!("{local_ctxt:?}");
         println!("{content:?}");
+*/
     }
 
     let type_id = match content.pop() {

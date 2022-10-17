@@ -11,8 +11,8 @@ pub struct File {
 #[derive(Debug)]
 pub struct DeclFun {
     pub name: common::Ident,
-    pub args: Vec<(usize, super::typed_rust::PostType)>,
-    pub output: super::typed_rust::PostType,
+    pub args: Vec<(usize, usize)>, /* (id, size) */
+    pub output: usize,
     pub content: Bloc,
 }
 
@@ -49,6 +49,15 @@ impl Expr {
             size: pointer_size,
         }
     }
+
+    pub fn new_usize(s : u64) -> Self {
+        Self {
+            content : Box::new(ExprInner::Int(s, common::Sizes::SUsize)),
+            loc : common::Location::default(),
+            typed : super::typed_rust::PostType::usize(),
+            size : 8,
+        }
+    }
 }
 
 impl std::fmt::Debug for Expr {
@@ -76,4 +85,5 @@ pub enum ExprInner {
     Print(String), /* name of the constant containing the string /!\ */
     Constant(String),
     BinOp(common::TypedBinop, Expr, Expr),
+    UnaOp(common::TypedUnaop, Expr),
 }

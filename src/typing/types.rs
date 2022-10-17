@@ -182,6 +182,8 @@ pub fn can_be_deref(typ: &PostType) -> bool {
 pub fn type_int_name(typ: &PostType) -> Option<&'static str> {
     match &typ.content {
         PostTypeInner::BuiltIn(BuiltinType::Int(b, size)) => Some(match (b, size) {
+            (true, Sizes::S8) => "i8",
+            (false, Sizes::S8) => "u8",
             (true, Sizes::S32) => "i32",
             (false, Sizes::S32) => "u32",
             (true, Sizes::S64) => "i64",
@@ -196,6 +198,8 @@ pub fn type_int_name(typ: &PostType) -> Option<&'static str> {
 pub fn builtin_name(typ: &BuiltinType) -> &'static str {
     match typ {
         BuiltinType::Int(b, size) => match (b, size) {
+            (true, Sizes::S8) => "i8",
+            (false, Sizes::S8) => "u8",
             (true, Sizes::S32) => "i32",
             (false, Sizes::S32) => "u32",
             (true, Sizes::S64) => "i64",

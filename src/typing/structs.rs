@@ -158,15 +158,6 @@ fn topological_sort(structs: Vec<rust::DeclStruct>, graph: &mut Graph) -> Vec<ru
     structs
 }
 
-pub fn compute_size_builtin(b: &BuiltinType) -> usize {
-    match b {
-        BuiltinType::Bool => 1,
-        BuiltinType::Int(_, Sizes::S32) => 4,
-        BuiltinType::Int(_, Sizes::S64) => 8,
-        BuiltinType::Int(_, Sizes::SUsize) => 8, /* todo!() */
-    }
-}
-
 pub fn type_structs(
     structs: Vec<rust::DeclStruct>,
 ) -> (GlobalContext, Vec<typed_rust::DeclStruct>) {
@@ -178,7 +169,7 @@ pub fn type_structs(
     let mut sizes = GlobalContext::new();
     let mut set = HashSet::new();
     for (name, raw_type) in DEFAULT_TYPES {
-        sizes.insert_size(name.to_string(), compute_size_builtin(&raw_type));
+        sizes.insert_size(name.to_string(), raw_type.to_byte_size());
         let typ = PostType {
             content: PostTypeInner::BuiltIn(raw_type),
         };

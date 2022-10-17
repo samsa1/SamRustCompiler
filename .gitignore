@@ -10,6 +10,5 @@ Cargo.lock
 **/*.rs.bk
 
 
-# Added by cargo
-
-/target
+/tests/exec/*.s
+/tests/exec-fail/*.s

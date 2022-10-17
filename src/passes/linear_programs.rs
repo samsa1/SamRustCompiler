@@ -19,6 +19,7 @@ fn is_ref(
         | ExprInner::If(_, _, _)
         | ExprInner::Int(_)
         | ExprInner::BinOp(_, _, _)
+        | ExprInner::UnaOp(_, _)
         | ExprInner::Ref(_, _) => {
             top_expr = rewrite_expr(top_expr, context, counter);
             let name = counter.new_name();
@@ -158,6 +159,14 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
                 binop,
                 is_ref(false, expr1, context, counter),
                 is_ref(false, expr2, context, counter),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::UnaOp(unaop, expr) => Expr {
+            content: Box::new(ExprInner::UnaOp(
+                unaop,
+                is_ref(false, expr, context, counter),
             )),
             ..top_expr
         },

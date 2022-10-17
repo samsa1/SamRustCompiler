@@ -1,7 +1,8 @@
 use super::reg::{Label, Operand, Reg, RegQ};
+use std::io::prelude::*;
 
 pub trait Instr {
-    fn to_string(&self) -> String;
+    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()>;
 }
 
 pub enum OpOpInstrName {
@@ -16,6 +17,8 @@ pub enum OpOpInstrName {
     Sar,
     Cmp,
     Test,
+    Lea,
+    IMul,
 }
 
 impl OpOpInstrName {
@@ -24,7 +27,16 @@ impl OpOpInstrName {
             Self::Move => "mov",
             Self::Add => "add",
             Self::Sub => "sub",
-            _ => todo!(),
+            Self::And => "and",
+            Self::Or =>  "or",
+            Self::Xor => "xor",
+            Self::Shl => "shl",
+            Self::Shr => "shr",
+            Self::Sar => "sar",
+            Self::Cmp => "cmp",
+            Self::Test => "test",
+            Self::Lea => "lea",
+            Self::IMul => "imul",
         }
     }
 }
@@ -42,28 +54,26 @@ impl<T: Reg> InstrOpOp<T> {
 }
 
 impl<T: Reg> Instr for InstrOpOp<T> {
-    fn to_string(&self) -> String {
-        let mut name = String::new();
-        name.push('\t');
-        name.push_str(self.instr.to_str());
-        name.push(T::SIZE.to_char());
-        name.push(' ');
-        name.push_str(&self.reg1.to_string());
-        name.push_str(", ");
-        name.push_str(&self.reg2.to_string());
-        name.push('\n');
-        name
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t")?;
+        file.write_all(self.instr.to_str().as_bytes())?;
+        file.write_all(&[T::SIZE.to_char() as u8])?;
+        file.write_all(b" ")?;
+        self.reg1.write_in(file)?;
+        file.write_all(b", ")?;
+        self.reg2.write_in(file)?;
+        file.write_all(b"\n")
     }
 }
 
-pub enum OpRegInstrName {
+/*pub enum OpRegInstrName {
     Lea,
 }
 
 impl OpRegInstrName {
     pub fn to_str(&self) -> &'static str {
         match self {
-            _ => todo!(),
+            Lea => "lea",
         }
     }
 }
@@ -75,23 +85,21 @@ pub struct InstrOpReg<T: Reg> {
 }
 
 impl<T: Reg> Instr for InstrOpReg<T> {
-    fn to_string(&self) -> String {
-        let mut name = String::new();
-        name.push('\t');
-        name.push_str(self.instr.to_str());
-        name.push(T::SIZE.to_char());
-        name.push(' ');
-        name.push_str(&self.reg1.to_string());
-        name.push_str(", ");
-        name.push_str(&self.reg2.to_string());
-        name.push('\n');
-        name
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t")?;
+        file.write_all(self.instr.to_str().as_bytes())?;
+        file.write_all(&[T::SIZE.to_char() as u8])?;
+        file.write_all(b" ")?;
+        self.reg1.write_in(file)?;
+        file.write_all(b", ")?;
+        self.reg2.write_in(file)?;
+        file.write_all(b"\n")
     }
-}
+}*/
 
 pub enum OpInstrName {
-    Incr,
-    Decr,
+    Inc,
+    Dec,
     Neg,
     Not,
     Push,
@@ -101,7 +109,12 @@ pub enum OpInstrName {
 impl OpInstrName {
     pub fn to_str(&self) -> &'static str {
         match self {
-            _ => todo!(),
+            Self::Inc => "inc",
+            Self::Dec => "dec",
+            Self::Neg => "neg",
+            Self::Not => "not",
+            Self::Push => "push",
+            Self::Pop => "pop",
         }
     }
 }
@@ -118,15 +131,13 @@ impl<T: Reg> InstrOp<T> {
 }
 
 impl<T: Reg> Instr for InstrOp<T> {
-    fn to_string(&self) -> String {
-        let mut name = String::new();
-        name.push('\t');
-        name.push_str(self.instr.to_str());
-        name.push(T::SIZE.to_char());
-        name.push(' ');
-        name.push_str(&self.reg.to_string());
-        name.push('\n');
-        name
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t")?;
+        file.write_all(self.instr.to_str().as_bytes())?;
+        file.write_all(&[T::SIZE.to_char() as u8])?;
+        file.write_all(b" ")?;
+        self.reg.write_in(file)?;
+        file.write_all(b"\n")
     }
 }
 
@@ -138,9 +149,14 @@ pub enum InstrNoArg {
 }
 
 impl Instr for InstrNoArg {
-    fn to_string(&self) -> String {
-        let mut name = String::new();
-        todo!();
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t")?;
+        match self {
+            Self::Ret => file.write_all(b"ret\n"),
+            Self::Leave => file.write_all(b"leave\n"),
+            Self::Syscall => file.write_all(b"syscall\n"),
+            Self::Hlt => file.write_all(b"hlt\n"),
+        }
     }
 }
 
@@ -161,15 +177,87 @@ pub enum Cond {
     JBE,
 }
 
+impl Cond {
+    fn to_str(&self) -> &'static str {
+        match self {
+            Self::JE => "e",
+            Self::JZ => "z",
+            Self::JNE => "ne",
+            Self::JNZ => "nz",
+            Self::JS => "s",
+            Self::JNS => "ns",
+            Self::JG => "g",
+            Self::JGE => "ge",
+            Self::JL => "l",
+            Self::JLE => "le",
+            Self::JA => "a",
+            Self::JAE => "ae",
+            Self::JB => "b",
+            Self::JBE => "be",
+        }
+
+    }
+}
+
+pub struct CondMove<T : Reg> {
+    cond : Cond,
+    reg1 : Operand<T>,
+    reg2 : Operand<T>
+}
+
+impl<T : Reg> CondMove<T> {
+    pub fn new(cond : Cond, reg1 : Operand<T>, reg2 : Operand<T>) -> Self {
+        Self {
+            cond,
+            reg1,
+            reg2,
+        }
+    }
+}
+
+impl<T : Reg> Instr for CondMove<T> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\tcmov")?;
+        file.write_all(self.cond.to_str().as_bytes())?;
+        file.write_all(b" ")?;
+        self.reg1.write_in(file)?;
+        file.write_all(b", ")?;
+        self.reg2.write_in(file)?;
+        file.write_all(b"\n")
+    }
+}
+
 pub enum Goto {
     Call(Label),
-    Call_star(Operand<RegQ>),
+    CallStar(Operand<RegQ>),
     CondJump(Cond, Label),
     Jump(Label),
 }
 
+
 impl Instr for Goto {
-    fn to_string(&self) -> String {
-        todo!()
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t")?;
+        match self {
+            Self::Call(label) => {
+                file.write_all(b"call ")?;
+                label.write_in(file)?
+            },
+            Self::CallStar(operand) => {
+                file.write_all(b"call *")?;
+                operand.write_in(file)?
+            },
+            Self::CondJump(cond, label) => {
+                file.write_all(b"j")?;
+                file.write_all(cond.to_str().as_bytes())?;
+                file.write_all(b" ")?;
+                label.write_in(file)?
+            }
+            Self::Jump(label) => {
+                file.write_all(b"jmp ")?;
+                label.write_in(file)?
+            }
+        }
+        file.write_all(b"\n")
     }
 }

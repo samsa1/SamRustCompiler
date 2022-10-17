@@ -54,7 +54,12 @@ impl PostType {
     pub const fn i32() -> Self {
         Self {
             content: PostTypeInner::BuiltIn(common::BuiltinType::Int(true, common::Sizes::S32)),
-            //            size : 1,
+        }
+    }
+
+    pub const fn usize() -> Self {
+        Self {
+            content: PostTypeInner::BuiltIn(common::BuiltinType::Int(false, common::Sizes::SUsize)),
         }
     }
 
@@ -187,4 +192,5 @@ pub enum ExprInner {
     String(String),
     //    Vec(Vec<Expr>),
     BinOp(common::TypedBinop, Expr, Expr),
+    UnaOp(common::TypedUnaop, Expr),
 }

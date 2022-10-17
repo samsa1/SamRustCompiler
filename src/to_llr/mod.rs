@@ -224,13 +224,27 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         },
 
         tr::ExprInner::FunCall(id, args) => {
-            let args2 = args
+            let args : Vec<llr::Expr> = args
                 .into_iter()
                 .map(|e| rewrite_expr(e, names_info))
                 .collect();
+            let args2_bis = if id.get_content() == "std::vec::Vec::new" && args.is_empty() {
+                let size = match &top_expr.typed.content {
+                    tr::PostTypeInner::Struct(name, arg1)
+                        if name == "Vec" && arg1.len() == 1 => {
+                            names_info.compute_size(&arg1[0])
+                    },
+                    _ => panic!("ICE")
+                };
+                vec![llr::Expr::new_usize(size as u64)]
+            } else if id.get_content() == "std::vec::Vec::push" && args.len() == 2 {
+                args.into_iter().rev().collect()
+            } else {
+                args
+            };
             let expr_inner = match names_info.get_var(id.get_content()) {
-                Some(id) => llr::ExprInner::FunCallVar(id, args2),
-                None => llr::ExprInner::FunCall(id.content(), args2),
+                Some(id) => llr::ExprInner::FunCallVar(id, args2_bis),
+                None => llr::ExprInner::FunCall(id.content(), args2_bis),
             };
             llr::Expr {
                 content: Box::new(expr_inner),
@@ -361,6 +375,16 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             size: names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
+
+        tr::ExprInner::UnaOp(op, expr) => llr::Expr {
+            content: Box::new(llr::ExprInner::UnaOp(
+                op,
+                rewrite_expr(expr, names_info),
+            )),
+            loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
+            typed: top_expr.typed,
+        },
     }
 }
 
@@ -405,11 +429,11 @@ fn rewrite_decl_fun(decl_fun: tr::DeclFun, names_info: &mut DataStruct) -> llr::
     let args = decl_fun
         .args
         .into_iter()
-        .map(|(name, _b, typ)| (names_info.insert(name.content()), typ))
+        .map(|(name, _b, typ)| (names_info.insert(name.content()), names_info.compute_size(&typ)))
         .collect();
     llr::DeclFun {
         name: decl_fun.name,
-        output: decl_fun.output,
+        output: names_info.compute_size(&decl_fun.output),
         content: rewrite_bloc(decl_fun.content, names_info),
         args,
     }

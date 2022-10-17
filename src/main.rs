@@ -34,7 +34,9 @@ fn main() {
         panic!("must give exactly one file to compile")
     }
 
-    let parsed_file = frontend::Module::new(filenames.pop().unwrap());
+    let in_name = filenames.pop().unwrap();
+
+    let parsed_file = frontend::Module::new(in_name.clone());
     let parsed_file = parsed_file.content;
     if parse_only {
         std::process::exit(0)
@@ -60,5 +62,14 @@ fn main() {
 
     let asm = backend::to_asm(llr_form);
 
-    asm.print_in("a.out");
+    let mut out_name = std::path::PathBuf::from(in_name);
+    out_name.set_extension("s");
+
+    match asm.print_in(out_name.to_str().unwrap()) {
+        Ok(()) => (),
+        Err(err) => {
+            println!("Failed during printing asm with internal error {:?}", err);
+            std::process::exit(1)
+        }
+    };
 }

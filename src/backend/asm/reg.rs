@@ -1,3 +1,6 @@
+use std::io::prelude::*;
+
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sizes {
     Byte,
@@ -18,7 +21,7 @@ impl Sizes {
 }
 
 pub trait Reg {
-    fn to_string(&self) -> String;
+    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()>;
 
     const SIZE: Sizes;
 }
@@ -67,8 +70,8 @@ impl RegQ {
 }
 
 impl Reg for RegQ {
-    fn to_string(&self) -> String {
-        self.to_str().to_string()
+    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(self.to_str().as_bytes())
     }
 
     const SIZE: Sizes = Sizes::Quad;
@@ -118,8 +121,8 @@ impl RegL {
 }
 
 impl Reg for RegL {
-    fn to_string(&self) -> String {
-        self.to_str().to_string()
+    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(self.to_str().as_bytes())
     }
 
     const SIZE: Sizes = Sizes::Long;
@@ -169,8 +172,8 @@ impl RegW {
 }
 
 impl Reg for RegW {
-    fn to_string(&self) -> String {
-        self.to_str().to_string()
+    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(self.to_str().as_bytes())
     }
 
     const SIZE: Sizes = Sizes::Word;
@@ -228,8 +231,8 @@ impl RegB {
 }
 
 impl Reg for RegB {
-    fn to_string(&self) -> String {
-        self.to_str().to_string()
+    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(self.to_str().as_bytes())
     }
 
     const SIZE: Sizes = Sizes::Byte;
@@ -237,22 +240,47 @@ impl Reg for RegB {
 
 #[derive(Debug, Clone)]
 pub enum Operand<T: Reg> {
-    Addr,
+    Addr(i64, RegQ, Option<RegQ>, u8), /* value at 1 + 2 + 3 * 4 */
     Reg(T),
-    Label(Label),
-    Imm(u64),
+    LabRelAddr(Label),
+    LabAbsAddr(Label),
+    LabVal(Label),
+    Imm(i64),
 }
 
 impl<T: Reg> Operand<T> {
-    pub fn to_string(&self) -> String {
+    pub fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
-            Self::Reg(reg) => reg.to_string(),
-            _ => todo!(),
+            Self::Reg(reg) => reg.write_in(file),
+            Self::Addr(offset, reg, index, scale) => {
+                file.write_all(format!("{offset}(").as_bytes())?;
+                reg.write_in(file)?;
+                match index {
+                    None => file.write_all(b")"),
+                    Some(index) => {
+                        file.write_all(b", ")?;
+                        index.write_in(file)?;
+                        file.write_all(format!(", {scale})").as_bytes())
+                    }
+                }
+            },
+            Self::LabRelAddr(label) => {
+                label.write_in(file)?;
+                file.write_all(b"(%rip)")
+            },
+            Self::LabAbsAddr(label) => {
+                file.write_all(b"$")?;
+                label.write_in(file)
+            },
+            Self::LabVal(label) => {
+                file.write_all(b"(")?;
+                label.write_in(file)?;
+                file.write_all(b")")
+            },
+            Self::Imm(id) => {
+                file.write_all(format!("${id}").as_bytes())
+            },
         }
-    }
-
-    pub fn offset(self, added: usize) -> Self {
-        todo!()
     }
 }
 
@@ -266,9 +294,38 @@ impl Label {
         todo!()
     }
 
-    pub fn from_str(str: &str) -> Self {
+    pub fn from_str(name: String) -> Self {
         Self {
-            name: str.to_string(),
+            name,
         }
+    }
+
+    pub fn printf() -> Self {
+        Self {
+            name: "printf".to_string()
+        }
+    }
+
+    pub fn malloc() -> Self {
+        Self {
+            name: "malloc".to_string()
+        }
+    }
+
+    pub fn free() -> Self {
+        Self {
+            name: "free".to_string()
+        }
+    }
+
+    pub fn realloc() -> Self {
+        Self {
+            name: "realloc".to_string()
+        }
+    }
+
+    pub fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"_")?;
+        file.write_all(self.name.as_bytes())
     }
 }

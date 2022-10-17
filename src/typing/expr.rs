@@ -23,12 +23,9 @@ fn get_index_function(
     typ: &typed_rust::PostType,
 ) -> Option<(&'static str, typed_rust::PostType)> {
     match &typ.content {
-        typed_rust::PostTypeInner::Struct(id, param) if id == "Vec" => {
-            Some(("get_element_vec", param[0].clone()))
-        }
         typed_rust::PostTypeInner::Ref(_, typ) => match &typ.content {
             typed_rust::PostTypeInner::Struct(id, param) if id == "Vec" => {
-                Some(("get_element_vec", param[0].clone()))
+                Some(("std::vec::Vec::get", param[0].clone()))
             }
             _ => None,
         },
@@ -50,7 +47,7 @@ fn get_binop_fun_name<'a>(
     ) {
         None => None,
         Some(s) => {
-            println!("prefix {} for {:?} {:?}", s, binop, binop.get_trait_name());
+//            println!("prefix {} for {:?} {:?}", s, binop, binop.get_trait_name());
             let mut s = s.to_string();
             s.push_str(fun_suffix);
             Some(s)
@@ -68,7 +65,7 @@ fn get_unaop_fun_name(
     match ctxt.has_trait(typ1, &context::Trait::Name(name)) {
         None => None,
         Some(s) => {
-            println!("prefix {} for {:?} {:?}", s, unaop, unaop.get_trait_name());
+//            println!("prefix {} for {:?} {:?}", s, unaop, unaop.get_trait_name());
             let mut s = s.to_string();
             s.push_str(fun_suffix);
             Some(s)
@@ -102,6 +99,69 @@ fn bool_fun_name(binop: BinOperator) -> Option<&'static str> {
         BinOperator::And => Some("_and"),
         BinOperator::Or => Some("_or"),
         _ => None,
+    }
+}
+
+fn to_typed_binop(binop : BinOperator, typ : &typed_rust::PostTypeInner) -> Option<TypedBinop> {
+    match typ {
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) => {
+            match binop {
+                BinOperator::Eq => Some(TypedBinop::Eq(Sizes::S8)),
+                BinOperator::Ne => Some(TypedBinop::Eq(Sizes::S8)),
+
+                BinOperator::And => Some(TypedBinop::And(Sizes::S8)),
+                BinOperator::Or => Some(TypedBinop::Or(Sizes::S8)),
+
+                BinOperator::Lower => Some(TypedBinop::Lower(false, Sizes::S8)),
+                BinOperator::LowerEq => Some(TypedBinop::LowerEq(false, Sizes::S8)),
+                BinOperator::Greater => Some(TypedBinop::Greater(false, Sizes::S8)),
+                BinOperator::GreaterEq => Some(TypedBinop::GreaterEq(false, Sizes::S8)),
+
+                BinOperator::Set => panic!("ICE"),
+                _ => None,
+            }
+        },
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(signed, size)) => {
+            match binop {
+                BinOperator::Add => Some(TypedBinop::Add(*size)),
+                BinOperator::Sub => Some(TypedBinop::Sub(*size)),
+                BinOperator::Mod => Some(TypedBinop::Mod(*signed, *size)),
+                BinOperator::Mul => Some(TypedBinop::Mul(*signed, *size)),
+                BinOperator::Div => Some(TypedBinop::Div(*signed, *size)),
+
+                BinOperator::And => Some(TypedBinop::And(*size)),
+                BinOperator::Or => Some(TypedBinop::Or(*size)),
+
+                BinOperator::Eq => Some(TypedBinop::Eq(*size)),
+                BinOperator::Ne => Some(TypedBinop::Neq(*size)),
+
+                BinOperator::Lower => Some(TypedBinop::Lower(*signed, *size)),
+                BinOperator::LowerEq => Some(TypedBinop::LowerEq(*signed, *size)),
+                BinOperator::Greater => Some(TypedBinop::Greater(*signed, *size)),
+                BinOperator::GreaterEq => Some(TypedBinop::GreaterEq(*signed, *size)),
+
+                BinOperator::Set => panic!("ICE")
+            }
+        },
+        _ => None
+    }
+}
+
+fn to_typed_unaop(unaop : UnaOperator, typ : &typed_rust::PostTypeInner) -> Option<TypedUnaop> {
+    match typ {
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) => {
+            match unaop {
+                UnaOperator::Neg => None,
+                UnaOperator::Not => Some(TypedUnaop::Not(Sizes::S8)),
+            }
+        },
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(_, size)) => {
+            match unaop {
+                UnaOperator::Neg => Some(TypedUnaop::Not(*size)),
+                UnaOperator::Not => Some(TypedUnaop::Not(*size)),
+            }
+        },
+        _ => None
     }
 }
 
@@ -156,7 +216,7 @@ pub fn type_checker(
     expected_typ: Option<&typed_rust::PostType>,
     typing_info: &rust::TypeStorage,
 ) -> (bool, typed_rust::Expr) {
-    println!("working on {expr:?}");
+//    println!("working on {expr:?}");
     let mut translated_typ = build_type(typing_info, expr.typed);
     let (affectable, found_type, content) = match *expr.content {
         rust::ExprInner::Bool(b) => (
@@ -218,18 +278,29 @@ pub fn type_checker(
 
         rust::ExprInner::Index(e1, e2) => {
             let (affectable, e1) = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info);
+            let e1 = if e1.typed.is_ref() {
+                e1
+            } else {
+                e1.to_ref(affectable)
+            };
             let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info).1;
             if let Some((index_function, return_type)) = get_index_function(ctxt, &e1.typed) {
                 if typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize))
                     == e2.typed.content
                 {
+                    let is_mut_ref = e1.typed.is_mut_ref();
                     (
-                        affectable || e1.typed.is_mut_ref(),
-                        return_type,
-                        typed_rust::ExprInner::FunCall(
-                            Ident::from_str(index_function).unwrap(),
-                            vec![e1, e2],
-                        ),
+                        affectable || is_mut_ref,
+                        return_type.clone(),
+                        typed_rust::ExprInner::Deref(typed_rust::Expr {
+                            content : Box::new(
+                                typed_rust::ExprInner::FunCall(
+                                    Ident::from_str(index_function).unwrap(),
+                                    vec![e1, e2],
+                                )),
+                            loc : expr.loc,
+                            typed : return_type.to_ref(is_mut_ref)
+                        }),
                     )
                 } else {
                     todo!()
@@ -268,14 +339,21 @@ pub fn type_checker(
             let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info).1;
             if let Some(fun_name) = get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed) {
                 if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
-                    (
-                        false,
-                        fun_typ.fun_out_typ().unwrap().clone(),
-                        typed_rust::ExprInner::FunCall(
-                            Ident::from_str(&fun_name).unwrap(),
-                            vec![e1, e2],
+                    match to_typed_binop(binop, &e1.typed.content) {
+                        Some(bin) => (
+                            false,
+                            fun_typ.fun_out_typ().unwrap().clone(),
+                            typed_rust::ExprInner::BinOp(bin, e1, e2)
                         ),
-                    )
+                        None => (
+                            false,
+                            fun_typ.fun_out_typ().unwrap().clone(),
+                            typed_rust::ExprInner::FunCall(
+                                Ident::from_str(&fun_name).unwrap(),
+                                vec![e1, e2],
+                            ),
+                        )
+                    }
                 } else {
                     panic!("should not happen {}", fun_name);
                 }
@@ -288,14 +366,21 @@ pub fn type_checker(
             let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info).1;
             if let Some(fun_name) = get_unaop_fun_name(ctxt, unaop, &e1.typed) {
                 if let Some(fun_typ) = ctxt.get_typ(&fun_name) {
-                    (
-                        false,
-                        fun_typ.fun_out_typ().unwrap().clone(),
-                        typed_rust::ExprInner::FunCall(
-                            Ident::from_str(&fun_name).unwrap(),
-                            vec![e1],
+                    match to_typed_unaop(unaop, &e1.typed.content) {
+                        Some(una) => (
+                            false,
+                            fun_typ.fun_out_typ().unwrap().clone(),
+                            typed_rust::ExprInner::UnaOp(una, e1),
                         ),
-                    )
+                        None => (
+                            false,
+                            fun_typ.fun_out_typ().unwrap().clone(),
+                            typed_rust::ExprInner::FunCall(
+                                Ident::from_str(&fun_name).unwrap(),
+                                vec![e1],
+                            ),
+                        )
+                    }
                 } else {
                     panic!("should not happen {}", fun_name);
                 }

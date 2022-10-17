@@ -70,6 +70,7 @@ fn check_scopes_expr(
         //        ExprInner::Vec(_) => todo!(),
         ExprInner::If(_, _, _) => todo!(),
         ExprInner::BinOp(_, _, _) => todo!(),
+        ExprInner::UnaOp(_, _) => todo!(),
     }
 }
 
