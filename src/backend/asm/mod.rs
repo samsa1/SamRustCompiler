@@ -150,6 +150,9 @@ build_instr_op!(Neg, negb, negw, negl, negq);
 build_instr_op!(Not, notb, notw, notl, notq);
 build_instr_op!(Inc, incb, incw, incl, incq);
 build_instr_op!(Dec, decb, decw, decl, decq);
+build_instr_op!(SignedDiv, idivb, idivw, idivl, idivq);
+build_instr_op!(UnsignedDiv, divb, divw, divl, divq);
+
 
 pub fn immq(imm: i64) -> reg::Operand<reg::RegQ> {
     reg::Operand::Imm(imm)
@@ -170,6 +173,13 @@ pub fn call(label: reg::Label) -> Asm {
 
 pub fn ret() -> Asm {
     Asm::Instr(Box::new(instr::InstrNoArg::Ret))
+}
+
+pub fn cltd() -> Asm {
+    Asm::Instr(Box::new(instr::InstrNoArg::Cltd))
+}
+pub fn cqto() -> Asm {
+    Asm::Instr(Box::new(instr::InstrNoArg::Cqto))
 }
 
 pub fn jmp(label: reg::Label) -> Asm {
@@ -199,6 +209,10 @@ pub fn cmovl(cond : instr::Cond, reg1: reg::Operand<reg::RegL>, reg2: reg::Opera
 }
 pub fn cmovq(cond : instr::Cond, reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm {
     Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
+}
+
+pub fn nop() -> Asm {
+    Asm::Concat(Vec::new())
 }
 
 pub enum Asm {

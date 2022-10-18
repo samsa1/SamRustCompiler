@@ -452,6 +452,7 @@ for f in tests/exec/*.rs; do
         exit 1;
 	    fi
 	else
+        ./a.out;
 		echo
 		echo "ECHEC du code produit pour $f";
         exit 1;

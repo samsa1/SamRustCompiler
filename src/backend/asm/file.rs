@@ -31,6 +31,8 @@ impl File {
             file.write_all(b"\"\n")?;
         };
 
+        file.write_all(b"_my_string:\n\t.string \"%zd\\n\"\n")?;
+
         Ok(())
 
     }

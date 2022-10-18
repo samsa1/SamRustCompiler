@@ -189,6 +189,7 @@ pub enum ExprInner {
     Proj(Expr, common::Projector),
     Set(Expr, Expr),
     Print(String),
+    PrintPtr(Expr),
     String(String),
     //    Vec(Vec<Expr>),
     BinOp(common::TypedBinop, Expr, Expr),

@@ -104,6 +104,8 @@ pub enum OpInstrName {
     Not,
     Push,
     Pop,
+    UnsignedDiv,
+    SignedDiv,
 }
 
 impl OpInstrName {
@@ -115,6 +117,8 @@ impl OpInstrName {
             Self::Not => "not",
             Self::Push => "push",
             Self::Pop => "pop",
+            Self::UnsignedDiv => "div",
+            Self::SignedDiv => "idiv",
         }
     }
 }
@@ -146,6 +150,8 @@ pub enum InstrNoArg {
     Leave,
     Syscall,
     Hlt,
+    Cltd,
+    Cqto,
 }
 
 impl Instr for InstrNoArg {
@@ -156,6 +162,8 @@ impl Instr for InstrNoArg {
             Self::Leave => file.write_all(b"leave\n"),
             Self::Syscall => file.write_all(b"syscall\n"),
             Self::Hlt => file.write_all(b"hlt\n"),
+            Self::Cltd => file.write_all(b"cltd\n"),
+            Self::Cqto => file.write_all(b"cqto\n"),
         }
     }
 }

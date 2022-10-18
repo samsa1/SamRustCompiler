@@ -185,6 +185,7 @@ impl DataStruct {
 }
 
 fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
+//    println!("Working of {top_expr:?} of type {:?}", top_expr.typed);
     match *top_expr.content {
         tr::ExprInner::Bloc(bloc) => llr::Expr {
             content: Box::new(llr::ExprInner::Bloc(rewrite_bloc(bloc, names_info))),
@@ -224,6 +225,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         },
 
         tr::ExprInner::FunCall(id, args) => {
+            println!("call of {id:?} returns {:?}", top_expr.typed);
             let args : Vec<llr::Expr> = args
                 .into_iter()
                 .map(|e| rewrite_expr(e, names_info))
@@ -283,6 +285,16 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             }
         }
 
+        tr::ExprInner::PrintPtr(expr) => {
+            println!("print_ptr => {:?}", expr);
+            llr::Expr {
+                content: Box::new(llr::ExprInner::FunCall("print_ptr".to_string(), vec![rewrite_expr(expr, names_info)])),
+                loc: top_expr.loc,
+                typed: top_expr.typed,
+                size: 0,
+            }
+        }
+
         tr::ExprInner::Proj(expr, Projector::Int(id)) => {
             let (size, id) = names_info.compute_offset(&expr.typed, id);
             llr::Expr {
@@ -319,7 +331,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         },
         tr::ExprInner::Set(expr1, expr2) => llr::Expr {
             content: Box::new(llr::ExprInner::Set(
-                names_info.compute_size(&expr1.typed),
+                names_info.compute_size(&expr2.typed),
                 rewrite_expr(expr1, names_info),
                 rewrite_expr(expr2, names_info),
             )),

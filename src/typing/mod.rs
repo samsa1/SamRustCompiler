@@ -100,7 +100,7 @@ fn type_funs(
         //        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
-        let content = expr::type_block(
+        let content = expr::type_bloc(
             content,
             known_types,
             &mut local_ctxt,

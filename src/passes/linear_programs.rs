@@ -12,12 +12,12 @@ fn is_ref(
 //        | ExprInner::Constructor(_, _)
         | ExprInner::Tuple(_)
         | ExprInner::Print(_)
+        | ExprInner::PrintPtr(_)
 //        | ExprInner::Vec(_)
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _)
         | ExprInner::If(_, _, _)
-        | ExprInner::Int(_)
         | ExprInner::BinOp(_, _, _)
         | ExprInner::UnaOp(_, _)
         | ExprInner::Ref(_, _) => {
@@ -44,6 +44,7 @@ fn is_ref(
             )),
             ..top_expr
         },
+        ExprInner::Int(_) => top_expr,
         ExprInner::Bool(_) => top_expr,
         ExprInner::Deref(_) => top_expr,
         ExprInner::String(_) => top_expr,
@@ -84,6 +85,15 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
         ExprInner::Print(str) => Expr {
             content: Box::new(ExprInner::Print(str)),
             ..top_expr
+        },
+
+        ExprInner::PrintPtr(expr) => {
+            println!("print_ptr -> {:?}", expr);
+            let expr = is_ref(false, expr, context, counter);
+            println!("          -> {:?}", expr);
+            Expr {
+            content: Box::new(ExprInner::PrintPtr(expr)),
+            ..top_expr}
         },
 
         ExprInner::Ref(mutable, expr) => Expr {

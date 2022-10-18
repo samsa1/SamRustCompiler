@@ -43,8 +43,8 @@ impl Context {
     }
 
     pub fn gen_if_labels(&mut self) -> (Label, Label) {
-        let str1 = format!("rust_if_then_{}", self.nb_if_labels);
-        let str2 = format!("rust_if_else_{}", self.nb_if_labels);
+        let str1 = format!("rust_if_else_{}", self.nb_if_labels);
+        let str2 = format!("rust_if_end_{}", self.nb_if_labels);
         self.nb_if_labels += 1;
         (Label::from_str(str1),
             Label::from_str(str2))

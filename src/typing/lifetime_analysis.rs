@@ -65,6 +65,7 @@ fn check_scopes_expr(
         ExprInner::BuildStruct(_, _) => todo!(),
         ExprInner::Proj(_, _) => todo!(),
         ExprInner::Set(_, _) => todo!(),
+        ExprInner::PrintPtr(_) => todo!(),
         ExprInner::Print(_) => todo!(),
         ExprInner::String(_) => todo!(),
         //        ExprInner::Vec(_) => todo!(),

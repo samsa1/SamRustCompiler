@@ -87,8 +87,14 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
             }
         }
 
-        ExprInner::MacroCall(_name, _exprs) => {
-            todo!()
+        ExprInner::MacroCall(name, exprs) => {
+            let exprs = exprs.into_iter().map(|e| rewrite_expr(e, counter)).collect();
+
+            Expr {
+                content: Box::new(ExprInner::MacroCall(name, exprs)),
+                ..top_expr
+            }
+//            todo!()
         }
 
         ExprInner::Index(expr1, expr2) => {
