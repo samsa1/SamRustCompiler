@@ -202,7 +202,7 @@ impl BuiltinType {
     pub fn to_byte_size(&self) -> usize {
         match self {
             BuiltinType::Bool => 1,
-            BuiltinType::Int(_, size) => size.to_byte_size(),    
+            BuiltinType::Int(_, size) => size.to_byte_size(),
         }
     }
 }

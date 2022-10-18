@@ -9,11 +9,8 @@ pub struct File {
 }
 
 impl File {
-    pub fn new(code_ss : Asm, data_ss : HashMap<String, String>) -> Self {
-        Self {
-            code_ss,
-            data_ss,
-        }
+    pub fn new(code_ss: Asm, data_ss: HashMap<String, String>) -> Self {
+        Self { code_ss, data_ss }
     }
 
     pub fn print_in(self, file_name: &str) -> std::io::Result<()> {
@@ -29,11 +26,10 @@ impl File {
             file.write_all(b":\n\t.string \"")?;
             file.write_all(str1.as_bytes())?;
             file.write_all(b"\"\n")?;
-        };
+        }
 
         file.write_all(b"_my_string:\n\t.string \"%zd\\n\"\n")?;
 
         Ok(())
-
     }
 }

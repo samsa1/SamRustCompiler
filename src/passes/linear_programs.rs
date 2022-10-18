@@ -92,9 +92,10 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             let expr = is_ref(false, expr, context, counter);
             println!("          -> {:?}", expr);
             Expr {
-            content: Box::new(ExprInner::PrintPtr(expr)),
-            ..top_expr}
-        },
+                content: Box::new(ExprInner::PrintPtr(expr)),
+                ..top_expr
+            }
+        }
 
         ExprInner::Ref(mutable, expr) => Expr {
             content: Box::new(ExprInner::Ref(
@@ -197,7 +198,7 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
                 vec_out.push(Instr::Return(Some(expr)))
             }
             Instr::While(expr, bloc) => {
-//                let expr = rewrite_expr(expr, &mut vec_out, counter);
+                //                let expr = rewrite_expr(expr, &mut vec_out, counter);
                 let bloc = rewrite_bloc(bloc, counter);
                 vec_out.push(Instr::While(expr, bloc));
             }

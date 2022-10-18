@@ -50,12 +50,12 @@ impl Expr {
         }
     }
 
-    pub fn new_usize(s : u64) -> Self {
+    pub fn new_usize(s: u64) -> Self {
         Self {
-            content : Box::new(ExprInner::Int(s, common::Sizes::SUsize)),
-            loc : common::Location::default(),
-            typed : super::typed_rust::PostType::usize(),
-            size : 8,
+            content: Box::new(ExprInner::Int(s, common::Sizes::SUsize)),
+            loc: common::Location::default(),
+            typed: super::typed_rust::PostType::usize(),
+            size: 8,
         }
     }
 }

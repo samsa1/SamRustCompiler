@@ -2,8 +2,8 @@ pub mod file;
 pub mod instr;
 pub mod reg;
 
-use std::ops::Add;
 use std::io::prelude::*;
+use std::ops::Add;
 
 macro_rules! regb {
     ($reg_name:ident) => {
@@ -29,7 +29,6 @@ macro_rules! regq {
     };
 }
 
-
 macro_rules! addr {
     ($reg:expr) => {
         crate::backend::asm::reg::Operand::Addr(0, $reg, None, 0)
@@ -45,7 +44,6 @@ macro_rules! addr {
     };
 }
 
-
 pub fn pushq(op: reg::Operand<reg::RegQ>) -> Asm {
     Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::Push, op)))
 }
@@ -53,7 +51,7 @@ pub fn popq(op: reg::Operand<reg::RegQ>) -> Asm {
     Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::Pop, op)))
 }
 
-pub fn deplq(l : reg::Label, op : reg::Operand<reg::RegQ>) -> Asm {
+pub fn deplq(l: reg::Label, op: reg::Operand<reg::RegQ>) -> Asm {
     leaq(reg::Operand::LabRelAddr(l), op)
 }
 
@@ -64,7 +62,6 @@ pub fn leaq(reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm
         reg2,
     )))
 }
-
 
 macro_rules! build_instr_op_op {
     ($op:ident, $nameb:ident, $namew:ident, $namel:ident, $nameq:ident) => {
@@ -117,31 +114,19 @@ build_instr_op_op!(Test, testb, testw, testl, testq);
 macro_rules! build_instr_op {
     ($op:ident, $nameb:ident, $namew:ident, $namel:ident, $nameq:ident) => {
         pub fn $nameb(reg: reg::Operand<reg::RegB>) -> Asm {
-            Asm::Instr(Box::new(instr::InstrOp::new(
-                instr::OpInstrName::$op,
-                reg,
-            )))
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
         }
 
         pub fn $namew(reg: reg::Operand<reg::RegW>) -> Asm {
-            Asm::Instr(Box::new(instr::InstrOp::new(
-                instr::OpInstrName::$op,
-                reg,
-            )))
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
         }
 
         pub fn $namel(reg: reg::Operand<reg::RegL>) -> Asm {
-            Asm::Instr(Box::new(instr::InstrOp::new(
-                instr::OpInstrName::$op,
-                reg,
-            )))
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
         }
 
         pub fn $nameq(reg: reg::Operand<reg::RegQ>) -> Asm {
-            Asm::Instr(Box::new(instr::InstrOp::new(
-                instr::OpInstrName::$op,
-                reg,
-            )))
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
         }
     };
 }
@@ -152,7 +137,6 @@ build_instr_op!(Inc, incb, incw, incl, incq);
 build_instr_op!(Dec, decb, decw, decl, decq);
 build_instr_op!(SignedDiv, idivb, idivw, idivl, idivq);
 build_instr_op!(UnsignedDiv, divb, divw, divl, divq);
-
 
 pub fn immq(imm: i64) -> reg::Operand<reg::RegQ> {
     reg::Operand::Imm(imm)
@@ -194,20 +178,31 @@ pub fn jnz(label: reg::Label) -> Asm {
     Asm::Instr(Box::new(instr::Goto::CondJump(instr::Cond::JNZ, label)))
 }
 
-pub fn label(l : reg::Label) -> Asm {
+pub fn label(l: reg::Label) -> Asm {
     Asm::Label(l)
 }
 
-
 // cmovb is not valid
 
-pub fn cmovw(cond : instr::Cond, reg1: reg::Operand<reg::RegW>, reg2: reg::Operand<reg::RegW>) -> Asm {
+pub fn cmovw(
+    cond: instr::Cond,
+    reg1: reg::Operand<reg::RegW>,
+    reg2: reg::Operand<reg::RegW>,
+) -> Asm {
     Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
 }
-pub fn cmovl(cond : instr::Cond, reg1: reg::Operand<reg::RegL>, reg2: reg::Operand<reg::RegL>) -> Asm {
+pub fn cmovl(
+    cond: instr::Cond,
+    reg1: reg::Operand<reg::RegL>,
+    reg2: reg::Operand<reg::RegL>,
+) -> Asm {
     Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
 }
-pub fn cmovq(cond : instr::Cond, reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm {
+pub fn cmovq(
+    cond: instr::Cond,
+    reg1: reg::Operand<reg::RegQ>,
+    reg2: reg::Operand<reg::RegQ>,
+) -> Asm {
     Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
 }
 
@@ -230,23 +225,22 @@ impl Add for Asm {
 }
 
 impl Asm {
-    pub fn write_in(self, file : &mut std::fs::File) -> std::io::Result<()> {
+    pub fn write_in(self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
             Self::Concat(vec) => {
                 for asm in vec {
                     asm.write_in(file)?
-                };
+                }
                 Ok(())
-            },
+            }
             Self::Label(label) => {
                 label.write_in(file)?;
                 file.write_all(b":\n")
-            }, 
-            Self::Instr(instr) => instr.write_in(file), 
+            }
+            Self::Instr(instr) => instr.write_in(file),
         }
     }
 }
-
 
 /*
 type 'size operand = formatter -> unit -> unit

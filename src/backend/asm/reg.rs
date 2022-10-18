@@ -1,6 +1,5 @@
 use std::io::prelude::*;
 
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Sizes {
     Byte,
@@ -21,7 +20,7 @@ impl Sizes {
 }
 
 pub trait Reg {
-    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()>;
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()>;
 
     const SIZE: Sizes;
 }
@@ -70,7 +69,7 @@ impl RegQ {
 }
 
 impl Reg for RegQ {
-    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(self.to_str().as_bytes())
     }
 
@@ -121,7 +120,7 @@ impl RegL {
 }
 
 impl Reg for RegL {
-    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(self.to_str().as_bytes())
     }
 
@@ -172,7 +171,7 @@ impl RegW {
 }
 
 impl Reg for RegW {
-    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(self.to_str().as_bytes())
     }
 
@@ -231,7 +230,7 @@ impl RegB {
 }
 
 impl Reg for RegB {
-    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(self.to_str().as_bytes())
     }
 
@@ -263,23 +262,21 @@ impl<T: Reg> Operand<T> {
                         file.write_all(format!(", {scale})").as_bytes())
                     }
                 }
-            },
+            }
             Self::LabRelAddr(label) => {
                 label.write_in(file)?;
                 file.write_all(b"(%rip)")
-            },
+            }
             Self::LabAbsAddr(label) => {
                 file.write_all(b"$")?;
                 label.write_in(file)
-            },
+            }
             Self::LabVal(label) => {
                 file.write_all(b"(")?;
                 label.write_in(file)?;
                 file.write_all(b")")
-            },
-            Self::Imm(id) => {
-                file.write_all(format!("${id}").as_bytes())
-            },
+            }
+            Self::Imm(id) => file.write_all(format!("${id}").as_bytes()),
         }
     }
 }
@@ -295,36 +292,34 @@ impl Label {
     }
 
     pub fn from_str(name: String) -> Self {
-        Self {
-            name,
-        }
+        Self { name }
     }
 
     pub fn printf() -> Self {
         Self {
-            name: "printf".to_string()
+            name: "printf".to_string(),
         }
     }
 
     pub fn malloc() -> Self {
         Self {
-            name: "malloc".to_string()
+            name: "malloc".to_string(),
         }
     }
 
     pub fn free() -> Self {
         Self {
-            name: "free".to_string()
+            name: "free".to_string(),
         }
     }
 
     pub fn realloc() -> Self {
         Self {
-            name: "realloc".to_string()
+            name: "realloc".to_string(),
         }
     }
 
-    pub fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()> {
+    pub fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(b"_")?;
         file.write_all(self.name.as_bytes())
     }

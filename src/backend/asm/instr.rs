@@ -2,7 +2,7 @@ use super::reg::{Label, Operand, Reg, RegQ};
 use std::io::prelude::*;
 
 pub trait Instr {
-    fn write_in(&self, file : &mut std::fs::File) -> std::io::Result<()>;
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()>;
 }
 
 pub enum OpOpInstrName {
@@ -28,7 +28,7 @@ impl OpOpInstrName {
             Self::Add => "add",
             Self::Sub => "sub",
             Self::And => "and",
-            Self::Or =>  "or",
+            Self::Or => "or",
             Self::Xor => "xor",
             Self::Shl => "shl",
             Self::Shr => "shr",
@@ -203,27 +203,22 @@ impl Cond {
             Self::JB => "b",
             Self::JBE => "be",
         }
-
     }
 }
 
-pub struct CondMove<T : Reg> {
-    cond : Cond,
-    reg1 : Operand<T>,
-    reg2 : Operand<T>
+pub struct CondMove<T: Reg> {
+    cond: Cond,
+    reg1: Operand<T>,
+    reg2: Operand<T>,
 }
 
-impl<T : Reg> CondMove<T> {
-    pub fn new(cond : Cond, reg1 : Operand<T>, reg2 : Operand<T>) -> Self {
-        Self {
-            cond,
-            reg1,
-            reg2,
-        }
+impl<T: Reg> CondMove<T> {
+    pub fn new(cond: Cond, reg1: Operand<T>, reg2: Operand<T>) -> Self {
+        Self { cond, reg1, reg2 }
     }
 }
 
-impl<T : Reg> Instr for CondMove<T> {
+impl<T: Reg> Instr for CondMove<T> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(b"\tcmov")?;
         file.write_all(self.cond.to_str().as_bytes())?;
@@ -242,7 +237,6 @@ pub enum Goto {
     Jump(Label),
 }
 
-
 impl Instr for Goto {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(b"\t")?;
@@ -250,11 +244,11 @@ impl Instr for Goto {
             Self::Call(label) => {
                 file.write_all(b"call ")?;
                 label.write_in(file)?
-            },
+            }
             Self::CallStar(operand) => {
                 file.write_all(b"call *")?;
                 operand.write_in(file)?
-            },
+            }
             Self::CondJump(cond, label) => {
                 file.write_all(b"j")?;
                 file.write_all(cond.to_str().as_bytes())?;

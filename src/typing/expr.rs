@@ -47,7 +47,7 @@ fn get_binop_fun_name<'a>(
     ) {
         None => None,
         Some(s) => {
-//            println!("prefix {} for {:?} {:?}", s, binop, binop.get_trait_name());
+            //            println!("prefix {} for {:?} {:?}", s, binop, binop.get_trait_name());
             let mut s = s.to_string();
             s.push_str(fun_suffix);
             Some(s)
@@ -65,7 +65,7 @@ fn get_unaop_fun_name(
     match ctxt.has_trait(typ1, &context::Trait::Name(name)) {
         None => None,
         Some(s) => {
-//            println!("prefix {} for {:?} {:?}", s, unaop, unaop.get_trait_name());
+            //            println!("prefix {} for {:?} {:?}", s, unaop, unaop.get_trait_name());
             let mut s = s.to_string();
             s.push_str(fun_suffix);
             Some(s)
@@ -106,69 +106,61 @@ enum IsTypeBinop {
     BuiltIn(TypedBinop),
     Land,
     Lor,
-    NotBuiltIn
+    NotBuiltIn,
 }
 
-fn to_typed_binop(binop : BinOperator, typ : &typed_rust::PostTypeInner) -> IsTypeBinop {
+fn to_typed_binop(binop: BinOperator, typ: &typed_rust::PostTypeInner) -> IsTypeBinop {
     match typ {
-        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) => {
-            match binop {
-                BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(Sizes::S8)),
-                BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Eq(Sizes::S8)),
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) => match binop {
+            BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(Sizes::S8)),
+            BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Eq(Sizes::S8)),
 
-                BinOperator::And => IsTypeBinop::Land,
-                BinOperator::Or => IsTypeBinop::Lor,
+            BinOperator::And => IsTypeBinop::Land,
+            BinOperator::Or => IsTypeBinop::Lor,
 
-                BinOperator::Lower => IsTypeBinop::BuiltIn(TypedBinop::Lower(false, Sizes::S8)),
-                BinOperator::LowerEq => IsTypeBinop::BuiltIn(TypedBinop::LowerEq(false, Sizes::S8)),
-                BinOperator::Greater => IsTypeBinop::BuiltIn(TypedBinop::Greater(false, Sizes::S8)),
-                BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(false, Sizes::S8)),
+            BinOperator::Lower => IsTypeBinop::BuiltIn(TypedBinop::Lower(false, Sizes::S8)),
+            BinOperator::LowerEq => IsTypeBinop::BuiltIn(TypedBinop::LowerEq(false, Sizes::S8)),
+            BinOperator::Greater => IsTypeBinop::BuiltIn(TypedBinop::Greater(false, Sizes::S8)),
+            BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(false, Sizes::S8)),
 
-                BinOperator::Set => panic!("ICE"),
-                _ => IsTypeBinop::NotBuiltIn,
-            }
+            BinOperator::Set => panic!("ICE"),
+            _ => IsTypeBinop::NotBuiltIn,
         },
-        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(signed, size)) => {
-            match binop {
-                BinOperator::Add => IsTypeBinop::BuiltIn(TypedBinop::Add(*size)),
-                BinOperator::Sub => IsTypeBinop::BuiltIn(TypedBinop::Sub(*size)),
-                BinOperator::Mod => IsTypeBinop::BuiltIn(TypedBinop::Mod(*signed, *size)),
-                BinOperator::Mul => IsTypeBinop::BuiltIn(TypedBinop::Mul(*signed, *size)),
-                BinOperator::Div => IsTypeBinop::BuiltIn(TypedBinop::Div(*signed, *size)),
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(signed, size)) => match binop {
+            BinOperator::Add => IsTypeBinop::BuiltIn(TypedBinop::Add(*size)),
+            BinOperator::Sub => IsTypeBinop::BuiltIn(TypedBinop::Sub(*size)),
+            BinOperator::Mod => IsTypeBinop::BuiltIn(TypedBinop::Mod(*signed, *size)),
+            BinOperator::Mul => IsTypeBinop::BuiltIn(TypedBinop::Mul(*signed, *size)),
+            BinOperator::Div => IsTypeBinop::BuiltIn(TypedBinop::Div(*signed, *size)),
 
-                BinOperator::And => IsTypeBinop::BuiltIn(TypedBinop::And(*size)),
-                BinOperator::Or => IsTypeBinop::BuiltIn(TypedBinop::Or(*size)),
+            BinOperator::And => IsTypeBinop::BuiltIn(TypedBinop::And(*size)),
+            BinOperator::Or => IsTypeBinop::BuiltIn(TypedBinop::Or(*size)),
 
-                BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(*size)),
-                BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Neq(*size)),
+            BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(*size)),
+            BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Neq(*size)),
 
-                BinOperator::Lower => IsTypeBinop::BuiltIn(TypedBinop::Lower(*signed, *size)),
-                BinOperator::LowerEq => IsTypeBinop::BuiltIn(TypedBinop::LowerEq(*signed, *size)),
-                BinOperator::Greater => IsTypeBinop::BuiltIn(TypedBinop::Greater(*signed, *size)),
-                BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(*signed, *size)),
+            BinOperator::Lower => IsTypeBinop::BuiltIn(TypedBinop::Lower(*signed, *size)),
+            BinOperator::LowerEq => IsTypeBinop::BuiltIn(TypedBinop::LowerEq(*signed, *size)),
+            BinOperator::Greater => IsTypeBinop::BuiltIn(TypedBinop::Greater(*signed, *size)),
+            BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(*signed, *size)),
 
-                BinOperator::Set => panic!("ICE")
-            }
+            BinOperator::Set => panic!("ICE"),
         },
-        _ => IsTypeBinop::NotBuiltIn
+        _ => IsTypeBinop::NotBuiltIn,
     }
 }
 
-fn to_typed_unaop(unaop : UnaOperator, typ : &typed_rust::PostTypeInner) -> Option<TypedUnaop> {
+fn to_typed_unaop(unaop: UnaOperator, typ: &typed_rust::PostTypeInner) -> Option<TypedUnaop> {
     match typ {
-        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) => {
-            match unaop {
-                UnaOperator::Neg => None,
-                UnaOperator::Not => Some(TypedUnaop::Not(Sizes::S8)),
-            }
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Bool) => match unaop {
+            UnaOperator::Neg => None,
+            UnaOperator::Not => Some(TypedUnaop::Not(Sizes::S8)),
         },
-        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(_, size)) => {
-            match unaop {
-                UnaOperator::Neg => Some(TypedUnaop::Neg(*size)),
-                UnaOperator::Not => Some(TypedUnaop::Not(*size)),
-            }
+        typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(_, size)) => match unaop {
+            UnaOperator::Neg => Some(TypedUnaop::Neg(*size)),
+            UnaOperator::Not => Some(TypedUnaop::Not(*size)),
         },
-        _ => None
+        _ => None,
     }
 }
 
@@ -223,7 +215,7 @@ pub fn type_checker(
     expected_typ: Option<&typed_rust::PostType>,
     typing_info: &rust::TypeStorage,
 ) -> (bool, typed_rust::Expr) {
-//    println!("working on {expr:?}");
+    //    println!("working on {expr:?}");
     let mut translated_typ = build_type(typing_info, expr.typed);
     let (affectable, found_type, content) = match *expr.content {
         rust::ExprInner::Bool(b) => (
@@ -300,13 +292,12 @@ pub fn type_checker(
                         affectable || is_mut_ref,
                         return_type.clone(),
                         typed_rust::ExprInner::Deref(typed_rust::Expr {
-                            content : Box::new(
-                                typed_rust::ExprInner::FunCall(
-                                    Ident::from_str(index_function).unwrap(),
-                                    vec![e1, e2],
-                                )),
-                            loc : expr.loc,
-                            typed : return_type.to_ref(is_mut_ref)
+                            content: Box::new(typed_rust::ExprInner::FunCall(
+                                Ident::from_str(index_function).unwrap(),
+                                vec![e1, e2],
+                            )),
+                            loc: expr.loc,
+                            typed: return_type.to_ref(is_mut_ref),
                         }),
                     )
                 } else {
@@ -349,47 +340,58 @@ pub fn type_checker(
                     match to_typed_binop(binop, &e1.typed.content) {
                         IsTypeBinop::Land => {
                             let expr_false = typed_rust::Expr {
-                                content : Box::new(typed_rust::ExprInner::Bool(false)),
-                                loc : Location::default(),
-                                typed : typed_rust::PostType::bool(),
+                                content: Box::new(typed_rust::ExprInner::Bool(false)),
+                                loc: Location::default(),
+                                typed: typed_rust::PostType::bool(),
                             };
                             let bloc_false = typed_rust::Bloc {
-                                content : vec![typed_rust::Instr::Expr(ComputedValue::Keep, expr_false)],
-                                last_type : typed_rust::PostType::bool(),
+                                content: vec![typed_rust::Instr::Expr(
+                                    ComputedValue::Keep,
+                                    expr_false,
+                                )],
+                                last_type: typed_rust::PostType::bool(),
                             };
                             let bloc_e2 = typed_rust::Bloc {
-                                content : vec![typed_rust::Instr::Expr(ComputedValue::Keep, e2)],
-                                last_type : typed_rust::PostType::bool(),
+                                content: vec![typed_rust::Instr::Expr(ComputedValue::Keep, e2)],
+                                last_type: typed_rust::PostType::bool(),
                             };
-                            (false,
-                            fun_typ.fun_out_typ().unwrap().clone(),
-                            typed_rust::ExprInner::If(e1, bloc_e2, bloc_false)
-                        )},
+                            (
+                                false,
+                                fun_typ.fun_out_typ().unwrap().clone(),
+                                typed_rust::ExprInner::If(e1, bloc_e2, bloc_false),
+                            )
+                        }
                         IsTypeBinop::Lor => {
                             let expr_true = typed_rust::Expr {
-                                content : Box::new(typed_rust::ExprInner::Bool(true)),
-                                loc : Location::default(),
-                                typed : typed_rust::PostType::bool(),
+                                content: Box::new(typed_rust::ExprInner::Bool(true)),
+                                loc: Location::default(),
+                                typed: typed_rust::PostType::bool(),
                             };
                             let bloc_true = typed_rust::Bloc {
-                                content : vec![typed_rust::Instr::Expr(ComputedValue::Keep, expr_true)],
-                                last_type : typed_rust::PostType::bool(),
+                                content: vec![typed_rust::Instr::Expr(
+                                    ComputedValue::Keep,
+                                    expr_true,
+                                )],
+                                last_type: typed_rust::PostType::bool(),
                             };
                             let bloc_e2 = typed_rust::Bloc {
-                                content : vec![typed_rust::Instr::Expr(ComputedValue::Keep, e2)],
-                                last_type : typed_rust::PostType::bool(),
+                                content: vec![typed_rust::Instr::Expr(ComputedValue::Keep, e2)],
+                                last_type: typed_rust::PostType::bool(),
                             };
-                            (false,
-                            fun_typ.fun_out_typ().unwrap().clone(),
-                            typed_rust::ExprInner::If(e1, bloc_true, bloc_e2)
-                        )},
+                            (
+                                false,
+                                fun_typ.fun_out_typ().unwrap().clone(),
+                                typed_rust::ExprInner::If(e1, bloc_true, bloc_e2),
+                            )
+                        }
                         IsTypeBinop::BuiltIn(bin) => {
                             println!("{binop:?} {e1:?} {e2:?}");
                             (
-                            false,
-                            fun_typ.fun_out_typ().unwrap().clone(),
-                            typed_rust::ExprInner::BinOp(bin, e1, e2)
-                        )},
+                                false,
+                                fun_typ.fun_out_typ().unwrap().clone(),
+                                typed_rust::ExprInner::BinOp(bin, e1, e2),
+                            )
+                        }
                         IsTypeBinop::NotBuiltIn => (
                             false,
                             fun_typ.fun_out_typ().unwrap().clone(),
@@ -397,7 +399,7 @@ pub fn type_checker(
                                 Ident::from_str(&fun_name).unwrap(),
                                 vec![e1, e2],
                             ),
-                        )
+                        ),
                     }
                 } else {
                     panic!("should not happen {}", fun_name);
@@ -424,7 +426,7 @@ pub fn type_checker(
                                 Ident::from_str(&fun_name).unwrap(),
                                 vec![e1],
                             ),
-                        )
+                        ),
                     }
                 } else {
                     panic!("should not happen {}", fun_name);
@@ -478,10 +480,14 @@ pub fn type_checker(
             if args.len() == 1 {
                 let expr = args.pop().unwrap();
                 let expr = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info).1;
-                assert!(matches!(expr.typed.content, typed_rust::PostTypeInner::Ref(_, _)));
-                (false,
-                 typed_rust::PostType::unit(),
-                 typed_rust::ExprInner::PrintPtr(expr),
+                assert!(matches!(
+                    expr.typed.content,
+                    typed_rust::PostTypeInner::Ref(_, _)
+                ));
+                (
+                    false,
+                    typed_rust::PostType::unit(),
+                    typed_rust::ExprInner::PrintPtr(expr),
                 )
             } else {
                 todo!()
