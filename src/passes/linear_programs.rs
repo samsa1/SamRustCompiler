@@ -197,7 +197,7 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
                 vec_out.push(Instr::Return(Some(expr)))
             }
             Instr::While(expr, bloc) => {
-                let expr = rewrite_expr(expr, &mut vec_out, counter);
+//                let expr = rewrite_expr(expr, &mut vec_out, counter);
                 let bloc = rewrite_bloc(bloc, counter);
                 vec_out.push(Instr::While(expr, bloc));
             }

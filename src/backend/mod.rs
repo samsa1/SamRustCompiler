@@ -155,6 +155,7 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr, stack_offset :
                 Location::Never => expr2,
                 Location::Rax => {
                     match size {
+                        0 => expr2,
                         1 => {expr2 + subq(immq(1), regq!(Rsp)) + movb(regb!(Ah), addr!(reg::RegQ::Rsp))},
                         2 => {expr2 + subq(immq(2), regq!(Rsp)) + movw(regw!(Ax), addr!(reg::RegQ::Rsp))},
                         4 => {expr2 + subq(immq(4), regq!(Rsp)) + movl(regl!(Eax), addr!(reg::RegQ::Rsp))},
@@ -164,6 +165,7 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr, stack_offset :
                 },
                 Location::StackWithPadding(pad) => {
                     match size {
+                        0 => expr2,
                         1 => {
                             expr2
                             + movb(addr!(reg::RegQ::Rsp), regb!(Ah))
@@ -198,6 +200,7 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr, stack_offset :
                 Location::Rax | Location::Never => expr1,
                 Location::StackWithPadding(pad) => {
                     expr1 + match size {
+                        0 => nop(),
                         1 => {movb(addr!(reg::RegQ::Rsp), regb!(Ah)) + addq(immq(1 + pad as i64), regq!(Rsp))}
                         2 => {movw(addr!(reg::RegQ::Rsp), regw!(Ax)) + addq(immq(2 + pad as i64), regq!(Rsp))},
                         4 => {movl(addr!(reg::RegQ::Rsp), regl!(Eax)) + addq(immq(4 + pad as i64), regq!(Rsp))},
@@ -207,6 +210,7 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr, stack_offset :
                 },
             };
             let mov = match size {
+                0 => nop(),
                 1 => {movb(addr!(reg::RegQ::Rsp), regb!(Ch)) + addq(immq(1), regq!(Rsp))},
                 2 => {movw(addr!(reg::RegQ::Rsp), regw!(Cx)) + addq(immq(2), regq!(Rsp))},
                 4 => {movl(addr!(reg::RegQ::Rsp), regl!(Ecx)) + addq(immq(4), regq!(Rsp))},
@@ -467,6 +471,9 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr, stack_offset :
                         };
                         (Location::Rax, bloc1 + mov + addq(immq(pad as i64 + size as i64), regq!(Rsp)), bloc2)
                     },
+                    (Location::StackWithPadding(pad1), Location::StackWithPadding(pad2)) if pad1 == pad2 => {
+                        (Location::StackWithPadding(pad1), bloc1, bloc2)
+                    },
                     (Location::StackWithPadding(pad1), Location::StackWithPadding(pad2)) => todo!(),
                 };
             (loc,
@@ -552,9 +559,7 @@ fn compile_expr_val(ctxt: &mut context::Context, expr: llr::Expr, stack_offset :
                             panic!("ICE")
                         }
                     },
-                    Location::Never => {
-                        todo!()
-                    },
+                    Location::Never => nop(),
                     Location::StackWithPadding(pad) => {
                         movq(addr!(-(stack_offset as i64 + 8), reg::RegQ::Rbp), regq!(Rcx))
                         + mov_struct(reg::RegQ::Rsp, 0, reg::RegQ::Rcx, 0, size as u64,
@@ -678,6 +683,7 @@ fn compile_bloc(ctxt: &mut context::Context, bloc: llr::Bloc, mut stack_offset :
             llr::Instr::Return(None) => {
                 last_loc = Location::Never;
                 asm = asm
+                    + xorq(regq!(Rax), regq!(Rax))
                     + movq(regq!(Rbp), regq!(Rsp))
                     + popq(regq!(Rbp))
                     + ret();

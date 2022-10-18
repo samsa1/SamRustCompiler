@@ -150,7 +150,7 @@ impl DataStruct {
             | tr::PostTypeInner::String => self.pointer_size,
             tr::PostTypeInner::BuiltIn(BuiltinType::Bool) => 1,
             tr::PostTypeInner::BuiltIn(BuiltinType::Int(_, s)) => s.to_byte_size(),
-            tr::PostTypeInner::Diverge => todo!(),
+            tr::PostTypeInner::Diverge => 0,
             //            tr::PostTypeInner::Enum(_) => todo!(),
             tr::PostTypeInner::FreeType(_) => todo!(),
             tr::PostTypeInner::Struct(name, _) if name == "Vec" => self.pointer_size,
