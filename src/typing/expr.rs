@@ -181,8 +181,8 @@ fn build_type(types: &rust::TypeStorage, type_id: usize) -> Option<typed_rust::P
         rust::Types::Fun(_, _) => todo!(),
         rust::Types::Int(signed, size) => Some(typed_rust::PostType {
             content: typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(
-                signed.unwrap_or(false),
-                size.unwrap_or(Sizes::SUsize),
+                signed.unwrap_or(true),
+                size.unwrap_or(Sizes::S32),
             )),
         }),
         rust::Types::Struct(name, args) => {

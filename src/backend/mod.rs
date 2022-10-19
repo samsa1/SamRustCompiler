@@ -82,7 +82,7 @@ fn mov_struct(
     asm
 }
 
-fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offset: u64) -> Asm {
+fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offset: u64, is_main: bool) -> Asm {
     match *expr.content {
         llr::ExprInner::BinOp(_, _, _)
         | llr::ExprInner::Bloc(_)
@@ -98,7 +98,7 @@ fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offs
         | llr::ExprInner::Tuple(_, _)
         | llr::ExprInner::UnaOp(_, _) => panic!("ICE"),
         llr::ExprInner::Deref(expr) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
             match loc {
                 Location::Rax | Location::Never => expr,
                 Location::StackWithPadding(pad) => {
@@ -111,9 +111,9 @@ fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offs
         }
         llr::ExprInner::Proj(expr, proj) => {
             let expr = if expr.typed.is_ref() {
-                compile_expr_val(ctxt, expr, stack_offset).1
+                compile_expr_val(ctxt, expr, stack_offset, is_main).1
             } else {
-                compile_expr_pointer(ctxt, expr, stack_offset)
+                compile_expr_pointer(ctxt, expr, stack_offset, is_main)
             };
             expr + addq(immq(proj as i64), reg::Operand::Reg(reg::RegQ::Rax))
         }
@@ -148,12 +148,13 @@ fn compile_expr_val(
     ctxt: &mut context::Context,
     expr: llr::Expr,
     stack_offset: u64,
+    is_main: bool,
 ) -> (Location, Asm) {
     let size = expr.size;
     match *expr.content {
         llr::ExprInner::UnaOp(op, expr) => {
             let size = expr.size;
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
             let expr = match loc {
                 Location::Never | Location::Rax => expr,
                 Location::StackWithPadding(pad) => {
@@ -191,7 +192,7 @@ fn compile_expr_val(
         llr::ExprInner::BinOp(op, expr1, expr2) => {
             println!("{:?} {:?} {:?}", op, expr1, expr2);
             let size = expr2.size;
-            let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
+            let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset, is_main);
             println!("{:?}", loc);
             let expr2 = match loc {
                 Location::Never => expr2,
@@ -234,7 +235,7 @@ fn compile_expr_val(
                     _ => panic!("ICE"),
                 },
             };
-            let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
+            let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64, is_main);
             println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
@@ -287,23 +288,43 @@ fn compile_expr_val(
                 }
 
                 TypedBinop::Div(_, Sizes::S8) => todo!(),
-                TypedBinop::Div(true, Sizes::S32) => cltd() + idivl(regl!(Ecx)),
-                TypedBinop::Div(false, Sizes::S32) => {
-                    xorl(regl!(Edx), regl!(Edx)) + divl(regl!(Ecx))
-                }
-                TypedBinop::Div(true, Sizes::S64) | TypedBinop::Div(true, Sizes::SUsize) => {
-                    cqto() + idivq(regq!(Rcx))
-                }
-                TypedBinop::Div(false, Sizes::S64) | TypedBinop::Div(false, Sizes::SUsize) => {
-                    xorq(regq!(Rdx), regq!(Rdx)) + divq(regq!(Rcx))
+                TypedBinop::Div(b, Sizes::S32) => {
+                    testl(regl!(Ecx), regl!(Ecx))
+                    + jz(reg::Label::panic())
+                    + if b {
+                        cltd() + idivl(regl!(Ecx))
+                    } else {
+                        xorl(regl!(Edx), regl!(Edx))
+                        + divl(regl!(Ecx))    
+                    }
+                },
+                TypedBinop::Div(b, Sizes::S64) | TypedBinop::Div(b, Sizes::SUsize) => {
+                    testq(regq!(Rcx), regq!(Rcx))
+                    + jz(reg::Label::panic())
+                    + if b {
+                        cqto()
+                        + idivq(regq!(Rcx))
+                    } else {
+                        xorq(regq!(Rdx), regq!(Rdx))
+                        + divq(regq!(Rcx))
+                    }
                 }
 
                 TypedBinop::Mod(_, Sizes::S8) => todo!(),
-                TypedBinop::Mod(true, Sizes::S32) => {
-                    cltd() + idivl(regl!(Ecx)) + movl(regl!(Edx), regl!(Eax))
+                TypedBinop::Mod(b, Sizes::S32) => {
+                    testl(regl!(Ecx), regl!(Ecx))
+                    + jz(reg::Label::panic())
+                    + if b { cltd() + idivl(regl!(Ecx)) }
+                      else { xorl(regl!(Edx), regl!(Edx)) + divl(regl!(Ecx)) }
+                    + movl(regl!(Edx), regl!(Eax))
                 }
-                TypedBinop::Mod(true, Sizes::S64) | TypedBinop::Mod(true, Sizes::SUsize) => {
-                    cqto() + idivq(regq!(Rcx)) + movq(regq!(Rdx), regq!(Rax))
+
+                TypedBinop::Mod(b, Sizes::S64) | TypedBinop::Mod(b, Sizes::SUsize) => {
+                    testq(regq!(Rcx), regq!(Rcx))
+                    + jz(reg::Label::panic())
+                    + if b { cqto() + idivq(regq!(Rcx)) }
+                      else { xorq(regq!(Rdx), regq!(Rdx)) + divq(regq!(Rcx)) }
+                    + movq(regq!(Rdx), regq!(Rax))
                 }
 
                 TypedBinop::And(Sizes::S8) => andb(regb!(Ch), regb!(Ah)),
@@ -377,7 +398,7 @@ fn compile_expr_val(
             (Location::Rax, expr2 + expr1 + mov + op)
         }
 
-        llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset),
+        llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset, is_main),
         llr::ExprInner::Bool(b) => {
             if b {
                 (
@@ -395,7 +416,7 @@ fn compile_expr_val(
             let mut asm = subq(immq(struct_size as i64), reg::Operand::Reg(reg::RegQ::Rsp));
             for (offset, expr) in exprs {
                 let size = expr.size;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + struct_size as u64);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + struct_size as u64, is_main);
                 asm = asm + expr;
                 asm = asm
                     + match loc {
@@ -456,7 +477,7 @@ fn compile_expr_val(
         }
         llr::ExprInner::Constant(_) => todo!(),
         llr::ExprInner::Deref(expr) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
             let expr = match loc {
                 Location::Never | Location::Rax => expr,
                 Location::StackWithPadding(pad) => {
@@ -500,7 +521,7 @@ fn compile_expr_val(
             for arg in args {
                 let size = arg.size;
                 current_offset += size as u64;
-                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset);
+                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset, is_main);
                 let asm2 = match loc {
                     Location::Rax => match size {
                         1 => movb(
@@ -547,7 +568,7 @@ fn compile_expr_val(
         }
         llr::ExprInner::FunCallVar(_, _) => todo!(),
         llr::ExprInner::If(expr, bloc1, bloc2) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
             let expr = match loc {
                 Location::Never => todo!(),
                 Location::Rax => expr,
@@ -556,8 +577,8 @@ fn compile_expr_val(
                         + addq(immq(pad as i64 + 1), regq!(Rsp))
                 }
             };
-            let (loc1, bloc1) = compile_bloc(ctxt, bloc1, stack_offset);
-            let (loc2, bloc2) = compile_bloc(ctxt, bloc2, stack_offset);
+            let (loc1, bloc1) = compile_bloc(ctxt, bloc1, stack_offset, is_main);
+            let (loc2, bloc2) = compile_bloc(ctxt, bloc2, stack_offset, is_main);
             let (else_label, end_label) = ctxt.gen_if_labels();
             let (loc, bloc1, bloc2) = match (loc1, loc2) {
                 (Location::Never, loc) => (loc, bloc1, bloc2),
@@ -639,9 +660,9 @@ fn compile_expr_val(
         }
         llr::ExprInner::Proj(sub_expr, offset) => {
             let sub_expr = if sub_expr.typed.is_ref() {
-                compile_expr_val(ctxt, sub_expr, stack_offset).1
+                compile_expr_val(ctxt, sub_expr, stack_offset, is_main).1
             } else {
-                compile_expr_pointer(ctxt, sub_expr, stack_offset)
+                compile_expr_pointer(ctxt, sub_expr, stack_offset, is_main)
             };
             match expr.size {
                 1 => (
@@ -696,18 +717,18 @@ fn compile_expr_val(
         }
         llr::ExprInner::Ref(expr) => (
             Location::Rax,
-            compile_expr_pointer(ctxt, expr, stack_offset),
+            compile_expr_pointer(ctxt, expr, stack_offset, is_main),
         ),
         llr::ExprInner::Set(size, addr, expr) => {
             assert_eq!(size, expr.size);
-            let (loc, addr) = compile_expr_val(ctxt, addr, stack_offset);
+            let (loc, addr) = compile_expr_val(ctxt, addr, stack_offset, is_main);
             let addr = match loc {
                 Location::Rax | Location::Never => addr,
                 Location::StackWithPadding(pad) => {
                     addr + popq(regq!(Rax)) + addq(immq(pad as i64), regq!(Rsp))
                 }
             };
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + 8);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + 8, is_main);
             let mut asm = addr + pushq(reg::Operand::Reg(reg::RegQ::Rax)) + expr;
             asm = asm
                 + match loc {
@@ -751,7 +772,7 @@ fn compile_expr_val(
             let mut current_offset = 0;
             for expr in exprs {
                 let size = expr.size;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + tuple_size as u64);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + tuple_size as u64, is_main);
                 asm = asm
                     + expr
                     + movq(regq!(Rbp), regq!(Rcx))
@@ -842,6 +863,7 @@ fn compile_bloc(
     ctxt: &mut context::Context,
     bloc: llr::Bloc,
     mut stack_offset: u64,
+    is_main : bool,
 ) -> (Location, Asm) {
     let initial_stack_offset = stack_offset;
     ctxt.add_layer();
@@ -881,13 +903,13 @@ fn compile_bloc(
                     size: 0,
                     typed: PostType::unit(),
                 };
-                asm = asm + compile_expr_val(ctxt, expr, stack_offset).1;
+                asm = asm + compile_expr_val(ctxt, expr, stack_offset, is_main).1;
                 last_loc = Location::Rax;
             }
             llr::Instr::While(expr, bloc) => {
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
                 assert_eq!(matches!(loc, Location::StackWithPadding(_)), false);
-                let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset);
+                let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset, is_main);
                 let bloc = match loc2 {
                     Location::StackWithPadding(_) => todo!(),
                     Location::Never | Location::Rax => bloc,
@@ -908,13 +930,14 @@ fn compile_bloc(
                 asm = asm
                     + xorq(regq!(Rax), regq!(Rax))
                     + movq(regq!(Rbp), regq!(Rsp))
+                    + if is_main { popq(regq!(R13)) + popq(regq!(R12)) } else { nop() }
                     + popq(regq!(Rbp))
                     + ret();
             }
             llr::Instr::Return(Some(expr)) => {
                 let size = expr.size as u64;
                 last_loc = Location::Never;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
                 asm = asm
                     + expr
                     + match loc {
@@ -956,7 +979,7 @@ fn compile_bloc(
             }
             llr::Instr::Expr(ComputedValue::Drop, expr) => {
                 let size = expr.size;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
                 asm = asm
                     + match loc {
                         Location::StackWithPadding(pad) => {
@@ -968,7 +991,7 @@ fn compile_bloc(
             }
 
             llr::Instr::Expr(ComputedValue::Keep, expr) => {
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
                 last_loc = loc;
                 asm = asm + expr;
             }
@@ -1035,6 +1058,9 @@ A vector is a pointer to a tuple of 4 elements in the stack :
         + movq(addr!(16, reg::RegQ::Rsp), regq!(Rcx)) /* get pointer to vec */
         + movq(addr!(reg::RegQ::Rcx), regq!(Rcx)) /* get pointer to 4-vector */
         + movq(addr!(8, reg::RegQ::Rsp), regq!(Rax)) /* put index in Rax */
+        + movq(addr!(8, reg::RegQ::Rcx), regq!(Rdx))
+        + cmpq(regq!(Rdx), regq!(Rax))
+        + jae(reg::Label::panic())
         + imulq(addr!(24, reg::RegQ::Rcx), regq!(Rax)) /* multiply by size of elements */
         + addq(addr!(reg::RegQ::Rcx), regq!(Rax)) /* add base of vector to offset */
         + movq(regq!(Rax), addr!(24, reg::RegQ::Rsp)) /* store result */
@@ -1081,18 +1107,26 @@ and then arg
         + incq(addr!(8, reg::RegQ::Rbp))
         + popq(regq!(Rbp))
         + ret()
+    + label(reg::Label::panic())
+        + movq(regq!(R13), regq!(Rsp))
+        + popq(regq!(R13))
+        + popq(regq!(R12))
+        + popq(regq!(Rbp))
+        + movq(immq(1), regq!(Rax))
+        + ret()
 }
 
 fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Asm {
-    println!("{:?}", fun_decl.content);
+    let is_main = fun_decl.name.get_content() == "main";
     let size = fun_decl.output;
     ctxt.init(fun_decl.args);
-    let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0);
+    let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0, is_main);
     let mut asm = label(ctxt.fun_label(fun_decl.name.get_content()))
         + pushq(regq!(Rbp))
+        + if is_main { pushq(regq!(R12)) + pushq(regq!(R13)) + movq(regq!(Rsp), regq!(R13))} else { nop() }
         + movq(regq!(Rsp), regq!(Rbp))
         + bloc;
-    if fun_decl.name.get_content() == "main" {
+    if is_main {
         if size == 0 {
             asm = asm
                 + xorq(
@@ -1131,7 +1165,9 @@ fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Asm {
             Location::Never => (),
         }
     }
-    asm + movq(regq!(Rbp), regq!(Rsp)) + popq(regq!(Rbp)) + ret()
+    asm + movq(regq!(Rbp), regq!(Rsp))
+        + if is_main { popq(regq!(R13)) + popq(regq!(R12)) } else { nop() }
+        + popq(regq!(Rbp)) + ret()
 }
 
 pub fn to_asm(file: llr::File) -> asm::file::File {

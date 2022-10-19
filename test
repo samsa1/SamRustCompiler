@@ -478,15 +478,20 @@ for f in tests/exec-fail/*.rs; do
     if compile $f && gcc $asm; then
 	score_comp=`expr $score_comp + 1`;
 	if { ./a.out; } > /dev/null 2>&1; then
+        ./a.out;
 	    echo
-	    echo "ECHEC : le code $f devrait �chouer"
+	    echo "ECHEC : le code $f devrait �chouer";
+        exit 1;
 	else
 	    score_test=`expr $score_test + 1`;
 	    score_out=`expr $score_out + 1`;
 	fi
     else
+    verbose=1;
+    compile $f;
 	echo
-	echo "ECHEC de la compilation sur $f (devrait r�ussir)"
+	echo "ECHEC de la compilation sur $f (devrait r�ussir)";
+    exit 1;
     fi
 done
 

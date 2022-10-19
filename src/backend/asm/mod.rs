@@ -178,6 +178,10 @@ pub fn jnz(label: reg::Label) -> Asm {
     Asm::Instr(Box::new(instr::Goto::CondJump(instr::Cond::JNZ, label)))
 }
 
+pub fn jae(label: reg::Label) -> Asm {
+    Asm::Instr(Box::new(instr::Goto::CondJump(instr::Cond::JAE, label)))
+}
+
 pub fn label(l: reg::Label) -> Asm {
     Asm::Label(l)
 }
