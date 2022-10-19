@@ -133,7 +133,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             ..top_expr
         },
 
-        ExprInner::Int(_) | ExprInner::Bool(_) | ExprInner::String(_) => top_expr,
+        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::String(_) => top_expr,
 
         ExprInner::BuildStruct(name, exprs) => Expr {
             content: Box::new(ExprInner::BuildStruct(

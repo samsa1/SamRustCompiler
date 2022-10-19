@@ -181,13 +181,15 @@ fn make_coherent(
                 (None, None) => None,
                 (Some(b), None) | (None, Some(b)) => Some(*b),
                 (Some(b1), Some(b2)) if b1 == b2 => Some(*b1),
-                _ => return Err(vec![TypeError::unknown_error(loc)]),
+                (Some(true), Some(false)) => return Err(vec![TypeError::expected_unsigned(loc)]),
+                (Some(false), Some(true)) => return Err(vec![TypeError::expected_signed(loc)]),
+                _ => panic!("Cannot happen")
             };
             let s = match (s1, s2) {
                 (None, None) => None,
                 (Some(s), None) | (None, Some(s)) => Some(*s),
                 (Some(s1), Some(s2)) if s1 == s2 => Some(*s1),
-                _ => return Err(vec![TypeError::unknown_error(loc)]),
+                (Some(s1), Some(s2)) => return Err(vec![TypeError::incompatible_sizes(*s1, *s2, loc)]),
             };
             types.set(type_id2, Types::SameAs(type_id1));
             types.set(type_id1, Types::Int(b, s));
@@ -783,7 +785,8 @@ fn type_expr(
         ExprInner::Index(expr_val, expr_index) => {
             let (affectable, expr_val) = type_expr(ctxt, local_ctxt, expr_val, types, out_type)?;
             let expr_index = type_expr(ctxt, local_ctxt, expr_index, types, out_type)?.1;
-            types.forces_to(expr_index.typed, Types::usize()).unwrap();
+            let type_id = types.insert_usize();
+            make_coherent(types, expr_index.typed, type_id, expr_index.loc, UnificationMethod::NoRef)?;
             if let Some((affectable, name, args)) =
                 get_struct_name(types, expr_val.typed, expr_val.loc, affectable)?
             {
@@ -807,13 +810,26 @@ fn type_expr(
             }
         }
 
-        ExprInner::Int(int) => {
+        ExprInner::Int(int, None) => {
             let type_id = types.insert_type(Types::int());
             check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
             Ok((
                 false,
                 Expr {
-                    content: Box::new(ExprInner::Int(int)),
+                    content: Box::new(ExprInner::Int(int, None)),
+                    loc: top_expr.loc,
+                    typed: type_id,
+                },
+            ))
+        }
+
+        ExprInner::Int(int, Some((signed, size))) => {
+            let type_id = types.insert_type(Types::Int(Some(signed), Some(size)));
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::Int(int, Some((signed, size)))),
                     loc: top_expr.loc,
                     typed: type_id,
                 },

@@ -58,6 +58,24 @@ impl Expr {
             size: 8,
         }
     }
+
+    pub fn get_var(&self) -> Option<usize> {
+        match &*self.content {
+            ExprInner::VarId(id) => Some(*id),
+            _ => None
+        }
+    }
+
+    pub fn get_ref_var(&self) -> Option<usize> {
+        match &*self.content {
+            ExprInner::Ref(expr) => expr.get_var(),
+            _ => None,
+        }
+    }
+
+    pub fn is_ref_var(&self) -> bool {
+        self.get_ref_var().is_some()
+    }
 }
 
 impl std::fmt::Debug for Expr {

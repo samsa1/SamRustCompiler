@@ -1,4 +1,4 @@
-use crate::ast::common::{ErrorReporter, Ident, Location};
+use crate::ast::common::{ErrorReporter, Ident, Location, Sizes};
 use crate::ast::rust::Types;
 use crate::ast::typed_rust::PostTypeInner;
 
@@ -18,6 +18,9 @@ enum TypeErrorInfo {
     MissingField(String, String),
     CannotBorrowAsMutable,
     SameArgName(String, String),
+    ExpectedSigned,
+    ExpectedUnsigned,
+    IncompatibleSizes(Sizes, Sizes),
 }
 
 #[derive(Debug)]
@@ -127,6 +130,27 @@ impl TypeError {
         Self {
             loc: fun_name.get_loc(),
             info: TypeErrorInfo::SameArgName(fun_name.content(), arg_name),
+        }
+    }
+
+    pub fn incompatible_sizes(s1 : Sizes, s2 : Sizes, loc : Location) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::IncompatibleSizes(s1, s2),
+        }
+    }
+
+    pub fn expected_unsigned(loc : Location) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::ExpectedUnsigned,
+        }
+    }
+
+    pub fn expected_signed(loc : Location) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::ExpectedSigned,
         }
     }
 

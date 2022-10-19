@@ -36,9 +36,27 @@ fn test_no_cmp(e: &Expr) {
 }
 
 peg::parser! {
-  grammar list_parser() for str {
-      rule number() -> ((usize, usize), u64)
-          = p1:position!() n:$(['0'..='9']+) p2:position!() { ((p1, p2), n.parse().unwrap()) }
+  grammar rust_parser() for str {
+      rule size() -> Sizes = precedence! {
+        "8" { Sizes::S8 }
+        "16" { Sizes::S16 }
+        "32" { Sizes::S32 }
+        "64" { Sizes::S64 }
+        "size" { Sizes::SUsize }
+      }
+
+      rule int_type_anotation_inner() -> (bool, Sizes) =
+        c:['i'|'u'] s:size() { (c == 'i', s) }
+
+      rule int_type_anotation() -> (bool, Sizes)
+        =  "_"? t:int_type_anotation_inner() { t }
+
+    rule number_no_anot() -> ((usize, usize), u64)
+        = p1:position!() n:$(['0'..='9']+) p2:position!() { ((p1, p2), n.parse().unwrap()) }
+
+
+      rule number() -> ((usize, usize), u64, Option<(bool, Sizes)>)
+          = p1:position!() n:$(['0'..='9']+) typ_opt:int_type_anotation()? p2:position!() { ((p1, p2), n.parse().unwrap(), typ_opt) }
 
       rule special_chars() -> Vec<char> = precedence! {
           "\\n"   {vec!['\\', 'n']}
@@ -266,7 +284,7 @@ peg::parser! {
           start:position!() "false" end:position!() { to_expr(start, end, ExprInner::Bool(false)) }
 
       rule small_expr() -> Expr = precedence! {
-          n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1)) }
+          n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1, n.2)) }
           t:true_expr()   { t }
           f:false_expr()  { f }
           n:name() { to_expr(n.get_loc().start(), n.get_loc().end(), ExprInner::Var(n)) }
@@ -403,7 +421,7 @@ peg::parser! {
 
       rule proj() -> Projector = precedence! {
           n:name()    { Projector::Name(n) }
-          n:number()  { Projector::Int(n.1 as usize) }
+          n:number_no_anot()  { Projector::Int(n.1 as usize) }
       }
 
   }
@@ -413,7 +431,7 @@ pub fn parse_file(name: String) -> File {
     println!("parsing {}", name);
     let contents = fs::read_to_string(&name).expect("Error reading file");
 
-    match list_parser::file(&contents) {
+    match rust_parser::file(&contents) {
         Ok((dep, content)) => File {
             err_reporter: ErrorReporter::new(name.clone(), contents),
             dep,

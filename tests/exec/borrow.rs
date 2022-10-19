@@ -1,9 +1,13 @@
 
+fn zero() -> i32 {
+    0
+}
+
 fn foo(x: &i32) {
     if      *x == 0 { print!("0\n"); }
     else if *x < 0  { print!("-\n"); }
     else if *x > 0  { print!("+\n"); }
-    else            { print!("absurd!\n"); 1/0; }
+    else            { print!("absurd!\n"); 1/zero(); }
 }
 
 fn bar(x: &mut i32) {

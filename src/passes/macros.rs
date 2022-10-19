@@ -116,7 +116,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
             ..top_expr
         },
 
-        ExprInner::Int(_) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::String(_) => {
+        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::String(_) => {
             top_expr
         }
 

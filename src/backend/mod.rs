@@ -178,10 +178,12 @@ fn compile_expr_val(
             };
             let op = match op {
                 TypedUnaop::Neg(Sizes::S8) => negb(regb!(Ah)),
+                TypedUnaop::Neg(Sizes::S16) => negw(regw!(Ax)),
                 TypedUnaop::Neg(Sizes::S32) => negl(regl!(Eax)),
                 TypedUnaop::Neg(Sizes::S64) => negq(regq!(Rax)),
                 TypedUnaop::Neg(Sizes::SUsize) => negq(regq!(Rax)),
                 TypedUnaop::Not(Sizes::S8) => notb(regb!(Ah)),
+                TypedUnaop::Not(Sizes::S16) => notw(regw!(Ax)),
                 TypedUnaop::Not(Sizes::S32) => notl(regl!(Eax)),
                 TypedUnaop::Not(Sizes::S64) => notq(regq!(Rax)),
                 TypedUnaop::Not(Sizes::SUsize) => notq(regq!(Rax)),
@@ -270,12 +272,14 @@ fn compile_expr_val(
             };
             let op = match op {
                 TypedBinop::Add(Sizes::S8) => addb(regb!(Ch), regb!(Ah)),
+                TypedBinop::Add(Sizes::S16) => addw(regw!(Cx), regw!(Ax)),
                 TypedBinop::Add(Sizes::S32) => addl(regl!(Ecx), regl!(Eax)),
                 TypedBinop::Add(Sizes::S64) | TypedBinop::Add(Sizes::SUsize) => {
                     addq(regq!(Rcx), regq!(Rax))
                 }
 
                 TypedBinop::Sub(Sizes::S8) => subb(regb!(Ch), regb!(Ah)),
+                TypedBinop::Sub(Sizes::S16) => subw(regw!(Cx), regw!(Ax)),
                 TypedBinop::Sub(Sizes::S32) => subl(regl!(Ecx), regl!(Eax)),
                 TypedBinop::Sub(Sizes::S64) | TypedBinop::Sub(Sizes::SUsize) => {
                     subq(regq!(Rcx), regq!(Rax))
@@ -288,6 +292,7 @@ fn compile_expr_val(
                 }
 
                 TypedBinop::Div(_, Sizes::S8) => todo!(),
+                TypedBinop::Div(_, Sizes::S16) => todo!(),
                 TypedBinop::Div(b, Sizes::S32) => {
                     testl(regl!(Ecx), regl!(Ecx))
                     + jz(reg::Label::panic())
@@ -311,6 +316,7 @@ fn compile_expr_val(
                 }
 
                 TypedBinop::Mod(_, Sizes::S8) => todo!(),
+                TypedBinop::Mod(_, Sizes::S16) => todo!(),
                 TypedBinop::Mod(b, Sizes::S32) => {
                     testl(regl!(Ecx), regl!(Ecx))
                     + jz(reg::Label::panic())
@@ -328,12 +334,14 @@ fn compile_expr_val(
                 }
 
                 TypedBinop::And(Sizes::S8) => andb(regb!(Ch), regb!(Ah)),
+                TypedBinop::And(Sizes::S16) => andw(regw!(Cx), regw!(Ax)),
                 TypedBinop::And(Sizes::S32) => andl(regl!(Ecx), regl!(Eax)),
                 TypedBinop::And(Sizes::S64) | TypedBinop::And(Sizes::SUsize) => {
                     andq(regq!(Rcx), regq!(Rax))
                 }
 
                 TypedBinop::Or(Sizes::S8) => orb(regb!(Ch), regb!(Ah)),
+                TypedBinop::Or(Sizes::S16) => orw(regw!(Cx), regw!(Ax)),
                 TypedBinop::Or(Sizes::S32) => orl(regl!(Ecx), regl!(Eax)),
                 TypedBinop::Or(Sizes::S64) | TypedBinop::Or(Sizes::SUsize) => {
                     orq(regq!(Rcx), regq!(Rax))
@@ -351,6 +359,19 @@ fn compile_expr_val(
                         + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
                         + movb(regb!(Dh), regb!(Ah))
                 }
+                TypedBinop::Eq(Sizes::S16)
+                | TypedBinop::Neq(Sizes::S16)
+                | TypedBinop::Lower(_, Sizes::S16)
+                | TypedBinop::LowerEq(_, Sizes::S16)
+                | TypedBinop::Greater(_, Sizes::S16)
+                | TypedBinop::GreaterEq(_, Sizes::S16) => {
+                    xorq(regq!(Rdx), regq!(Rdx))
+                        + movq(immq(-1), regq!(Rdi))
+                        + cmpw(regw!(Cx), regw!(Ax))
+                        + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
+                        + movb(regb!(Dh), regb!(Ah))
+                }
+                
                 TypedBinop::Eq(Sizes::S32)
                 | TypedBinop::Neq(Sizes::S32)
                 | TypedBinop::Lower(_, Sizes::S32)
@@ -639,6 +660,7 @@ fn compile_expr_val(
             Location::Rax,
             match size {
                 Sizes::S8 => movb(immb(i as i8), reg::Operand::Reg(reg::RegB::Ah)),
+                Sizes::S16 => movw(immw(i as i16), reg::Operand::Reg(reg::RegW::Ax)),
                 Sizes::S32 => movl(imml(i as i32), reg::Operand::Reg(reg::RegL::Eax)),
                 Sizes::S64 | Sizes::SUsize => movq(immq(i as i64), regq!(Rax)),
             },
@@ -719,6 +741,32 @@ fn compile_expr_val(
             Location::Rax,
             compile_expr_pointer(ctxt, expr, stack_offset, is_main),
         ),
+        llr::ExprInner::Set(size, addr, expr) if addr.is_ref_var() => {
+            assert_eq!(size, expr.size);
+            let var_id = addr.get_ref_var().unwrap();
+            let offset_from_rbp = ctxt.find(var_id);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let asm = match loc {
+                Location::Never => expr,
+                Location::Rax => {
+                    match size {
+                        0 => expr,
+                        1 => (expr + movb(regb!(Ah), addr!(offset_from_rbp, reg::RegQ::Rbp))),
+                        2 => (expr + movw(regw!(Ax), addr!(offset_from_rbp, reg::RegQ::Rbp))),
+                        4 => (expr + movl(regl!(Eax), addr!(offset_from_rbp, reg::RegQ::Rbp))),
+                        8 => (expr + movq(regq!(Rax), addr!(offset_from_rbp, reg::RegQ::Rbp))),
+                        _ => panic!("ICE")
+                    }
+                }
+                Location::StackWithPadding(pad) => {
+                    expr
+                    + mov_struct(reg::RegQ::Rsp, 0, reg::RegQ::Rbp, offset_from_rbp, size as u64,
+                            reg::RegQ::Rax, reg::RegL::Eax, reg::RegW::Ax, reg::RegB::Ah)
+                    + addq(immq(pad as i64 + size as i64), regq!(Rsp))
+                },
+            };
+            (Location::Rax, asm)
+        },
         llr::ExprInner::Set(size, addr, expr) => {
             assert_eq!(size, expr.size);
             let (loc, addr) = compile_expr_val(ctxt, addr, stack_offset, is_main);

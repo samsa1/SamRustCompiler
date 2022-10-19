@@ -13,7 +13,7 @@ fn is_ref(
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _, _)
         | ExprInner::If(_, _, _)
-        | ExprInner::Int(_)
+        | ExprInner::Int(_, _)
         | ExprInner::BinaryOp(_, _, _)
         | ExprInner::Ref(_, _)
         | ExprInner::UnaryOp(_, _)
@@ -126,7 +126,7 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
-        ExprInner::Int(_) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::String(_) => {
+        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::String(_) => {
             top_expr
         }
 

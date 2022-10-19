@@ -4,13 +4,17 @@ use crate::ast::typed_rust::{PostType, PostTypeInner};
 use crate::ast::{common::*, rust, typed_rust};
 use std::collections::{HashMap, HashSet};
 
-const DEFAULT_TYPES: [(&str, BuiltinType); 7] = [
+const DEFAULT_TYPES: [(&str, BuiltinType); 11] = [
     ("usize", BuiltinType::Int(false, Sizes::SUsize)),
     ("isize", BuiltinType::Int(true, Sizes::SUsize)),
     ("u64", BuiltinType::Int(false, Sizes::S64)),
     ("i64", BuiltinType::Int(true, Sizes::S64)),
     ("u32", BuiltinType::Int(false, Sizes::S32)),
     ("i32", BuiltinType::Int(true, Sizes::S32)),
+    ("u16", BuiltinType::Int(false, Sizes::S16)),
+    ("i16", BuiltinType::Int(true, Sizes::S16)),
+    ("u8", BuiltinType::Int(false, Sizes::S8)),
+    ("i8", BuiltinType::Int(true, Sizes::S8)),
     ("bool", BuiltinType::Bool),
 ];
 

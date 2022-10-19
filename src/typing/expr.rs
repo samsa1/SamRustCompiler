@@ -224,7 +224,7 @@ pub fn type_checker(
             typed_rust::ExprInner::Bool(b),
         ),
 
-        rust::ExprInner::Int(i) => {
+        rust::ExprInner::Int(i, _) => {
             if is_type_int(&translated_typ) {
                 let typ = translated_typ.unwrap();
                 translated_typ = None;

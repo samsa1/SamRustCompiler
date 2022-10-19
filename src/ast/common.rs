@@ -165,6 +165,7 @@ impl Location {
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Sizes {
     S8,
+    S16,
     S32,
     S64,
     SUsize,
@@ -174,6 +175,7 @@ impl Sizes {
     pub fn to_byte_size(&self) -> usize {
         match self {
             Self::S8 => 1,
+            Self::S16 => 2,
             Self::S32 => 4,
             Self::S64 => 8,
             Self::SUsize => {
@@ -203,6 +205,24 @@ impl BuiltinType {
         match self {
             BuiltinType::Bool => 1,
             BuiltinType::Int(_, size) => size.to_byte_size(),
+        }
+    }
+
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            BuiltinType::Int(b, size) => match (b, size) {
+                (true, Sizes::S8) => "i8",
+                (false, Sizes::S8) => "u8",
+                (true, Sizes::S16) => "i16",
+                (false, Sizes::S16) => "u16",
+                (true, Sizes::S32) => "i32",
+                (false, Sizes::S32) => "u32",
+                (true, Sizes::S64) => "i64",
+                (false, Sizes::S64) => "u64",
+                (true, Sizes::SUsize) => "isize",
+                (false, Sizes::SUsize) => "usize",
+            },
+            BuiltinType::Bool => "bool",
         }
     }
 }

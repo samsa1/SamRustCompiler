@@ -40,7 +40,7 @@ echo "OK"
 echo "exec"
 for f in tests/exec/*.rs; do
     echo "  $f"
-    expected=exec/`basename $f .rs`.out
+    expected=tests/exec/`basename $f .rs`.out
     if rustc $f -o a.out > /dev/null 2>&1 ; then
       ./a.out > out
       if ! cmp --quiet out $expected; then

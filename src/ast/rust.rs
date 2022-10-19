@@ -147,7 +147,7 @@ impl TypeStorage {
 
     // /!\ Only a few cases are implemented because
     // only a few case can be encountered at runtime /!\
-    pub fn forces_to(&mut self, id: usize, typ: Types) -> Result<usize, ()> {
+    /*pub fn forces_to(&mut self, id: usize, typ: Types) -> Result<usize, ()> {
         match (self.map.get(&id), typ) {
             (None, _) => panic!("ICE"),
             (Some(Types::Unknown), typ) => {
@@ -168,7 +168,7 @@ impl TypeStorage {
 
             _ => todo!(),
         }
-    }
+    }*/
 
     pub fn get(&self, id: usize) -> Option<&Types> {
         self.map.get(&id)
@@ -305,7 +305,7 @@ impl<T> Expr<Option<T>> {
 pub enum ExprInner<T = Option<PreType>> {
     If(Expr<T>, Bloc<T>, Bloc<T>),
     Bool(bool),
-    Int(u64),
+    Int(u64, Option<(bool, common::Sizes)>),
     Var(common::Ident),
     Method(Expr<T>, common::Ident, Vec<Expr<T>>),
     FunCall(Vec<T>, common::Ident, Vec<Expr<T>>),
