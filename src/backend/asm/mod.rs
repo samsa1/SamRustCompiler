@@ -52,6 +52,12 @@ pub fn popq(op: reg::Operand<reg::RegQ>) -> Asm {
     Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::Pop, op)))
 }
 
+#[cfg(target_os = "linux")]
+pub fn deplq(l: reg::Label, op: reg::Operand<reg::RegQ>) -> Asm {
+    movq(reg::Operand::LabAbsAddr(l), op)
+}
+
+#[cfg(target_os = "macos")]
 pub fn deplq(l: reg::Label, op: reg::Operand<reg::RegQ>) -> Asm {
     leaq(reg::Operand::LabRelAddr(l), op)
 }

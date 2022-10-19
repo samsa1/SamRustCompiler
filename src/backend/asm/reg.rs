@@ -325,8 +325,14 @@ impl Label {
         }
     }
 
+    #[cfg(target_os = "macos")]
     pub fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(b"_")?;
+        file.write_all(self.name.as_bytes())
+    }
+    
+    #[cfg(target_os = "linux")]
+    pub fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(self.name.as_bytes())
     }
 }

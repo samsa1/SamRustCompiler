@@ -14,10 +14,21 @@ impl File {
         Self { code_ss, data_ss }
     }
 
+    #[cfg(target_os = "macos")]
+    fn write_globl_main(file : &mut fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t.globl\t_main\n")
+    }
+
+    #[cfg(target_os = "linux")]
+    fn write_globl_main(file : &mut fs::File) -> std::io::Result<()> {
+        file.write_all(b"\t.globl\t_main\n")
+    }
+
+
     pub fn print_in(self, file_name: &str) -> std::io::Result<()> {
         let mut file = fs::File::create(file_name)?;
         file.write_all(b"\t.text\n")?;
-        file.write_all(b"\t.globl\t_main\n")?;
+        Self::write_globl_main(&mut file)?;
         self.code_ss.write_in(&mut file)?;
         file.write_all(b"\t.data\n")?;
 
