@@ -41,8 +41,8 @@ peg::parser! {
           = p1:position!() n:$(['0'..='9']+) p2:position!() { ((p1, p2), n.parse().unwrap()) }
 
       rule special_chars() -> Vec<char> = precedence! {
-          "\\n"   {vec!['\\', '\\', 'n']}
-          "\\\""  {vec!['\\', '\\', '\"']}
+          "\\n"   {vec!['\\', 'n']}
+          "\\\""  {vec!['\\', '\"']}
           "\\\\"  {vec!['\\', '\\']}
       }
 

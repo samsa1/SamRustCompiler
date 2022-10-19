@@ -34,7 +34,9 @@ fn main() {
         panic!("must give exactly one file to compile")
     }
 
-    let parsed_file = frontend::Module::new(filenames.pop().unwrap());
+    let in_name = filenames.pop().unwrap();
+
+    let parsed_file = frontend::Module::new(in_name.clone());
     let parsed_file = parsed_file.content;
     if parse_only {
         std::process::exit(0)
@@ -44,21 +46,40 @@ fn main() {
     let distinct_names = passes::give_uniq_id::rewrite_file(unfolded_macros);
     let moved_refs = passes::move_refs::rewrite_file(distinct_names);
 
+    println!("<- typing ");
+
     let typed_file = typing::type_inferencer(moved_refs, true);
+
+    println!("<- check lifetime (TODO) ");
 
     let checked_lifetime = typed_file;
 
-    println!("{:?}", checked_lifetime);
+    //    println!("{:?}", checked_lifetime);
 
     if type_only {
         std::process::exit(0)
     }
 
+    println!("<- linear programs pass");
+
     let made_linear = passes::linear_programs::rewrite_file(checked_lifetime);
+
+    println!("<- to llr");
 
     let llr_form = to_llr::rewrite_file(made_linear);
 
+    println!("<- to asm");
+
     let asm = backend::to_asm(llr_form);
 
-    asm.print_in("a.out");
+    let mut out_name = std::path::PathBuf::from(in_name);
+    out_name.set_extension("s");
+
+    match asm.print_in(out_name.to_str().unwrap()) {
+        Ok(()) => (),
+        Err(err) => {
+            println!("Failed during printing asm with internal error {:?}", err);
+            std::process::exit(1)
+        }
+    };
 }

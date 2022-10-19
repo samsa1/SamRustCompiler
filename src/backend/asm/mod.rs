@@ -2,89 +2,216 @@ pub mod file;
 pub mod instr;
 pub mod reg;
 
+use std::io::prelude::*;
 use std::ops::Add;
 
-pub fn regq(reg: reg::RegQ) -> reg::Operand<reg::RegQ> {
-    reg::Operand::Reg(reg)
+macro_rules! regb {
+    ($reg_name:ident) => {
+        crate::backend::asm::reg::Operand::Reg(crate::backend::asm::reg::RegB::$reg_name)
+    };
+}
+
+macro_rules! regw {
+    ($reg_name:ident) => {
+        crate::backend::asm::reg::Operand::Reg(crate::backend::asm::reg::RegW::$reg_name)
+    };
+}
+
+macro_rules! regl {
+    ($reg_name:ident) => {
+        crate::backend::asm::reg::Operand::Reg(crate::backend::asm::reg::RegL::$reg_name)
+    };
+}
+
+macro_rules! regq {
+    ($reg_name:ident) => {
+        crate::backend::asm::reg::Operand::Reg(crate::backend::asm::reg::RegQ::$reg_name)
+    };
+}
+
+macro_rules! addr {
+    ($reg:expr) => {
+        crate::backend::asm::reg::Operand::Addr(0, $reg, None, 0)
+    };
+    ($offset:expr, $reg:expr) => {
+        crate::backend::asm::reg::Operand::Addr($offset, $reg, None, 0)
+    };
+    ($offset:expr, $reg:expr, $reg2:expr) => {
+        crate::backend::asm::reg::Operand::Addr($offset, $reg, Some($reg2), 1)
+    };
+    ($offset:expr, $reg:expr, $reg2:expr, $scale:expr) => {
+        crate::backend::asm::reg::Operand::Addr($offset, $reg, Some($reg2), scale)
+    };
 }
 
 pub fn pushq(op: reg::Operand<reg::RegQ>) -> Asm {
     Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::Push, op)))
 }
+pub fn popq(op: reg::Operand<reg::RegQ>) -> Asm {
+    Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::Pop, op)))
+}
 
-pub fn movq(reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Move,
-        reg1,
-        reg2,
-    )))
+pub fn deplq(l: reg::Label, op: reg::Operand<reg::RegQ>) -> Asm {
+    leaq(reg::Operand::LabRelAddr(l), op)
 }
-pub fn movl(reg1: reg::Operand<reg::RegL>, reg2: reg::Operand<reg::RegL>) -> Asm {
+
+pub fn leaq(reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm {
     Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Move,
-        reg1,
-        reg2,
-    )))
-}
-pub fn movw(reg1: reg::Operand<reg::RegW>, reg2: reg::Operand<reg::RegW>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Move,
-        reg1,
-        reg2,
-    )))
-}
-pub fn movb(reg1: reg::Operand<reg::RegB>, reg2: reg::Operand<reg::RegB>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Move,
+        instr::OpOpInstrName::Lea,
         reg1,
         reg2,
     )))
 }
 
-pub fn addq(reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Add,
-        reg1,
-        reg2,
-    )))
-}
-pub fn addl(reg1: reg::Operand<reg::RegL>, reg2: reg::Operand<reg::RegL>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Add,
-        reg1,
-        reg2,
-    )))
-}
-pub fn addw(reg1: reg::Operand<reg::RegW>, reg2: reg::Operand<reg::RegW>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Add,
-        reg1,
-        reg2,
-    )))
-}
-pub fn addb(reg1: reg::Operand<reg::RegB>, reg2: reg::Operand<reg::RegB>) -> Asm {
-    Asm::Instr(Box::new(instr::InstrOpOp::new(
-        instr::OpOpInstrName::Add,
-        reg1,
-        reg2,
-    )))
+macro_rules! build_instr_op_op {
+    ($op:ident, $nameb:ident, $namew:ident, $namel:ident, $nameq:ident) => {
+        pub fn $nameb(reg1: reg::Operand<reg::RegB>, reg2: reg::Operand<reg::RegB>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOpOp::new(
+                instr::OpOpInstrName::$op,
+                reg1,
+                reg2,
+            )))
+        }
+
+        pub fn $namew(reg1: reg::Operand<reg::RegW>, reg2: reg::Operand<reg::RegW>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOpOp::new(
+                instr::OpOpInstrName::$op,
+                reg1,
+                reg2,
+            )))
+        }
+
+        pub fn $namel(reg1: reg::Operand<reg::RegL>, reg2: reg::Operand<reg::RegL>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOpOp::new(
+                instr::OpOpInstrName::$op,
+                reg1,
+                reg2,
+            )))
+        }
+
+        pub fn $nameq(reg1: reg::Operand<reg::RegQ>, reg2: reg::Operand<reg::RegQ>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOpOp::new(
+                instr::OpOpInstrName::$op,
+                reg1,
+                reg2,
+            )))
+        }
+    };
 }
 
-pub fn immq(imm: u64) -> reg::Operand<reg::RegQ> {
+build_instr_op_op!(Move, movb, movw, movl, movq);
+build_instr_op_op!(Add, addb, addw, addl, addq);
+build_instr_op_op!(Sub, subb, subw, subl, subq);
+build_instr_op_op!(IMul, imulb, imluw, imull, imulq);
+
+build_instr_op_op!(And, andb, andw, andl, andq);
+build_instr_op_op!(Or, orb, orw, orl, orq);
+build_instr_op_op!(Xor, xorb, xorw, xorl, xorq);
+
+build_instr_op_op!(Cmp, cmpb, cmpw, cmpl, cmpq);
+build_instr_op_op!(Test, testb, testw, testl, testq);
+
+macro_rules! build_instr_op {
+    ($op:ident, $nameb:ident, $namew:ident, $namel:ident, $nameq:ident) => {
+        pub fn $nameb(reg: reg::Operand<reg::RegB>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
+        }
+
+        pub fn $namew(reg: reg::Operand<reg::RegW>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
+        }
+
+        pub fn $namel(reg: reg::Operand<reg::RegL>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
+        }
+
+        pub fn $nameq(reg: reg::Operand<reg::RegQ>) -> Asm {
+            Asm::Instr(Box::new(instr::InstrOp::new(instr::OpInstrName::$op, reg)))
+        }
+    };
+}
+
+build_instr_op!(Neg, negb, negw, negl, negq);
+build_instr_op!(Not, notb, notw, notl, notq);
+build_instr_op!(Inc, incb, incw, incl, incq);
+build_instr_op!(Dec, decb, decw, decl, decq);
+build_instr_op!(SignedDiv, idivb, idivw, idivl, idivq);
+build_instr_op!(UnsignedDiv, divb, divw, divl, divq);
+
+pub fn immq(imm: i64) -> reg::Operand<reg::RegQ> {
     reg::Operand::Imm(imm)
 }
-pub fn imml(imm: u32) -> reg::Operand<reg::RegL> {
-    reg::Operand::Imm(imm as u64)
+pub fn imml(imm: i32) -> reg::Operand<reg::RegL> {
+    reg::Operand::Imm(imm as i64)
 }
-pub fn immw(imm: u16) -> reg::Operand<reg::RegW> {
-    reg::Operand::Imm(imm as u64)
+pub fn immw(imm: i16) -> reg::Operand<reg::RegW> {
+    reg::Operand::Imm(imm as i64)
 }
-pub fn immb(imm: u8) -> reg::Operand<reg::RegB> {
-    reg::Operand::Imm(imm as u64)
+pub fn immb(imm: i8) -> reg::Operand<reg::RegB> {
+    reg::Operand::Imm(imm as i64)
 }
 
 pub fn call(label: reg::Label) -> Asm {
     Asm::Instr(Box::new(instr::Goto::Call(label)))
+}
+
+pub fn ret() -> Asm {
+    Asm::Instr(Box::new(instr::InstrNoArg::Ret))
+}
+
+pub fn cltd() -> Asm {
+    Asm::Instr(Box::new(instr::InstrNoArg::Cltd))
+}
+pub fn cqto() -> Asm {
+    Asm::Instr(Box::new(instr::InstrNoArg::Cqto))
+}
+
+pub fn jmp(label: reg::Label) -> Asm {
+    Asm::Instr(Box::new(instr::Goto::Jump(label)))
+}
+
+pub fn jz(label: reg::Label) -> Asm {
+    Asm::Instr(Box::new(instr::Goto::CondJump(instr::Cond::JZ, label)))
+}
+
+pub fn jnz(label: reg::Label) -> Asm {
+    Asm::Instr(Box::new(instr::Goto::CondJump(instr::Cond::JNZ, label)))
+}
+
+pub fn jae(label: reg::Label) -> Asm {
+    Asm::Instr(Box::new(instr::Goto::CondJump(instr::Cond::JAE, label)))
+}
+
+pub fn label(l: reg::Label) -> Asm {
+    Asm::Label(l)
+}
+
+// cmovb is not valid
+
+pub fn cmovw(
+    cond: instr::Cond,
+    reg1: reg::Operand<reg::RegW>,
+    reg2: reg::Operand<reg::RegW>,
+) -> Asm {
+    Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
+}
+pub fn cmovl(
+    cond: instr::Cond,
+    reg1: reg::Operand<reg::RegL>,
+    reg2: reg::Operand<reg::RegL>,
+) -> Asm {
+    Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
+}
+pub fn cmovq(
+    cond: instr::Cond,
+    reg1: reg::Operand<reg::RegQ>,
+    reg2: reg::Operand<reg::RegQ>,
+) -> Asm {
+    Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
+}
+
+pub fn nop() -> Asm {
+    Asm::Concat(Vec::new())
 }
 
 pub enum Asm {
@@ -98,6 +225,24 @@ impl Add for Asm {
 
     fn add(self, other: Self) -> Self {
         Self::Concat(vec![self, other])
+    }
+}
+
+impl Asm {
+    pub fn write_in(self, file: &mut std::fs::File) -> std::io::Result<()> {
+        match self {
+            Self::Concat(vec) => {
+                for asm in vec {
+                    asm.write_in(file)?
+                }
+                Ok(())
+            }
+            Self::Label(label) => {
+                label.write_in(file)?;
+                file.write_all(b":\n")
+            }
+            Self::Instr(instr) => instr.write_in(file),
+        }
     }
 }
 

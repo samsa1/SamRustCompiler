@@ -150,7 +150,7 @@ impl DataStruct {
             | tr::PostTypeInner::String => self.pointer_size,
             tr::PostTypeInner::BuiltIn(BuiltinType::Bool) => 1,
             tr::PostTypeInner::BuiltIn(BuiltinType::Int(_, s)) => s.to_byte_size(),
-            tr::PostTypeInner::Diverge => todo!(),
+            tr::PostTypeInner::Diverge => 0,
             //            tr::PostTypeInner::Enum(_) => todo!(),
             tr::PostTypeInner::FreeType(_) => todo!(),
             tr::PostTypeInner::Struct(name, _) if name == "Vec" => self.pointer_size,
@@ -185,6 +185,7 @@ impl DataStruct {
 }
 
 fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
+    //    println!("Working of {top_expr:?} of type {:?}", top_expr.typed);
     match *top_expr.content {
         tr::ExprInner::Bloc(bloc) => llr::Expr {
             content: Box::new(llr::ExprInner::Bloc(rewrite_bloc(bloc, names_info))),
@@ -224,13 +225,27 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         },
 
         tr::ExprInner::FunCall(id, args) => {
-            let args2 = args
+            println!("call of {id:?} returns {:?}", top_expr.typed);
+            let args: Vec<llr::Expr> = args
                 .into_iter()
                 .map(|e| rewrite_expr(e, names_info))
                 .collect();
+            let args2_bis = if id.get_content() == "std::vec::Vec::new" && args.is_empty() {
+                let size = match &top_expr.typed.content {
+                    tr::PostTypeInner::Struct(name, arg1) if name == "Vec" && arg1.len() == 1 => {
+                        names_info.compute_size(&arg1[0])
+                    }
+                    _ => panic!("ICE"),
+                };
+                vec![llr::Expr::new_usize(size as u64)]
+            } else if id.get_content() == "std::vec::Vec::push" && args.len() == 2 {
+                args.into_iter().rev().collect()
+            } else {
+                args
+            };
             let expr_inner = match names_info.get_var(id.get_content()) {
-                Some(id) => llr::ExprInner::FunCallVar(id, args2),
-                None => llr::ExprInner::FunCall(id.content(), args2),
+                Some(id) => llr::ExprInner::FunCallVar(id, args2_bis),
+                None => llr::ExprInner::FunCall(id.content(), args2_bis),
             };
             llr::Expr {
                 content: Box::new(expr_inner),
@@ -263,6 +278,19 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             let label = names_info.insert_string(str);
             llr::Expr {
                 content: Box::new(llr::ExprInner::Print(label)),
+                loc: top_expr.loc,
+                typed: top_expr.typed,
+                size: 0,
+            }
+        }
+
+        tr::ExprInner::PrintPtr(expr) => {
+            println!("print_ptr => {:?}", expr);
+            llr::Expr {
+                content: Box::new(llr::ExprInner::FunCall(
+                    "print_ptr".to_string(),
+                    vec![rewrite_expr(expr, names_info)],
+                )),
                 loc: top_expr.loc,
                 typed: top_expr.typed,
                 size: 0,
@@ -305,7 +333,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         },
         tr::ExprInner::Set(expr1, expr2) => llr::Expr {
             content: Box::new(llr::ExprInner::Set(
-                names_info.compute_size(&expr1.typed),
+                names_info.compute_size(&expr2.typed),
                 rewrite_expr(expr1, names_info),
                 rewrite_expr(expr2, names_info),
             )),
@@ -361,6 +389,13 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             size: names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
+
+        tr::ExprInner::UnaOp(op, expr) => llr::Expr {
+            content: Box::new(llr::ExprInner::UnaOp(op, rewrite_expr(expr, names_info))),
+            loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
+            typed: top_expr.typed,
+        },
     }
 }
 
@@ -405,11 +440,16 @@ fn rewrite_decl_fun(decl_fun: tr::DeclFun, names_info: &mut DataStruct) -> llr::
     let args = decl_fun
         .args
         .into_iter()
-        .map(|(name, _b, typ)| (names_info.insert(name.content()), typ))
+        .map(|(name, _b, typ)| {
+            (
+                names_info.insert(name.content()),
+                names_info.compute_size(&typ),
+            )
+        })
         .collect();
     llr::DeclFun {
         name: decl_fun.name,
-        output: decl_fun.output,
+        output: names_info.compute_size(&decl_fun.output),
         content: rewrite_bloc(decl_fun.content, names_info),
         args,
     }

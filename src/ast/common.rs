@@ -164,6 +164,7 @@ impl Location {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Sizes {
+    S8,
     S32,
     S64,
     SUsize,
@@ -172,6 +173,7 @@ pub enum Sizes {
 impl Sizes {
     pub fn to_byte_size(&self) -> usize {
         match self {
+            Self::S8 => 1,
             Self::S32 => 4,
             Self::S64 => 8,
             Self::SUsize => {
@@ -195,6 +197,13 @@ impl BuiltinType {
 
     pub fn is_bool(&self) -> bool {
         matches!(self, Self::Bool)
+    }
+
+    pub fn to_byte_size(&self) -> usize {
+        match self {
+            BuiltinType::Bool => 1,
+            BuiltinType::Int(_, size) => size.to_byte_size(),
+        }
     }
 }
 
@@ -355,9 +364,9 @@ impl ErrorReporter {
 
 #[derive(Debug, PartialEq, Eq, Hash)]
 pub enum TypedBinop {
-    Add(bool, Sizes),
+    Add(Sizes),
     Mul(bool, Sizes),
-    Sub(bool, Sizes),
+    Sub(Sizes),
     Div(bool, Sizes),
     Mod(bool, Sizes),
     And(Sizes),
@@ -368,4 +377,10 @@ pub enum TypedBinop {
     LowerEq(bool, Sizes),
     Greater(bool, Sizes),
     GreaterEq(bool, Sizes),
+}
+
+#[derive(Debug, PartialEq, Eq, Hash)]
+pub enum TypedUnaop {
+    Not(Sizes),
+    Neg(Sizes),
 }

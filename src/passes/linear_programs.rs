@@ -12,13 +12,14 @@ fn is_ref(
 //        | ExprInner::Constructor(_, _)
         | ExprInner::Tuple(_)
         | ExprInner::Print(_)
+        | ExprInner::PrintPtr(_)
 //        | ExprInner::Vec(_)
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _)
         | ExprInner::If(_, _, _)
-        | ExprInner::Int(_)
         | ExprInner::BinOp(_, _, _)
+        | ExprInner::UnaOp(_, _)
         | ExprInner::Ref(_, _) => {
             top_expr = rewrite_expr(top_expr, context, counter);
             let name = counter.new_name();
@@ -43,6 +44,7 @@ fn is_ref(
             )),
             ..top_expr
         },
+        ExprInner::Int(_) => top_expr,
         ExprInner::Bool(_) => top_expr,
         ExprInner::Deref(_) => top_expr,
         ExprInner::String(_) => top_expr,
@@ -84,6 +86,16 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             content: Box::new(ExprInner::Print(str)),
             ..top_expr
         },
+
+        ExprInner::PrintPtr(expr) => {
+            println!("print_ptr -> {:?}", expr);
+            let expr = is_ref(false, expr, context, counter);
+            println!("          -> {:?}", expr);
+            Expr {
+                content: Box::new(ExprInner::PrintPtr(expr)),
+                ..top_expr
+            }
+        }
 
         ExprInner::Ref(mutable, expr) => Expr {
             content: Box::new(ExprInner::Ref(
@@ -161,6 +173,14 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             )),
             ..top_expr
         },
+
+        ExprInner::UnaOp(unaop, expr) => Expr {
+            content: Box::new(ExprInner::UnaOp(
+                unaop,
+                is_ref(false, expr, context, counter),
+            )),
+            ..top_expr
+        },
     }
 }
 
@@ -178,7 +198,7 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
                 vec_out.push(Instr::Return(Some(expr)))
             }
             Instr::While(expr, bloc) => {
-                let expr = rewrite_expr(expr, &mut vec_out, counter);
+                //                let expr = rewrite_expr(expr, &mut vec_out, counter);
                 let bloc = rewrite_bloc(bloc, counter);
                 vec_out.push(Instr::While(expr, bloc));
             }
