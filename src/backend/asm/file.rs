@@ -21,7 +21,7 @@ impl File {
 
     #[cfg(target_os = "linux")]
     fn write_globl_main(file : &mut fs::File) -> std::io::Result<()> {
-        file.write_all(b"\t.globl\t_main\n")
+        file.write_all(b"\t.globl\tmain\n")
     }
 
 
