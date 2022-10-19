@@ -5,11 +5,12 @@ use std::io::prelude::*;
 
 pub struct File {
     code_ss: Asm,
-    data_ss: HashMap<String, String>,
+    data_ss: super::data::Data,
 }
 
 impl File {
-    pub fn new(code_ss: Asm, data_ss: HashMap<String, String>) -> Self {
+    pub fn new(code_ss: Asm, strings: HashMap<String, String>) -> Self {
+        let data_ss = super::data::Data::from_strings(strings);
         Self { code_ss, data_ss }
     }
 
@@ -20,16 +21,8 @@ impl File {
         self.code_ss.write_in(&mut file)?;
         file.write_all(b"\t.data\n")?;
 
-        for (str1, str2) in self.data_ss {
-            file.write_all(b"_")?;
-            file.write_all(str2.as_bytes())?;
-            file.write_all(b":\n\t.string \"")?;
-            file.write_all(str1.as_bytes())?;
-            file.write_all(b"\"\n")?;
-        }
+        self.data_ss.write_in(&mut file)?;
 
-        file.write_all(b"_my_string:\n\t.string \"%zd\\n\"\n")?;
-
-        Ok(())
+        file.write_all(b"_my_string:\n\t.string \"%zd\\n\"\n")
     }
 }

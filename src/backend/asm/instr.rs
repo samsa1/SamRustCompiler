@@ -1,4 +1,4 @@
-use super::reg::{Label, Operand, Reg, RegQ};
+use super::reg::{Label, Operand, Reg, RegB, RegQ};
 use std::io::prelude::*;
 
 pub trait Instr {
@@ -235,6 +235,7 @@ pub enum Goto {
     CallStar(Operand<RegQ>),
     CondJump(Cond, Label),
     Jump(Label),
+    Set(Cond, Operand<RegB>)
 }
 
 impl Instr for Goto {
@@ -258,6 +259,12 @@ impl Instr for Goto {
             Self::Jump(label) => {
                 file.write_all(b"jmp ")?;
                 label.write_in(file)?
+            }
+            Self::Set(cond, op) => {
+                file.write_all(b"set")?;
+                file.write_all(cond.to_str().as_bytes())?;
+                file.write_all(b" ")?;
+                op.write_in(file)?
             }
         }
         file.write_all(b"\n")

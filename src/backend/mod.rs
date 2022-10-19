@@ -182,11 +182,11 @@ fn compile_expr_val(
                 TypedUnaop::Neg(Sizes::S32) => negl(regl!(Eax)),
                 TypedUnaop::Neg(Sizes::S64) => negq(regq!(Rax)),
                 TypedUnaop::Neg(Sizes::SUsize) => negq(regq!(Rax)),
-                TypedUnaop::Not(Sizes::S8) => notb(regb!(Ah)),
-                TypedUnaop::Not(Sizes::S16) => notw(regw!(Ax)),
-                TypedUnaop::Not(Sizes::S32) => notl(regl!(Eax)),
-                TypedUnaop::Not(Sizes::S64) => notq(regq!(Rax)),
-                TypedUnaop::Not(Sizes::SUsize) => notq(regq!(Rax)),
+                TypedUnaop::Not(Sizes::S8) => xorb(immb(1), regb!(Ah)),
+                TypedUnaop::Not(Sizes::S16) => xorw(immw(1), regw!(Ax)),
+                TypedUnaop::Not(Sizes::S32) => xorl(imml(1), regl!(Eax)),
+                TypedUnaop::Not(Sizes::S64) => xorq(immq(1), regq!(Rax)),
+                TypedUnaop::Not(Sizes::SUsize) => xorq(immq(1), regq!(Rax)),
             };
             (Location::Rax, expr + op)
         }
@@ -353,11 +353,8 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S8)
                 | TypedBinop::Greater(_, Sizes::S8)
                 | TypedBinop::GreaterEq(_, Sizes::S8) => {
-                    xorq(regq!(Rdx), regq!(Rdx))
-                        + movq(immq(-1), regq!(Rdi))
-                        + cmpb(regb!(Ch), regb!(Ah))
-                        + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
-                        + movb(regb!(Dh), regb!(Ah))
+                    cmpb(regb!(Ch), regb!(Ah))
+                        + set(get_cond(op).unwrap(), regb!(Ah))
                 }
                 TypedBinop::Eq(Sizes::S16)
                 | TypedBinop::Neq(Sizes::S16)
@@ -365,11 +362,8 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S16)
                 | TypedBinop::Greater(_, Sizes::S16)
                 | TypedBinop::GreaterEq(_, Sizes::S16) => {
-                    xorq(regq!(Rdx), regq!(Rdx))
-                        + movq(immq(-1), regq!(Rdi))
-                        + cmpw(regw!(Cx), regw!(Ax))
-                        + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
-                        + movb(regb!(Dh), regb!(Ah))
+                    cmpw(regw!(Cx), regw!(Ax))
+                        + set(get_cond(op).unwrap(), regb!(Ah))
                 }
                 
                 TypedBinop::Eq(Sizes::S32)
@@ -378,11 +372,8 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S32)
                 | TypedBinop::Greater(_, Sizes::S32)
                 | TypedBinop::GreaterEq(_, Sizes::S32) => {
-                    xorq(regq!(Rdx), regq!(Rdx))
-                        + movq(immq(-1), regq!(Rdi))
-                        + cmpl(regl!(Ecx), regl!(Eax))
-                        + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
-                        + movb(regb!(Dh), regb!(Ah))
+                    cmpl(regl!(Ecx), regl!(Eax))
+                        + set(get_cond(op).unwrap(), regb!(Ah))
                 }
 
                 TypedBinop::Eq(Sizes::S64)
@@ -391,11 +382,8 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S64)
                 | TypedBinop::Greater(_, Sizes::S64)
                 | TypedBinop::GreaterEq(_, Sizes::S64) => {
-                    xorq(regq!(Rdx), regq!(Rdx))
-                        + movq(immq(-1), regq!(Rdi))
-                        + cmpq(regq!(Rcx), regq!(Rax))
-                        + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
-                        + movb(regb!(Dh), regb!(Ah))
+                    cmpq(regq!(Rcx), regq!(Rax))
+                        + set(get_cond(op).unwrap(), regb!(Ah))
                 }
 
                 TypedBinop::Eq(Sizes::SUsize)
@@ -404,11 +392,8 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::SUsize)
                 | TypedBinop::Greater(_, Sizes::SUsize)
                 | TypedBinop::GreaterEq(_, Sizes::SUsize) => {
-                    xorq(regq!(Rdx), regq!(Rdx))
-                        + movq(immq(-1), regq!(Rdi))
-                        + cmpq(regq!(Rcx), regq!(Rax))
-                        + cmovq(get_cond(op).unwrap(), regq!(Rdi), regq!(Rdx))
-                        + movb(regb!(Dh), regb!(Ah))
+                    cmpq(regq!(Rcx), regq!(Rax))
+                        + set(get_cond(op).unwrap(), regb!(Ah))
                 }
 
                 op => {
@@ -424,7 +409,7 @@ fn compile_expr_val(
             if b {
                 (
                     Location::Rax,
-                    movb(immb(-1), reg::Operand::Reg(reg::RegB::Ah)),
+                    movb(immb(1), reg::Operand::Reg(reg::RegB::Ah)),
                 )
             } else {
                 (
