@@ -22,3 +22,5 @@ jobs:
       run: ./test -1d target/debug/sam_rust_compiler
     - name: Check typing
       run: ./test -2d target/debug/sam_rust_compiler
+    - name: Check execution
+      run: ./test -3d target/debug/sam_rust_compiler
