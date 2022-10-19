@@ -183,13 +183,15 @@ fn make_coherent(
                 (Some(b1), Some(b2)) if b1 == b2 => Some(*b1),
                 (Some(true), Some(false)) => return Err(vec![TypeError::expected_unsigned(loc)]),
                 (Some(false), Some(true)) => return Err(vec![TypeError::expected_signed(loc)]),
-                _ => panic!("Cannot happen")
+                _ => panic!("Cannot happen"),
             };
             let s = match (s1, s2) {
                 (None, None) => None,
                 (Some(s), None) | (None, Some(s)) => Some(*s),
                 (Some(s1), Some(s2)) if s1 == s2 => Some(*s1),
-                (Some(s1), Some(s2)) => return Err(vec![TypeError::incompatible_sizes(*s1, *s2, loc)]),
+                (Some(s1), Some(s2)) => {
+                    return Err(vec![TypeError::incompatible_sizes(*s1, *s2, loc)])
+                }
             };
             types.set(type_id2, Types::SameAs(type_id1));
             types.set(type_id1, Types::Int(b, s));
@@ -578,14 +580,14 @@ fn type_expr(
                     UnificationMethod::NoRef,
                 )?;
                 let type_id = expr1.typed;
-                let type_id2 = types.insert_type(Types::Int(None, None));
+                /*                let type_id2 = types.insert_type(Types::Int(None, None));
                 make_coherent(
                     types,
                     type_id,
                     type_id2,
                     top_expr.loc,
                     UnificationMethod::NoRef,
-                )?;
+                )?;*/
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
                 Ok((
                     false,
@@ -786,7 +788,13 @@ fn type_expr(
             let (affectable, expr_val) = type_expr(ctxt, local_ctxt, expr_val, types, out_type)?;
             let expr_index = type_expr(ctxt, local_ctxt, expr_index, types, out_type)?.1;
             let type_id = types.insert_usize();
-            make_coherent(types, expr_index.typed, type_id, expr_index.loc, UnificationMethod::NoRef)?;
+            make_coherent(
+                types,
+                expr_index.typed,
+                type_id,
+                expr_index.loc,
+                UnificationMethod::NoRef,
+            )?;
             if let Some((affectable, name, args)) =
                 get_struct_name(types, expr_val.typed, expr_val.loc, affectable)?
             {

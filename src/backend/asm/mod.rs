@@ -1,7 +1,7 @@
+pub mod data;
 pub mod file;
 pub mod instr;
 pub mod reg;
-pub mod data;
 
 use std::io::prelude::*;
 use std::ops::Add;
@@ -167,10 +167,9 @@ pub fn cqto() -> Asm {
     Asm::Instr(Box::new(instr::InstrNoArg::Cqto))
 }
 
-pub fn set(cond : instr::Cond, reg : reg::Operand<reg::RegB>) -> Asm {
+pub fn set(cond: instr::Cond, reg: reg::Operand<reg::RegB>) -> Asm {
     Asm::Instr(Box::new(instr::Goto::Set(cond, reg)))
 }
-
 
 pub fn jmp(label: reg::Label) -> Asm {
     Asm::Instr(Box::new(instr::Goto::Jump(label)))
@@ -216,32 +215,30 @@ pub fn cmovq(
     Asm::Instr(Box::new(instr::CondMove::new(cond, reg1, reg2)))
 }
 
-pub fn dbyte(name : String, i : i8) -> data::Data {
+pub fn dbyte(name: String, i: i8) -> data::Data {
     data::Data::new(Some(name), data::DataEL::Byte(vec![i]))
 }
-pub fn dword(name : String, i : i16) -> data::Data {
+pub fn dword(name: String, i: i16) -> data::Data {
     data::Data::new(Some(name), data::DataEL::Word(vec![i]))
 }
-pub fn dlong(name : String, i : i32) -> data::Data {
+pub fn dlong(name: String, i: i32) -> data::Data {
     data::Data::new(Some(name), data::DataEL::Long(vec![i]))
 }
-pub fn dquad(name : String, i : i64) -> data::Data {
+pub fn dquad(name: String, i: i64) -> data::Data {
     data::Data::new(Some(name), data::DataEL::Quad(vec![i]))
 }
 
-pub fn string(name : String, data : String) -> data::Data {
+pub fn string(name: String, data: String) -> data::Data {
     data::Data::new(Some(name), data::DataEL::String(data))
 }
 
-pub fn address(name : String, addr : reg::Label) -> data::Data {
+pub fn address(name: String, addr: reg::Label) -> data::Data {
     data::Data::new(Some(name), data::DataEL::Address(vec![addr]))
 }
 
-pub fn space(i : usize) -> data::Data {
+pub fn space(i: usize) -> data::Data {
     data::Data::new(None, data::DataEL::Space(i))
 }
-
-
 
 pub fn nop() -> Asm {
     Asm::Concat(Vec::new())

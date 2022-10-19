@@ -62,7 +62,7 @@ impl Expr {
     pub fn get_var(&self) -> Option<usize> {
         match &*self.content {
             ExprInner::VarId(id) => Some(*id),
-            _ => None
+            _ => None,
         }
     }
 

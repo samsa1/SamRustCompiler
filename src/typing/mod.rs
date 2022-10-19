@@ -100,14 +100,22 @@ fn type_funs(
         //        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
 
-        let content = expr::type_bloc(
+        let content = match expr::type_bloc(
             content,
             known_types,
             &mut local_ctxt,
             &output,
             Some(&output),
             &types,
-        );
+        ) {
+            Ok(out) => out,
+            Err(errs) => {
+                for err in errs.into_iter() {
+                    err.report_error(err_reporter);
+                }
+                std::process::exit(1);
+            }
+        };
         if !fun_names.insert(fun_decl.name.get_content().to_string()) {
             println!(
                 "Function {} is declared multiple times",
@@ -115,6 +123,7 @@ fn type_funs(
             );
             std::process::exit(1)
         }
+
         fun_vec.push(typed_rust::DeclFun {
             name: fun_decl.name,
             args: in_types,

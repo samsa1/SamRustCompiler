@@ -160,7 +160,8 @@ impl GlobalContext {
     }
 
     pub fn has_trait(&self, name: &PostType, t: &Trait) -> Option<&str> {
-        for traits in self.implemented_traits.get(name).unwrap().iter() {
+        //        println!("{:?} {:?}", name, t);
+        for traits in self.implemented_traits.get(name)?.iter() {
             //            println!("{:?} -> {:?} <=> {:?}", name, traits, t);
             let out = traits.implements(t);
             if out.is_some() {

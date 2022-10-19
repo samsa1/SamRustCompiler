@@ -1,6 +1,7 @@
+use super::context::Trait;
 use crate::ast::common::{ErrorReporter, Ident, Location, Sizes};
 use crate::ast::rust::Types;
-use crate::ast::typed_rust::PostTypeInner;
+use crate::ast::typed_rust::{PostType, PostTypeInner};
 
 #[derive(Debug)]
 enum TypeErrorInfo {
@@ -21,6 +22,7 @@ enum TypeErrorInfo {
     ExpectedSigned,
     ExpectedUnsigned,
     IncompatibleSizes(Sizes, Sizes),
+    DoesNotImpTrait(PostType, Trait),
 }
 
 #[derive(Debug)]
@@ -133,24 +135,31 @@ impl TypeError {
         }
     }
 
-    pub fn incompatible_sizes(s1 : Sizes, s2 : Sizes, loc : Location) -> Self {
+    pub fn incompatible_sizes(s1: Sizes, s2: Sizes, loc: Location) -> Self {
         Self {
             loc,
-            info : TypeErrorInfo::IncompatibleSizes(s1, s2),
+            info: TypeErrorInfo::IncompatibleSizes(s1, s2),
         }
     }
 
-    pub fn expected_unsigned(loc : Location) -> Self {
+    pub fn expected_unsigned(loc: Location) -> Self {
         Self {
             loc,
-            info : TypeErrorInfo::ExpectedUnsigned,
+            info: TypeErrorInfo::ExpectedUnsigned,
         }
     }
 
-    pub fn expected_signed(loc : Location) -> Self {
+    pub fn expected_signed(loc: Location) -> Self {
         Self {
             loc,
-            info : TypeErrorInfo::ExpectedSigned,
+            info: TypeErrorInfo::ExpectedSigned,
+        }
+    }
+
+    pub fn does_not_impl_trait(loc: Location, typ: &PostType, trait_name: Trait) -> Self {
+        Self {
+            loc,
+            info: TypeErrorInfo::DoesNotImpTrait(typ.clone(), trait_name),
         }
     }
 

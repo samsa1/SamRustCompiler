@@ -235,7 +235,7 @@ pub enum Goto {
     CallStar(Operand<RegQ>),
     CondJump(Cond, Label),
     Jump(Label),
-    Set(Cond, Operand<RegB>)
+    Set(Cond, Operand<RegB>),
 }
 
 impl Instr for Goto {
