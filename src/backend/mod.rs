@@ -19,10 +19,7 @@ fn mov_struct(
     reg_out: reg::RegQ,
     offset_out: i64,
     mut size: u64,
-    free_regq: reg::RegQ,
-    free_regl: reg::RegL,
-    free_regw: reg::RegW,
-    free_regb: reg::RegB,
+    free_reg: (reg::RegQ, reg::RegL, reg::RegW, reg::RegB),
 ) -> Text {
     let mut offset = 0;
     let mut asm = Text::Concat(Vec::new());
@@ -30,9 +27,9 @@ fn mov_struct(
         asm =
             asm + movq(
                 addr!(offset_in + offset, reg_in),
-                reg::Operand::Reg(free_regq),
+                reg::Operand::Reg(free_reg.0),
             ) + movq(
-                reg::Operand::Reg(free_regq),
+                reg::Operand::Reg(free_reg.0),
                 addr!(offset_out + offset, reg_out),
             );
         size -= 8;
@@ -41,24 +38,24 @@ fn mov_struct(
 
     while size >= 4 {
         asm = asm
-            + movl(addr!(offset_in + offset, reg_in), reg!(free_regl))
-            + movl(reg!(free_regl), addr!(offset_out + offset, reg_out));
+            + movl(addr!(offset_in + offset, reg_in), reg!(free_reg.1))
+            + movl(reg!(free_reg.1), addr!(offset_out + offset, reg_out));
         size -= 4;
         offset += 4;
     }
 
     while size >= 2 {
         asm = asm
-            + movw(addr!(offset_in + offset, reg_in), reg!(free_regw))
-            + movw(reg!(free_regw), addr!(offset_out + offset, reg_out));
+            + movw(addr!(offset_in + offset, reg_in), reg!(free_reg.2))
+            + movw(reg!(free_reg.2), addr!(offset_out + offset, reg_out));
         size -= 2;
         offset += 2;
     }
 
     while size >= 1 {
         asm = asm
-            + movb(addr!(offset_in + offset, reg_in), reg!(free_regb))
-            + movb(reg!(free_regb), addr!(offset_out + offset, reg_out));
+            + movb(addr!(offset_in + offset, reg_in), reg!(free_reg.3))
+            + movb(reg!(free_reg.3), addr!(offset_out + offset, reg_out));
         size -= 1;
         offset += 1;
     }
@@ -443,10 +440,7 @@ fn compile_expr_val(
                                 RBP,
                                 -(stack_offset as i64 + struct_size as i64) + offset as i64,
                                 size as u64,
-                                RAX,
-                                EAX,
-                                AX,
-                                AH,
+                                (RAX, EAX, AX, AH),
                             ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                         }
                     }
@@ -466,7 +460,7 @@ fn compile_expr_val(
             (
                 Location::StackWithPadding(0),
                 expr + subq(immq(size as i64), reg!(RSP))
-                    + mov_struct(RAX, 0, RSP, 0, size as u64, RCX, ECX, CX, CH),
+                    + mov_struct(RAX, 0, RSP, 0, size as u64, (RCX, ECX, CX, CH)),
             )
         }
         llr::ExprInner::FunCall(name, args) => {
@@ -506,10 +500,7 @@ fn compile_expr_val(
                             RBP,
                             -(current_offset as i64),
                             size as u64,
-                            RAX,
-                            EAX,
-                            AX,
-                            AH,
+                            (RAX, EAX, AX, AH),
                         ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                     }
                 };
@@ -588,10 +579,7 @@ fn compile_expr_val(
                                 RSP,
                                 0,
                                 size as u64,
-                                RAX,
-                                EAX,
-                                AX,
-                                AH,
+                                (RAX, EAX, AX, AH),
                             )
                     };
                     let bloc2 = {
@@ -603,10 +591,7 @@ fn compile_expr_val(
                                 RSP,
                                 0,
                                 size as u64,
-                                RAX,
-                                EAX,
-                                AX,
-                                AH,
+                                (RAX, EAX, AX, AH),
                             )
                     };
 
@@ -678,7 +663,7 @@ fn compile_expr_val(
                     Location::StackWithPadding(0),
                     sub_expr
                         + subq(immq(size as i64), reg::Operand::Reg(RSP))
-                        + mov_struct(RAX, offset as i64, RSP, 0, size as u64, RCX, ECX, CX, CH),
+                        + mov_struct(RAX, offset as i64, RSP, 0, size as u64, (RCX, ECX, CX, CH)),
                 ),
             }
         }
@@ -702,8 +687,14 @@ fn compile_expr_val(
                     _ => panic!("ICE"),
                 },
                 Location::StackWithPadding(pad) => {
-                    expr + mov_struct(RSP, 0, RBP, offset_from_rbp, size as u64, RAX, EAX, AX, AH)
-                        + addq(immq(pad as i64 + size as i64), reg!(RSP))
+                    expr + mov_struct(
+                        RSP,
+                        0,
+                        RBP,
+                        offset_from_rbp,
+                        size as u64,
+                        (RAX, EAX, AX, AH),
+                    ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                 }
             };
             (Location::Rax, asm)
@@ -738,7 +729,7 @@ fn compile_expr_val(
                     Location::Never => nop(),
                     Location::StackWithPadding(pad) => {
                         movq(addr!(-(stack_offset as i64 + 8), RBP), reg!(RCX))
-                            + mov_struct(RSP, 0, RCX, 0, size as u64, RAX, EAX, AX, AH)
+                            + mov_struct(RSP, 0, RCX, 0, size as u64, (RAX, EAX, AX, AH))
                             + addq(immq(pad as i64 + size as i64 + 8), reg!(RSP))
                     }
                 };
@@ -775,10 +766,7 @@ fn compile_expr_val(
                                 RSP,
                                 size as i64 + pad as i64,
                                 size as u64,
-                                RAX,
-                                EAX,
-                                AX,
-                                AH,
+                                (RAX, EAX, AX, AH),
                             ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                         }
                     };
@@ -814,7 +802,14 @@ fn compile_expr_val(
                 (
                     Location::StackWithPadding(0),
                     subq(immq(size as i64), reg!(RSP))
-                        + mov_struct(RBP, offset_from_rbp, RSP, 0, size as u64, RAX, EAX, AX, AH),
+                        + mov_struct(
+                            RBP,
+                            offset_from_rbp,
+                            RSP,
+                            0,
+                            size as u64,
+                            (RAX, EAX, AX, AH),
+                        ),
                 )
             }
         }
@@ -830,11 +825,8 @@ fn compile_bloc(
     let initial_stack_offset = stack_offset;
     ctxt.add_layer();
     for instr in &bloc.content {
-        match instr {
-            llr::Instr::Binding(id, expr) => {
-                stack_offset = ctxt.insert(*id, expr.size, stack_offset)
-            }
-            _ => (),
+        if let llr::Instr::Binding(id, expr) = instr {
+            stack_offset = ctxt.insert(*id, expr.size, stack_offset)
         }
     }
     while stack_offset % 16 != 0 {
@@ -870,7 +862,7 @@ fn compile_bloc(
             }
             llr::Instr::While(expr, bloc) => {
                 let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
-                assert_eq!(matches!(loc, Location::StackWithPadding(_)), false);
+                assert!(!matches!(loc, Location::StackWithPadding(_)));
                 let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset, is_main);
                 let bloc = match loc2 {
                     Location::StackWithPadding(_) => todo!(),
@@ -921,10 +913,7 @@ fn compile_bloc(
                             RBP,
                             ctxt.get_return_offset(),
                             size,
-                            RAX,
-                            EAX,
-                            AX,
-                            AH,
+                            (RAX, EAX, AX, AH),
                         ),
                     }
                     + movq(reg!(RBP), reg!(RSP))
@@ -1100,10 +1089,7 @@ fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
                         RBP,
                         ctxt.get_return_offset(),
                         size as u64,
-                        RAX,
-                        EAX,
-                        AX,
-                        AH,
+                        (RAX, EAX, AX, AH),
                     )
             }
             Location::Rax => {

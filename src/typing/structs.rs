@@ -66,7 +66,7 @@ fn test_is_not(parent: &str, typ: &rust::PreType) {
         rust::PreTypeInner::Ident(_) => (),
 
         rust::PreTypeInner::Tuple(vec) | rust::PreTypeInner::IdentParametrized(_, vec) => {
-            for typ in vec.into_iter() {
+            for typ in vec {
                 test_is_not(parent, typ)
             }
         }

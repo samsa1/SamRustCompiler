@@ -270,13 +270,11 @@ fn make_coherent(
                 } //                _ => todo!(),
             }
         }
-        (Types::Ref(_, _), _) | (_, Types::Ref(_, _)) => {
-            return Err(vec![TypeError::not_compatible(
-                loc,
-                typ1.clone(),
-                typ2.clone(),
-            )])
-        }
+        (Types::Ref(_, _), _) | (_, Types::Ref(_, _)) => Err(vec![TypeError::not_compatible(
+            loc,
+            typ1.clone(),
+            typ2.clone(),
+        )]),
 
         (Types::Struct(name1, vec1), Types::Struct(name2, vec2)) if vec1.len() == vec2.len() => {
             if name1 == name2 {

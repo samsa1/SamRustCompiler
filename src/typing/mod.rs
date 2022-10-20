@@ -165,11 +165,14 @@ pub fn handle_implemantations(
             let args = match decl_fun.self_arg {
                 None => decl_fun.args,
                 Some(b) => {
-                    if let Some(_) = global_ctxt.impl_method(
-                        impl_decl.name.get_content(),
-                        decl_fun.name.content(),
-                        name.get_content().to_string(),
-                    ) {
+                    if global_ctxt
+                        .impl_method(
+                            impl_decl.name.get_content(),
+                            decl_fun.name.content(),
+                            name.get_content().to_string(),
+                        )
+                        .is_some()
+                    {
                         todo!()
                     }
                     let typ = rust::PreType {

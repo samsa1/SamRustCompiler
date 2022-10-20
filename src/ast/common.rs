@@ -312,6 +312,12 @@ impl IdCounter {
     }
 }
 
+impl Default for IdCounter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum ComputedValue {
     Drop,

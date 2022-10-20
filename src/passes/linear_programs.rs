@@ -204,7 +204,7 @@ fn rewrite_fun(mut fun_decl: DeclFun) -> DeclFun {
 
 pub fn rewrite_file(file: File) -> File {
     File {
-        funs: file.funs.into_iter().map(|fun| rewrite_fun(fun)).collect(),
+        funs: file.funs.into_iter().map(rewrite_fun).collect(),
         ..file
     }
 }

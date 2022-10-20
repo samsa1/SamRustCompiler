@@ -231,11 +231,7 @@ pub fn rewrite_decl(decl: Decl) -> Decl {
         Decl::Struct(_) => decl,
         Decl::Fun(decl_fun) => Decl::Fun(rewrite_fun(decl_fun)),
         Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
-            content: decl_impl
-                .content
-                .into_iter()
-                .map(|f| rewrite_fun(f))
-                .collect(),
+            content: decl_impl.content.into_iter().map(rewrite_fun).collect(),
             ..decl_impl
         }),
     }
@@ -243,11 +239,7 @@ pub fn rewrite_decl(decl: Decl) -> Decl {
 
 pub fn rewrite_file(file: File) -> File {
     File {
-        content: file
-            .content
-            .into_iter()
-            .map(|decl| rewrite_decl(decl))
-            .collect(),
+        content: file.content.into_iter().map(rewrite_decl).collect(),
         ..file
     }
 }

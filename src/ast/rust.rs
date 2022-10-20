@@ -116,6 +116,12 @@ pub struct TypeStorage {
     map: HashMap<usize, Types>,
 }
 
+impl Default for TypeStorage {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TypeStorage {
     pub fn new() -> Self {
         Self {
