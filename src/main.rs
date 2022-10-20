@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 pub mod ast;
 mod backend;
 mod frontend;

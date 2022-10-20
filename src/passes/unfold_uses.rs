@@ -1,3 +1,6 @@
+#![allow(dead_code)]
+#![allow(unused)]
+
 use crate::ast::common::*;
 use crate::ast::rust::*;
 use std::collections::HashMap;

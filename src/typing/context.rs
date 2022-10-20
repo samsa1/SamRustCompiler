@@ -44,8 +44,6 @@ impl Trait {
 #[derive(Clone, Debug)]
 pub struct StructInfo {
     hashmap: HashMap<String, (bool, PostType)>,
-    traits: HashSet<TraitInner>,
-    methods: HashMap<String, String>,
 }
 
 impl StructInfo {
@@ -73,23 +71,11 @@ impl StructInfo {
         for (name, typ) in args.into_iter() {
             hashmap.insert(name, (false, typ));
         }
-        Self {
-            hashmap,
-            traits: HashSet::new(),
-            methods: HashMap::new(),
-        }
+        Self { hashmap }
     }
 
     pub fn get_field_typ(&self, name: &str) -> Option<&PostType> {
         self.hashmap.get(name).map(|x| &x.1)
-    }
-
-    pub fn impl_trait(&mut self, t: Trait, fun: String) -> bool {
-        self.traits.insert(TraitInner { content: t, fun })
-    }
-
-    pub fn impl_method(&mut self, method_name: String, fun_name: String) {
-        self.methods.insert(method_name, fun_name);
     }
 }
 
@@ -251,9 +237,5 @@ impl LocalContext {
         } else {
             panic!("should never happend")
         }
-    }
-
-    pub fn mark_as_moved(&mut self, _var_name: &Ident) {
-        todo!()
     }
 }

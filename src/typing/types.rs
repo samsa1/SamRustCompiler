@@ -1,5 +1,4 @@
 use super::context::GlobalContext;
-use crate::ast::common::{BuiltinType, Sizes};
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use std::collections::HashMap;
@@ -172,17 +171,6 @@ pub fn is_type_int(typ: &Option<PostType>) -> bool {
         matches!(&typ.content, PostTypeInner::BuiltIn(_))
     } else {
         false
-    }
-}
-
-pub fn can_be_deref(typ: &PostType) -> bool {
-    matches!(&typ.content, PostTypeInner::BuiltIn(_))
-}
-
-pub fn type_int_name(typ: &PostType) -> Option<&'static str> {
-    match &typ.content {
-        PostTypeInner::BuiltIn(bi) if bi.is_int() => Some(bi.to_str()),
-        _ => None,
     }
 }
 

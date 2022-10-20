@@ -50,9 +50,9 @@ impl Context {
     }
 
     pub fn gen_while_labels(&mut self) -> (Label, Label) {
-        let str1 = format!("rust_while_cond_{}", self.nb_if_labels);
-        let str2 = format!("rust_while_end_{}", self.nb_if_labels);
-        self.nb_if_labels += 1;
+        let str1 = format!("rust_while_cond_{}", self.nb_while_labels);
+        let str2 = format!("rust_while_end_{}", self.nb_while_labels);
+        self.nb_while_labels += 1;
         (Label::from_str(str1), Label::from_str(str2))
     }
 

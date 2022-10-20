@@ -8,7 +8,6 @@ enum TypeErrorInfo {
     ExpectedStruct(Types),
     ExpectedTuple(Types),
     ExpectedTuple2(PostType),
-    Unknown,
     NotCompatible(Types, Types),
     TryUnref(Types),
     UndeclaredVariable(String),
@@ -35,10 +34,6 @@ pub struct TypeError {
 }
 
 impl TypeError {
-    fn new(loc: Location, info: TypeErrorInfo) -> Self {
-        Self { loc, info }
-    }
-
     pub fn expected_struct(typ: Types, loc: Location) -> Self {
         Self {
             loc,
@@ -205,8 +200,8 @@ impl TypeError {
                     self.loc.start() - char_id_fst + 1
                 );
                 print!("{line_str}");
+                println!("Error {:?}", self.info);
             } else {
-                let char_id_lst = err_reporter.get_line_start_char(lst_line_id).unwrap();
                 todo!()
             }
             println!("{:?}", self)

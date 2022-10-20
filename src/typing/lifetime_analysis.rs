@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::context::{GlobalContext, Trait};
 use crate::ast::common::Location;
 use crate::ast::typed_rust::*;

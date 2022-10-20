@@ -1,7 +1,7 @@
 use super::context::GlobalContext;
 use super::errors::TypeError;
 use crate::ast::common::{
-    BinOperator, BuiltinType, ComputedValue, Ident, Location, Projector, Sizes, UnaOperator,
+    BinOperator, BuiltinType, ComputedValue, Ident, Location, Projector, UnaOperator,
 };
 use crate::ast::rust::*;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
@@ -97,10 +97,10 @@ fn get_tuple(
 }
 
 fn check_coherence(
-    types: &mut TypeStorage,
-    type_id: usize,
+    _types: &mut TypeStorage,
+    _type_id: usize,
     type_2: Option<PreType>,
-    loc: Location,
+    _loc: Location,
 ) -> Result<(), Vec<TypeError>> {
     match type_2 {
         None => Ok(()),
@@ -114,20 +114,6 @@ enum UnificationMethod {
     StrictSnd,
     StrictFst,
     NoRef,
-}
-
-fn compute_mut(
-    mut1: bool,
-    mut2: bool,
-    unif_method: UnificationMethod,
-) -> Result<bool, Vec<TypeError>> {
-    match unif_method {
-        UnificationMethod::Smallest => Ok(mut1 && mut2),
-        UnificationMethod::StrictFst if !mut1 || mut2 => Ok(mut1),
-        UnificationMethod::StrictSnd if mut1 || !mut2 => Ok(mut2),
-        UnificationMethod::NoRef => panic!("ICE"),
-        _ => Err(vec![]),
-    }
 }
 
 // result must be "<= min(type_id1, type_id2)"
@@ -746,7 +732,7 @@ fn type_expr(
                 }
                 Some(type_id) => match types.get(type_id).unwrap() {
                     Types::Unknown => todo!(),
-                    Types::Fun(args, type_id) => {
+                    Types::Fun(_args, _type_id) => {
                         todo!()
                     }
                     _ => todo!(),

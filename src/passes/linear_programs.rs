@@ -73,15 +73,6 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
-        /*        ExprInner::Vec(exprs) => Expr {
-            content: Box::new(ExprInner::Vec(
-                exprs
-                    .into_iter()
-                    .map(|e| is_ref(false, e, context, counter))
-                    .collect(),
-            )),
-            ..top_expr
-        },*/
         ExprInner::Print(str) => Expr {
             content: Box::new(ExprInner::Print(str)),
             ..top_expr
@@ -131,16 +122,6 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
 
         ExprInner::Bloc(bloc) => Expr {
             content: Box::new(ExprInner::Bloc(rewrite_bloc(bloc, counter))),
-            ..top_expr
-        },
-
-        ExprInner::Tuple(exprs) => Expr {
-            content: Box::new(ExprInner::Tuple(
-                exprs
-                    .into_iter()
-                    .map(|e| rewrite_expr(e, context, counter))
-                    .collect(),
-            )),
             ..top_expr
         },
 

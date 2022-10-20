@@ -73,35 +73,6 @@ fn get_unaop_fun_name(
     }
 }
 
-fn arith_fun_name(binop: BinOperator) -> Option<&'static str> {
-    match binop {
-        BinOperator::Add => Some("_add"),
-        BinOperator::Div => Some("_div"),
-        BinOperator::Mod => Some("_mod"),
-        BinOperator::Sub => Some("_sub"),
-        BinOperator::Mul => Some("_mul"),
-        _ => None,
-    }
-}
-
-fn arith_cmp_fun(binop: BinOperator) -> Option<&'static str> {
-    match binop {
-        BinOperator::Lower => Some("_lower"),
-        BinOperator::LowerEq => Some("_lower_eq"),
-        BinOperator::Greater => Some("_greater"),
-        BinOperator::GreaterEq => Some("_greater_eq"),
-        _ => None,
-    }
-}
-
-fn bool_fun_name(binop: BinOperator) -> Option<&'static str> {
-    match binop {
-        BinOperator::And => Some("_and"),
-        BinOperator::Or => Some("_or"),
-        _ => None,
-    }
-}
-
 enum IsTypeBinop {
     BuiltIn(TypedBinop),
     Land,
@@ -170,7 +141,7 @@ fn build_type(types: &rust::TypeStorage, type_id: usize) -> Option<typed_rust::P
         rust::Types::Array(_, _) => todo!(),
         rust::Types::Bool => Some(typed_rust::PostType::bool()),
         rust::Types::Deref(_) => None,
-        rust::Types::Ref(None, type_id) => todo!(),
+        rust::Types::Ref(None, _type_id) => todo!(),
         rust::Types::Ref(Some(mutable), type_id) => Some(typed_rust::PostType {
             content: typed_rust::PostTypeInner::Ref(
                 *mutable,
@@ -543,44 +514,8 @@ pub fn type_checker(
             panic!("should not happen")
         }
 
-        rust::ExprInner::Method(expr, name, args) => {
-            let expr = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info)?;
-            if name.get_content() == "len" && args.is_empty() {
-                match &expr.1.typed.content {
-                    typed_rust::PostTypeInner::Struct(id, args)
-                        if id == "Vec" && args.len() == 1 =>
-                    {
-                        (
-                            false,
-                            ctxt.get_typ("i32").unwrap().clone(),
-                            typed_rust::ExprInner::FunCall(
-                                Ident::from_str("vec_len").unwrap(),
-                                vec![expr.1.to_ref(false)],
-                            ),
-                        )
-                    }
-                    typed_rust::PostTypeInner::Ref(mutable, typ) => match &typ.content {
-                        typed_rust::PostTypeInner::Struct(id, args)
-                            if id == "Vec" && args.len() == 1 =>
-                        {
-                            (
-                                false,
-                                ctxt.get_typ("i32").unwrap().clone(),
-                                typed_rust::ExprInner::FunCall(
-                                    Ident::from_str("vec_len").unwrap(),
-                                    vec![expr.1],
-                                ),
-                            )
-                        }
-                        _ => todo!(),
-                    },
-                    _ => {
-                        todo!()
-                    }
-                }
-            } else {
-                todo!()
-            }
+        rust::ExprInner::Method(_expr, _name, _args) => {
+            todo!()
         }
 
         rust::ExprInner::Bloc(bloc) => {

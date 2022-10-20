@@ -2,7 +2,6 @@ use crate::ast::common::{ComputedValue, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;
 use crate::ast::typed_rust::PostType;
 
-#[macro_use]
 use write_x86_64::*;
 
 mod context;
@@ -574,7 +573,45 @@ fn compile_expr_val(
                 {
                     (Location::StackWithPadding(pad1), bloc1, bloc2)
                 }
-                (Location::StackWithPadding(pad1), Location::StackWithPadding(pad2)) => todo!(),
+                (Location::StackWithPadding(pad1), Location::StackWithPadding(pad2)) => {
+                    let pad3 = if pad1 >= pad2 {
+                        pad1 as u64
+                    } else {
+                        pad2 as u64
+                    };
+                    let bloc1 = {
+                        bloc1
+                            + subq(immq(size as i64 + (pad3 - pad1) as i64), reg!(RSP))
+                            + mov_struct(
+                                RSP,
+                                (pad3 - pad1) as i64 + size as i64,
+                                RSP,
+                                0,
+                                size as u64,
+                                RAX,
+                                EAX,
+                                AX,
+                                AH,
+                            )
+                    };
+                    let bloc2 = {
+                        bloc2
+                            + subq(immq(size as i64 + (pad3 - pad2) as i64), reg!(RSP))
+                            + mov_struct(
+                                RSP,
+                                (pad3 - pad2) as i64 + size as i64,
+                                RSP,
+                                0,
+                                size as u64,
+                                RAX,
+                                EAX,
+                                AX,
+                                AH,
+                            )
+                    };
+
+                    (Location::StackWithPadding(pad3 + size as u64), bloc1, bloc2)
+                }
             };
             (
                 loc,
@@ -704,7 +741,6 @@ fn compile_expr_val(
                             + mov_struct(RSP, 0, RCX, 0, size as u64, RAX, EAX, AX, AH)
                             + addq(immq(pad as i64 + size as i64 + 8), reg!(RSP))
                     }
-                    _ => todo!(),
                 };
             (Location::Rax, asm)
         }
@@ -1113,5 +1149,9 @@ pub fn to_asm(file: llr::File) -> file::File {
     let data_ss = data::Data::from_strings(file.strings)
         + data::dstring("my_string".to_string(), "%zd\n".to_string());
 
-    file::File { text_ss, data_ss }
+    file::File {
+        globl: Some(new_label("main")),
+        text_ss,
+        data_ss,
+    }
 }
