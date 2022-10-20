@@ -6,6 +6,7 @@ fn rewrite_decl(decl: Decl, map: &HashMap<String, Path<PreType>>) -> Decl {
     match decl {
         Decl::Fun(fun) => todo!(),
         Decl::Struct(str) => todo!(),
+        Decl::Impl(decl_impl) => todo!(),
     }
 }
 

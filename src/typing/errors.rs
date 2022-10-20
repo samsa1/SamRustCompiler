@@ -23,6 +23,7 @@ enum TypeErrorInfo {
     ExpectedUnsigned,
     IncompatibleSizes(Sizes, Sizes),
     DoesNotImpTrait(PostType, Trait),
+    UndefinedStruct(String),
 }
 
 #[derive(Debug)]
@@ -160,6 +161,13 @@ impl TypeError {
         Self {
             loc,
             info: TypeErrorInfo::DoesNotImpTrait(typ.clone(), trait_name),
+        }
+    }
+
+    pub fn undefined_struct(id: Ident) -> Self {
+        Self {
+            loc: id.get_loc(),
+            info: TypeErrorInfo::UndefinedStruct(id.content()),
         }
     }
 

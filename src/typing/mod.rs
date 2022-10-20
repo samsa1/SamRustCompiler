@@ -1,5 +1,6 @@
 use crate::ast::{common::*, rust, typed_rust};
 use std::collections::HashSet;
+use std::str::FromStr;
 
 pub mod context;
 pub mod errors;
@@ -136,18 +137,82 @@ fn type_funs(
     fun_vec
 }
 
+pub fn handle_implemantations(
+    impls: Vec<rust::DeclImpl>,
+    funs: &mut Vec<rust::DeclFun>,
+    global_ctxt: &mut context::GlobalContext,
+    err_reporter: &ErrorReporter,
+) {
+    for impl_decl in impls {
+        if global_ctxt
+            .get_known_types()
+            .get(impl_decl.name.get_content())
+            .is_none()
+        {
+            errors::TypeError::undefined_struct(impl_decl.name).report_error(err_reporter);
+            std::process::exit(1)
+        };
+        for mut decl_fun in impl_decl.content {
+            let mut new_name = impl_decl.name.get_content().to_string();
+            new_name.push_str("::");
+            new_name.push_str(decl_fun.name.get_content());
+            let name = Ident::new_from(
+                new_name,
+                decl_fun.name.get_loc().start(),
+                decl_fun.name.get_loc().end(),
+            );
+
+            let args = match decl_fun.self_arg {
+                None => decl_fun.args,
+                Some(b) => {
+                    if let Some(_) = global_ctxt.impl_method(
+                        impl_decl.name.get_content(),
+                        decl_fun.name.content(),
+                        name.get_content().to_string(),
+                    ) {
+                        todo!()
+                    }
+                    let typ = rust::PreType {
+                        content: rust::PreTypeInner::Ident(impl_decl.name.clone()),
+                    };
+                    let typ = if b {
+                        rust::PreType {
+                            content: rust::PreTypeInner::Ref(false, Box::new(typ)),
+                        }
+                    } else {
+                        typ
+                    };
+                    let mut args = vec![(Ident::from_str("self").unwrap(), false, typ)];
+                    args.append(&mut decl_fun.args);
+                    args
+                }
+            };
+
+            let decl_fun = rust::DeclFun {
+                name,
+                args,
+                ..decl_fun
+            };
+            funs.push(decl_fun)
+        }
+    }
+}
+
 pub fn type_inferencer(file: rust::File, needs_main: bool) -> typed_rust::File {
     let mut funs = Vec::new();
     let mut structs = Vec::new();
+    let mut impls = Vec::new();
     for decl in file.content.into_iter() {
         match decl {
             rust::Decl::Fun(f) => funs.push(f),
             rust::Decl::Struct(s) => structs.push(s),
+            rust::Decl::Impl(i) => impls.push(i),
         }
     }
 
-    let (mut known_types, structs) = structs::type_structs(structs);
-    let funs = type_funs(funs, &mut known_types, &file.err_reporter);
+    let (mut global_ctxt, structs) = structs::type_structs(structs);
+    handle_implemantations(impls, &mut funs, &mut global_ctxt, &file.err_reporter);
+    let funs = type_funs(funs, &mut global_ctxt, &file.err_reporter);
     let mut has_main = false;
     for fun in funs.iter() {
         has_main |= fun.name.get_content() == "main"

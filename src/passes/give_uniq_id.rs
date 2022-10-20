@@ -251,6 +251,16 @@ fn rewrite_fun(fun_decl: DeclFun) -> Result<DeclFun, Vec<TypeError>> {
 fn rewrite_decl(decl: Decl) -> Result<Decl, Vec<TypeError>> {
     match decl {
         Decl::Struct(_) => Ok(decl),
+        Decl::Impl(decl_impl) => {
+            let mut content = Vec::new();
+            for decl_fun in decl_impl.content {
+                content.push(rewrite_fun(decl_fun)?)
+            }
+            Ok(Decl::Impl(DeclImpl {
+                content,
+                ..decl_impl
+            }))
+        }
         Decl::Fun(decl_fun) => Ok(Decl::Fun(rewrite_fun(decl_fun)?)),
     }
 }

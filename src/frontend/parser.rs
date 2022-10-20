@@ -130,8 +130,9 @@ peg::parser! {
         spaces() "as" spaces() n:name() { n }
 
       rule decl() -> Decl = precedence!{
-          df:decl_fun() space() { Decl::Fun(df) }
-          ds:decl_struct() space() { Decl::Struct(ds) }
+          df:decl_fun()     { Decl::Fun(df) }
+          ds:decl_struct()  { Decl::Struct(ds) }
+          di:decl_impl()    { Decl::Impl(di) }
       }
 
       rule arrow_typ() -> PreType = precedence! {
@@ -143,20 +144,20 @@ peg::parser! {
           space() b:("mut" spaces())? n:name() space() ":" space() t:typ() space() { (n, b != None, t) }
 
       rule fun_args() -> Vec<(Ident, bool, PreType)> = precedence! {
-          args:(fun_arg() ++ ",")    { args }
+          args:(fun_arg() ++ ",") ","? space()   { args }
           space()                     { Vec::new() }
       }
-
 
       rule decl_fun() -> DeclFun =
           p:("pub" spaces())?
           "fn" spaces() n:name() "(" args:fun_args() ")"
                   space()
-                  out:arrow_typ() b:bloc()
+                  out:arrow_typ() b:bloc() space()
               {
                   DeclFun {
                       public : None::<()>.is_some(),
                       name : n,
+                      self_arg : None,
                       args,
                       output : out,
                       content : b,
@@ -175,7 +176,7 @@ peg::parser! {
       rule decl_struct() -> DeclStruct =
           p:("pub" spaces())?
           "struct" spaces() n:name() space() "{"
-              args:typ_decls() "}" {
+              args:typ_decls() "}" space() {
               DeclStruct {
                   public : None::<()>.is_some(),
                   name : n,
@@ -183,8 +184,40 @@ peg::parser! {
               }
       }
 
+      rule impl_fun_args() -> (Option<bool>, Vec<(Ident, bool, PreType)>) = precedence! {
+        space() b:"&"? "self" space() "," args:(fun_arg() ++ ",") ","? space()
+            { (Some(b.is_some()), args) }
+        space() b:"&"? "self" space()   { (Some(b.is_some()), Vec::new()) }
+        args:fun_args() { (None, args) }
+      }
+
+      rule decl_fun_impl() -> DeclFun =
+          p:("pub" spaces())?
+          "fn" spaces() n:name() "(" args:impl_fun_args() ")"
+                  space()
+                  out:arrow_typ() b:bloc() space()
+              {
+                  DeclFun {
+                      public : None::<()>.is_some(),
+                      name : n,
+                      self_arg : args.0,
+                      args : args.1,
+                      output : out,
+                      content : b,
+                      id_counter : IdCounter::new(),
+                  }
+              }
+
+      rule decl_impl() -> DeclImpl =
+        "impl" spaces() n:name() space() "{" space() content:decl_fun_impl()* "}" space() {
+            DeclImpl {
+                name:n,
+                content,
+            }
+        }
+
       rule reserved_inner() =
-          "fn" / "pub" / "struct" / "enum" / "mod" / "use"
+          "fn" / "pub" / "struct" / "enum" / "mod" / "use" / "impl"
           / "as" / "let" / "mut"
           / "true" / "false"
           / "if" / "else" / "while" / "for" / "in" / "return"
@@ -284,6 +317,11 @@ peg::parser! {
           start:position!() "false" end:position!() { to_expr(start, end, ExprInner::Bool(false)) }
 
       rule small_expr() -> Expr = precedence! {
+          e1:@() space() "[" e2:expr_ws() "]" end:position!()
+            { to_expr(e1.loc.start(), end,
+            ExprInner::Index(e1, e2)) }
+          n:name() space() "(" v:opt_expr_list() ")" end:position!()
+            { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
           n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1, n.2)) }
           t:true_expr()   { t }
           f:false_expr()  { f }
@@ -304,13 +342,8 @@ peg::parser! {
           space() n:name() space() ":" space() e:expr() space() {(n, e)}
 
       rule expr() -> Expr = precedence! {
-          e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
-              { to_expr(e1.loc.start(), end,
-                  ExprInner::Index(e1, e2)) }
           n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
-          n:name() space() "(" v:opt_expr_list() ")" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
           n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
           start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()

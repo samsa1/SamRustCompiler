@@ -220,6 +220,14 @@ pub fn rewrite_decl(decl: Decl) -> Decl {
     match decl {
         Decl::Struct(_) => decl,
         Decl::Fun(decl_fun) => Decl::Fun(rewrite_fun(decl_fun)),
+        Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
+            content: decl_impl
+                .content
+                .into_iter()
+                .map(|f| rewrite_fun(f))
+                .collect(),
+            ..decl_impl
+        }),
     }
 }
 

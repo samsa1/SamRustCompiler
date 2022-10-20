@@ -13,9 +13,10 @@ pub enum Open {
     Use(common::Path<PreType>, Option<common::Ident>),
 }
 
-pub enum Decl<DF = DeclFun, DS = DeclStruct> {
+pub enum Decl<DF = DeclFun> {
     Fun(DF),
-    Struct(DS),
+    Struct(DeclStruct),
+    Impl(DeclImpl),
 }
 
 pub struct DeclStruct {
@@ -27,6 +28,7 @@ pub struct DeclStruct {
 pub struct DeclFun {
     pub public: bool,
     pub name: common::Ident,
+    pub self_arg: Option<bool>,
     pub args: Vec<(common::Ident, bool, PreType)>,
     pub output: PreType,
     pub content: Bloc,
@@ -40,6 +42,11 @@ pub struct TypedDeclFun {
     pub types: Types,
     pub output: PreType,
     pub content: Bloc<usize>,
+}
+
+pub struct DeclImpl {
+    pub name: common::Ident,
+    pub content: Vec<DeclFun>,
 }
 
 #[derive(Debug, Clone)]
