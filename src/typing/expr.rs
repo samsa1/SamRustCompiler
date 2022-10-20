@@ -704,26 +704,34 @@ pub fn type_checker(
             match &expr.typed.content {
                 typed_rust::PostTypeInner::Tuple(types) => {
                     if let Some(typ) = types.get(id) {
-                        (affectable,
-                        typ.clone(),
-                        typed_rust::ExprInner::Proj(expr, Projector::Int(id)))
+                        (
+                            affectable,
+                            typ.clone(),
+                            typed_rust::ExprInner::Proj(expr, Projector::Int(id)),
+                        )
                     } else {
                         todo!()
                     }
-                },
+                }
                 typed_rust::PostTypeInner::Ref(affectable, typ) => match &typ.content {
                     typed_rust::PostTypeInner::Tuple(types) => {
                         if let Some(typ) = types.get(id) {
-                            (*affectable,
-                            typ.clone(),
-                            typed_rust::ExprInner::Proj(expr, Projector::Int(id)))
+                            (
+                                *affectable,
+                                typ.clone(),
+                                typed_rust::ExprInner::Proj(expr, Projector::Int(id)),
+                            )
                         } else {
-                            return Err(vec![TypeError::out_of_bound_tuple(expr.loc, id, types.len())])
+                            return Err(vec![TypeError::out_of_bound_tuple(
+                                expr.loc,
+                                id,
+                                types.len(),
+                            )]);
                         }
-                    },
-                    _ => return Err(vec![TypeError::expected_tuple2((**typ).clone(), expr.loc)])
+                    }
+                    _ => return Err(vec![TypeError::expected_tuple2((**typ).clone(), expr.loc)]),
                 },
-                _ => return Err(vec![TypeError::expected_tuple2(expr.typed, expr.loc)])
+                _ => return Err(vec![TypeError::expected_tuple2(expr.typed, expr.loc)]),
             }
         }
 

@@ -188,7 +188,7 @@ impl DataStruct {
                     (self.compute_size(&exprs[id]), offset)
                 }
                 _ => panic!("ICE"),
-            }
+            },
 
             _ => panic!("ICE"),
         }

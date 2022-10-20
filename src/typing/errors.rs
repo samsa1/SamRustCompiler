@@ -60,14 +60,14 @@ impl TypeError {
         }
     }
 
-/*    pub fn unknown_error(loc: Location) -> Self {
-        todo!();
-        Self {
-            loc,
-            info: TypeErrorInfo::Unknown,
+    /*    pub fn unknown_error(loc: Location) -> Self {
+            todo!();
+            Self {
+                loc,
+                info: TypeErrorInfo::Unknown,
+            }
         }
-    }
-*/
+    */
 
     pub fn not_compatible(loc: Location, typ1: Types, typ2: Types) -> Self {
         Self {
@@ -181,10 +181,10 @@ impl TypeError {
         }
     }
 
-    pub fn out_of_bound_tuple(loc : Location, id : usize, len : usize) -> Self {
+    pub fn out_of_bound_tuple(loc: Location, id: usize, len: usize) -> Self {
         Self {
             loc,
-            info: TypeErrorInfo::OutOfBoundTuple(id, len)
+            info: TypeErrorInfo::OutOfBoundTuple(id, len),
         }
     }
 
