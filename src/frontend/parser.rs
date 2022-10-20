@@ -255,7 +255,8 @@ peg::parser! {
       rule typ_no_ref() -> PreType = precedence! {
           n:name() "<" v:(typ_ws() ** ",") ">" { PreTypeInner::IdentParametrized(n, v).to_type()}
           n:name() { PreTypeInner::Ident(n).to_type() }
-          "(" v:(typ_ws() ** ",") ")" { PreTypeInner::Tuple(v).to_type() }
+          "(" v:(typ_ws() ++ ",") ("," space())? ")" { PreTypeInner::Tuple(v).to_type() }
+          "(" space() ")" { PreTypeInner::Tuple(Vec::new()).to_type() }
       }
 
       // bloc with spaces
