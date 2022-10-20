@@ -716,28 +716,33 @@ fn compile_expr_val(
                 let (loc, expr) =
                     compile_expr_val(ctxt, expr, stack_offset + tuple_size as u64, is_main);
                 asm = asm
-                    + expr
-                    + movq(reg!(RBP), reg!(RCX))
-                    + subq(immq(stack_offset as i64 + current_offset as i64), reg!(RCX));
+                    + expr;
                 asm = asm
                     + match loc {
+                        Location::Never => nop(),
                         Location::Rax => {
-                            /*                            if size == 1 {
+                            if size == 0 {
+                                nop()
+                            } else if size == 1 {
                                 movb(reg::Operand::Reg(AH),
-                                    reg::Operand::Addr)
+                                    addr!(current_offset, RSP))
                             } else if size == 4 {
                                 movl(reg::Operand::Reg(EAX),
-                                    reg::Operand::Addr)
+                                    addr!(current_offset, RSP))
                             } else if size == 8 {
                                 movq(reg::Operand::Reg(RAX),
-                                    reg::Operand::Addr)
+                                    addr!(current_offset, RSP))
                             } else {
                                 panic!("ICE")
-                            }*/
-                            todo!()
-                        }
-                        _ => todo!(),
-                    }
+                            }
+                            
+                        },
+                        Location::StackWithPadding(pad) => {
+                            mov_struct(RSP, 0, RSP, size as i64 + pad as i64, size as u64, RAX, EAX, AX, AH)
+                            + addq(immq(pad as i64 + size as i64), reg!(RSP))
+                        },
+                    };
+                current_offset += size as i64;
             }
             (Location::StackWithPadding(0), asm)
         }

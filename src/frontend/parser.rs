@@ -136,7 +136,7 @@ peg::parser! {
       }
 
       rule arrow_typ() -> PreType = precedence! {
-          "->" space() t:typ() space() { t }
+          "->" t:typ_ws() { t }
           "" { PreType::unit()}
       }
 
@@ -166,7 +166,7 @@ peg::parser! {
               }
 
       rule typ_decl() -> (Ident, PreType) =
-              space() n:name() space() ":" space() t:typ() space() {(n,t)}
+              space() n:name() space() ":" t:typ_ws() {(n,t)}
 
       rule typ_decls() -> Vec<(Ident, PreType)> = precedence! {
           v:(typ_decl() ++ ",") ","? space() { v }
@@ -238,6 +238,9 @@ peg::parser! {
               n
           }
 
+      rule typ_ws() -> PreType =
+          space() t:typ() space() { t }
+
       rule typ() -> PreType = precedence! {
           "&" space() "mut" spaces() typ:typ() {
               PreTypeInner::Ref(true, Box::new(typ)).to_type()
@@ -250,8 +253,9 @@ peg::parser! {
       }
 
       rule typ_no_ref() -> PreType = precedence! {
-          n:name() "<" t:typ() ">" { PreTypeInner::IdentParametrized(n, vec![t]).to_type()}
-          n:name() { PreTypeInner::Ident(n).to_type()}
+          n:name() "<" v:(typ_ws() ** ",") ">" { PreTypeInner::IdentParametrized(n, v).to_type()}
+          n:name() { PreTypeInner::Ident(n).to_type() }
+          "(" v:(typ_ws() ** ",") ")" { PreTypeInner::Tuple(v).to_type() }
       }
 
       // bloc with spaces
@@ -328,7 +332,18 @@ peg::parser! {
           n:name() { to_expr(n.get_loc().start(), n.get_loc().end(), ExprInner::Var(n)) }
           b:bloc() { expr_of_bloc(b) }
           s:string() { to_expr(s.0.0, s.0.1, ExprInner::String(s.1)) }
-          start:position!() "(" e:expr_ws() ")" end:position!() { to_expr(start, end, ExprInner::Parenthesis(e)) }
+          start:position!() "(" v:(expr_ws() ++ ",") s:("," space())? ")" end:position!()
+            {
+                let mut v = v;
+                if v.len() == 1 && s.is_none() {
+                    to_expr(start, end, ExprInner::Parenthesis(v.pop().unwrap()))
+                } else {
+                    to_expr(start, end, ExprInner::Tuple(v))
+                }
+            }
+          start:position!() "(" space() ")" end:position!() {
+            to_expr(start, end, ExprInner::Tuple(Vec::new()))
+          }
           e:@ space() "." space() n:name() space() "(" v:opt_expr_list() ")" end:position!() { to_expr(e.loc.start(), end, ExprInner::Method(e, n, v))}
           e:@ space() "." space() n:proj() end:position!() { to_expr(e.loc.start(), end, ExprInner::Proj(e, n)) }
       }

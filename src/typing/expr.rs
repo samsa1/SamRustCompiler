@@ -699,8 +699,32 @@ pub fn type_checker(
             )
         }
 
-        rust::ExprInner::Proj(_expr, Projector::Int(_id)) => {
-            todo!()
+        rust::ExprInner::Proj(expr, Projector::Int(id)) => {
+            let (affectable, expr) = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info)?;
+            match &expr.typed.content {
+                typed_rust::PostTypeInner::Tuple(types) => {
+                    if let Some(typ) = types.get(id) {
+                        (affectable,
+                        typ.clone(),
+                        typed_rust::ExprInner::Proj(expr, Projector::Int(id)))
+                    } else {
+                        todo!()
+                    }
+                },
+                typed_rust::PostTypeInner::Ref(affectable, typ) => match &typ.content {
+                    typed_rust::PostTypeInner::Tuple(types) => {
+                        if let Some(typ) = types.get(id) {
+                            (*affectable,
+                            typ.clone(),
+                            typed_rust::ExprInner::Proj(expr, Projector::Int(id)))
+                        } else {
+                            return Err(vec![TypeError::out_of_bound_tuple(expr.loc, id, types.len())])
+                        }
+                    },
+                    _ => return Err(vec![TypeError::expected_tuple2((**typ).clone(), expr.loc)])
+                },
+                _ => return Err(vec![TypeError::expected_tuple2(expr.typed, expr.loc)])
+            }
         }
 
         rust::ExprInner::Proj(expr, Projector::Name(name)) => {

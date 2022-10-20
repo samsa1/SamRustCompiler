@@ -7,6 +7,7 @@ use crate::ast::typed_rust::{PostType, PostTypeInner};
 enum TypeErrorInfo {
     ExpectedStruct(Types),
     ExpectedTuple(Types),
+    ExpectedTuple2(PostType),
     Unknown,
     NotCompatible(Types, Types),
     TryUnref(Types),
@@ -24,6 +25,7 @@ enum TypeErrorInfo {
     IncompatibleSizes(Sizes, Sizes),
     DoesNotImpTrait(PostType, Trait),
     UndefinedStruct(String),
+    OutOfBoundTuple(usize, usize),
 }
 
 #[derive(Debug)]
@@ -51,13 +53,21 @@ impl TypeError {
         }
     }
 
-    pub fn unknown_error(loc: Location) -> Self {
+    pub fn expected_tuple2(typ: PostType, loc: Location) -> Self {
+        Self {
+            loc,
+            info: TypeErrorInfo::ExpectedTuple2(typ),
+        }
+    }
+
+/*    pub fn unknown_error(loc: Location) -> Self {
         todo!();
         Self {
             loc,
             info: TypeErrorInfo::Unknown,
         }
     }
+*/
 
     pub fn not_compatible(loc: Location, typ1: Types, typ2: Types) -> Self {
         Self {
@@ -168,6 +178,13 @@ impl TypeError {
         Self {
             loc: id.get_loc(),
             info: TypeErrorInfo::UndefinedStruct(id.content()),
+        }
+    }
+
+    pub fn out_of_bound_tuple(loc : Location, id : usize, len : usize) -> Self {
+        Self {
+            loc,
+            info: TypeErrorInfo::OutOfBoundTuple(id, len)
         }
     }
 

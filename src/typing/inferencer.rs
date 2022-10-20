@@ -973,7 +973,7 @@ fn type_expr(
                 get_tuple(types, expr.typed, expr.loc, affectable)?
             {
                 if proj_id >= tuple.len() {
-                    return Err(vec![TypeError::unknown_error(top_expr.loc)]);
+                    return Err(vec![TypeError::out_of_bound_tuple(top_expr.loc, proj_id, tuple.len())])
                 } else {
                     (affectable, tuple[proj_id])
                 }

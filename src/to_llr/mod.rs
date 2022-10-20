@@ -179,6 +179,17 @@ impl DataStruct {
                 (self.compute_size(&exprs[id]), offset)
             }
 
+            tr::PostTypeInner::Ref(_, typ) => match &typ.content {
+                tr::PostTypeInner::Tuple(exprs) => {
+                    let mut offset = 0;
+                    for sub_typ in exprs.iter().take(id) {
+                        offset += self.compute_size(sub_typ)
+                    }
+                    (self.compute_size(&exprs[id]), offset)
+                }
+                _ => panic!("ICE"),
+            }
+
             _ => panic!("ICE"),
         }
     }
