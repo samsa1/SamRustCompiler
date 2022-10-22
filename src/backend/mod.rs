@@ -676,7 +676,6 @@ fn compile_expr_val(
             (
                 Location::Rax,
                 leaq(reg::Operand::LabRelAddr(reg::Label::from_str(label_name)), RDI)
-//                deplq(reg::Label::from_str(label_name), RDI)
                     + movq(immq(0), reg!(RAX))
                     + subq(immq(missing), reg!(RSP))
                     + call(reg::Label::printf())
@@ -1019,7 +1018,7 @@ fn default_vec_function(ctxt: &context::Context) -> Text {
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
         + movq(addr!(16, RBP), reg!(RSI))
-        + deplq(reg::Label::from_str("my_string".to_string()), RDI)
+        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str("my_string".to_string())), RDI)
         + call(reg::Label::printf())
         + movq(reg!(RBP), reg!(RSP))
         + popq(RBP)
