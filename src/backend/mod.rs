@@ -91,7 +91,7 @@ fn compile_expr_pointer(
                 }
             }
         }
-        llr::ExprInner::Constant(_str) | llr::ExprInner::VarGlobal(_str) => {
+        llr::ExprInner::Constant(_str) | llr::ExprInner::FunVar(_str) => {
             todo!()
         }
         llr::ExprInner::Proj(expr, proj) => {
@@ -511,7 +511,53 @@ fn compile_expr_val(
             asm = asm + call(label) + addq(immq(total_size as i64), reg::Operand::Reg(RSP));
             (Location::StackWithPadding(missing), asm)
         }
-        llr::ExprInner::FunCallVar(_, _) => todo!(),
+        llr::ExprInner::FunCallVar(fun_var_id, args) => {
+            let mut total_size = 0;
+            for arg in &args {
+                total_size += arg.size as u64
+            }
+            let offset = (total_size + expr.size as u64 + stack_offset) % 16;
+            let missing = if offset == 0 { 0 } else { 16 - offset };
+            let mut asm = subq(
+                immq(missing as i64 + expr.size as i64 + total_size as i64),
+                reg::Operand::Reg(RSP),
+            );
+            //            println!("{} {} {} {} {}", stack_offset, offset, missing, total_size, expr.size);
+            let mut current_offset = stack_offset + missing + expr.size as u64;
+            let stack_offset = stack_offset + missing + total_size + expr.size as u64;
+            //            println!("{} {}", current_offset, stack_offset);
+            for arg in args {
+                let size = arg.size;
+                current_offset += size as u64;
+                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset, is_main);
+                let asm2 = match loc {
+                    Location::Rax => match size {
+                        1 => movb(reg::Operand::Reg(AH), addr!(-(current_offset as i64), RBP)),
+                        2 => movw(reg::Operand::Reg(AX), addr!(-(current_offset as i64), RBP)),
+                        4 => movl(reg::Operand::Reg(EAX), addr!(-(current_offset as i64), RBP)),
+                        8 => movq(reg::Operand::Reg(RAX), addr!(-(current_offset as i64), RBP)),
+                        _ => panic!("ICE"),
+                    },
+                    Location::Never => panic!("ICE"),
+                    Location::StackWithPadding(pad) => {
+                        mov_struct(
+                            RSP,
+                            0,
+                            RBP,
+                            -(current_offset as i64),
+                            size as u64,
+                            (RAX, EAX, AX, AH),
+                        ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
+                    }
+                };
+                //                println!("{current_offset} {size}");
+                asm = asm + arg + asm2;
+            }
+            assert_eq!(current_offset, stack_offset);
+            asm = asm + 
+            call_star(addr!(ctxt.find(fun_var_id), RBP)) + addq(immq(total_size as i64), reg::Operand::Reg(RSP));
+            (Location::StackWithPadding(missing), asm)
+        }
         llr::ExprInner::If(expr, bloc1, bloc2) => {
             let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
             let expr = match loc {
@@ -774,7 +820,9 @@ fn compile_expr_val(
             }
             (Location::StackWithPadding(0), asm)
         }
-        llr::ExprInner::VarGlobal(_) => todo!(),
+        llr::ExprInner::FunVar(str) => {
+            (Location::Rax, leaq(lab!(ctxt.fun_label(&str)), RAX))
+        },
         llr::ExprInner::VarId(id) => {
             let offset_from_rbp = ctxt.find(id);
             if expr.size == 1 {

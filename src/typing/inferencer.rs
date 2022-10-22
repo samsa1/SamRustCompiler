@@ -111,6 +111,7 @@ fn check_coherence(
 #[derive(Copy, Clone, Debug)]
 enum UnificationMethod {
     Smallest,
+    StrictEq,
     StrictSnd,
     StrictFst,
     NoRef,
@@ -205,6 +206,16 @@ fn make_coherent(
         (Types::Ref(mut1, type_id1b), Types::Ref(mut2, type_id2b)) => {
             match (mut1, mut2, unification_method) {
                 (_, _, UnificationMethod::NoRef) => panic!("ICE"),
+                (Some(mut1), Some(mut2), UnificationMethod::StrictEq) => {
+                    if *mut1 == *mut2 {
+                        let mut2 = *mut2;
+                        let type_id =
+                            make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
+                        Ok(types.insert_type(Types::refed(mut2, type_id)))
+                    } else {
+                        todo!()
+                    }
+                }
                 (Some(mut2), Some(mut1), UnificationMethod::StrictFst)
                 | (Some(mut1), Some(mut2), UnificationMethod::StrictSnd) => {
                     let mut2 = *mut2;
@@ -213,7 +224,7 @@ fn make_coherent(
                             make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
                         Ok(types.insert_type(Types::refed(mut2, type_id)))
                     } else {
-                        Err(vec![])
+                        Err(vec![TypeError::wrong_mutability(loc, mut2, *mut1)])
                     }
                 }
                 (Some(mut1), Some(mut2), UnificationMethod::Smallest) => {
@@ -230,7 +241,9 @@ fn make_coherent(
                         make_coherent(types, *type_id1b, *type_id2b, loc, unification_method)?;
                     Ok(types.insert_type(Types::Ref(None, type_id)))
                 }
-                (Some(true), None, UnificationMethod::StrictFst)
+                (Some(true), None, UnificationMethod::StrictEq)
+                | (None, Some(true), UnificationMethod::StrictEq)
+                | (Some(true), None, UnificationMethod::StrictFst)
                 | (None, Some(true), UnificationMethod::StrictSnd) => {
                     let type_id1b = *type_id1b;
                     let type_id2b = *type_id2b;
@@ -254,7 +267,9 @@ fn make_coherent(
                         make_coherent(types, type_id1b, type_id2b, loc, unification_method)?;
                     Ok(types.insert_type(Types::refed(false, type_id)))
                 }
-                (None, Some(false), UnificationMethod::StrictFst)
+                (Some(false), None, UnificationMethod::StrictEq)
+                | (None, Some(false), UnificationMethod::StrictEq)
+                | (None, Some(false), UnificationMethod::StrictFst)
                 | (Some(false), None, UnificationMethod::StrictFst)
                 | (None, Some(false), UnificationMethod::StrictSnd)
                 | (Some(false), None, UnificationMethod::StrictSnd) => {
@@ -262,12 +277,10 @@ fn make_coherent(
                     let type_id2b = *type_id2b;
                     let type_id =
                         make_coherent(types, type_id1b, type_id2b, loc, unification_method)?;
-                    //                    println!("{types:?}");
                     types.set(type_id1, Types::refed(false, type_id1b));
                     types.set(type_id2, Types::refed(false, type_id2b));
-                    //                    println!("{types:?}");
                     Ok(types.insert_type(Types::refed(false, type_id)))
-                } //                _ => todo!(),
+                }
             }
         }
         (Types::Ref(_, _), _) | (_, Types::Ref(_, _)) => Err(vec![TypeError::not_compatible(
@@ -293,6 +306,25 @@ fn make_coherent(
             }
         }
         (Types::Struct(_, _), _) | (_, Types::Struct(_, _)) => {
+            Err(vec![TypeError::not_compatible(
+                loc,
+                typ1.clone(),
+                typ2.clone(),
+            )])
+        }
+
+        (Types::Fun(args1, out1), Types::Fun(args2, out2)) if args1.len() == args2.len() => {
+            let args1 = args1.clone();
+            let args2 = args2.clone();
+            let out = make_coherent(types, *out1, *out2, loc, UnificationMethod::StrictEq)?;
+            let mut type_vec = Vec::new();
+            for (type_id1, type_id2) in args1.into_iter().zip(args2.into_iter()) {
+                type_vec.push(make_coherent(types, type_id1, type_id2, loc, UnificationMethod::StrictEq)?)
+            }
+            Ok(types.insert_type(Types::Fun(type_vec, out)))
+        }
+
+        (Types::Fun(_, _), _) | (_, Types::Fun(_, _)) => {
             Err(vec![TypeError::not_compatible(
                 loc,
                 typ1.clone(),
@@ -677,7 +709,6 @@ fn type_expr(
 
         ExprInner::FunCall(args, name, exprs) => {
             assert!(args.is_empty());
-            //            println!("Fun {name:?}");
             match local_ctxt.get_typ(&name) {
                 None => {
                     if let Some(typ) = ctxt.get_typ(name.get_content()) {
@@ -728,13 +759,38 @@ fn type_expr(
                         Err(vec![TypeError::unknown_var(name)])
                     }
                 }
-                Some(type_id) => match types.get(type_id).unwrap() {
-                    Types::Unknown => todo!(),
-                    Types::Fun(_args, _type_id) => {
-                        todo!()
-                    }
-                    _ => todo!(),
-                },
+                Some(type_id) if args.is_empty() => match types.get(type_id).unwrap() {
+                        Types::Unknown if args.is_empty() => todo!(),
+                        Types::Fun(args_type_id, out_type_id) if args.is_empty() => {
+                            let out_type_id = *out_type_id;
+                            let mut exprs_out = Vec::new();
+                            for (expr, typ) in exprs.into_iter().zip(args_type_id.clone().into_iter()) {
+                                let expr =
+                                    type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                                make_coherent(
+                                    types,
+                                    expr.typed,
+                                    typ,
+                                    expr.loc,
+                                    UnificationMethod::StrictSnd,
+                                )?;
+                                exprs_out.push(expr)
+                            }
+                            check_coherence(types, out_type_id, top_expr.typed, top_expr.loc)?;
+                            Ok((
+                                false,
+                                Expr {
+                                    content: Box::new(ExprInner::FunCall(
+                                        Vec::new(), name, exprs_out,
+                                    )),
+                                    loc: top_expr.loc,
+                                    typed: out_type_id,
+                                },
+                            ))
+                        },
+                        _ => todo!(),
+                    },
+                Some(_) => todo!()
             }
         }
 
@@ -1113,7 +1169,20 @@ fn type_expr(
                     },
                 ))
             } else {
-                Err(vec![TypeError::unknown_var(var_name)])
+                if let Some(typ) = ctxt.get_typ(var_name.get_content()) {
+                    let type_id = types.insert_type(Types::unknown());
+                    forces_to(types, type_id, typ, top_expr.loc, &HashMap::new(), UnificationMethod::Smallest)?;
+                    Ok((
+                        false,
+                        Expr {
+                            content : Box::new(ExprInner::Var(var_name)),
+                            loc : top_expr.loc,
+                            typed : type_id,
+                        }
+                    ))
+                } else {
+                    Err(vec![TypeError::unknown_var(var_name)])
+                }
             }
         }
     };
@@ -1135,18 +1204,18 @@ fn type_bloc(
     local_ctxt.add_layer();
     let mut content = Vec::new();
     for instr in bloc.content.into_iter() {
-        match instr {
-            Instr::Binding(mutable, name, expr) => {
+        let instr_content = match instr.content {
+            InstrInner::Binding(mutable, name, expr) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                 local_ctxt.add_var(&name, mutable, expr.typed);
-                content.push(Instr::Binding(mutable, name, expr))
+                InstrInner::Binding(mutable, name, expr)
             }
 
-            Instr::Expr(drop, expr) => {
+            InstrInner::Expr(drop, expr) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                content.push(Instr::Expr(drop, expr))
+                InstrInner::Expr(drop, expr)
             }
-            Instr::Return(None) => {
+            InstrInner::Return(None) => {
                 let type_id = types.insert_unit();
                 make_coherent(
                     types,
@@ -1155,9 +1224,9 @@ fn type_bloc(
                     Location::default(),
                     UnificationMethod::NoRef,
                 )?;
-                content.push(Instr::Return(None));
+                InstrInner::Return(None)
             }
-            Instr::Return(Some(expr)) => {
+            InstrInner::Return(Some(expr)) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                 make_coherent(
                     types,
@@ -1166,10 +1235,10 @@ fn type_bloc(
                     expr.loc,
                     UnificationMethod::StrictSnd,
                 )?;
-                content.push(Instr::Return(Some(expr)))
+                InstrInner::Return(Some(expr))
             }
 
-            Instr::While(expr, bloc) => {
+            InstrInner::While(expr, bloc) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                 let type_id = types.insert_bool();
                 make_coherent(
@@ -1180,9 +1249,13 @@ fn type_bloc(
                     UnificationMethod::NoRef,
                 )?;
                 let bloc = type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?.1;
-                content.push(Instr::While(expr, bloc))
+                InstrInner::While(expr, bloc)
             }
         };
+        content.push(Instr {
+            content : instr_content,
+            loc : instr.loc,
+        })
         /*        println!("");
                 println!("{types:?}");
                 println!("{local_ctxt:?}");
@@ -1194,22 +1267,22 @@ fn type_bloc(
         None => types.insert_unit(),
         Some(instr) => {
             let type_id = match expected {
-                None => match &instr {
-                    Instr::Expr(ComputedValue::Keep, expr) => expr.typed,
+                None => match &instr.content {
+                    InstrInner::Expr(ComputedValue::Keep, expr) => expr.typed,
                     _ => types.insert_unit(),
                 },
-                Some(type_id) => match &instr {
-                    Instr::Expr(ComputedValue::Keep, expr) => make_coherent(
+                Some(type_id) => match &instr.content {
+                    InstrInner::Expr(ComputedValue::Keep, expr) => make_coherent(
                         types,
                         type_id,
                         expr.typed,
                         bloc.loc,
                         UnificationMethod::StrictFst,
                     )?,
-                    Instr::Return(_) => types.insert_type(Types::unknown()),
+                    InstrInner::Return(_) => types.insert_type(Types::unknown()),
                     _ => {
                         let type_id2 = types.insert_unit();
-                        make_coherent(types, type_id, type_id2, bloc.loc, UnificationMethod::NoRef)?
+                        make_coherent(types, type_id2, type_id, instr.loc, UnificationMethod::NoRef)?
                     }
                 },
             };

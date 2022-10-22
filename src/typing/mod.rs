@@ -149,7 +149,7 @@ pub fn handle_implemantations(
             .get(impl_decl.name.get_content())
             .is_none()
         {
-            errors::TypeError::undefined_struct(impl_decl.name).report_error(err_reporter);
+            errors::TypeError::unknown_struct(impl_decl.name).report_error(err_reporter);
             std::process::exit(1)
         };
         for mut decl_fun in impl_decl.content {

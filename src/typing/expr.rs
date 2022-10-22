@@ -149,7 +149,13 @@ fn build_type(types: &rust::TypeStorage, type_id: usize) -> Option<typed_rust::P
             ),
         }),
         rust::Types::Enum(_) => todo!(),
-        rust::Types::Fun(_, _) => todo!(),
+        rust::Types::Fun(args, out) => {
+            let out = build_type(types, *out)?;
+            let args : Option<Vec<typed_rust::PostType>> = args.iter().map(|t| build_type(types, *t)).collect();
+            Some(typed_rust::PostType {
+                content : typed_rust::PostTypeInner::Fun(Vec::new(), args?, Box::new(out))
+            })
+        },
         rust::Types::Int(signed, size) => Some(typed_rust::PostType {
             content: typed_rust::PostTypeInner::BuiltIn(BuiltinType::Int(
                 signed.unwrap_or(true),
@@ -210,15 +216,19 @@ pub fn type_checker(
         }
 
         rust::ExprInner::Var(var_name) => {
-            let (mutable, typ) = match loc_ctxt.get_typ(&var_name) {
-                Some((mutable, typ)) => (*mutable, typ.clone()),
-                None => panic!(
-                    "undefined variable {} at {:?}",
+            match loc_ctxt.get_typ(&var_name) {
+                Some((mutable, typ)) => (*mutable, typ.clone(), typed_rust::ExprInner::Var(var_name)),
+                None => match ctxt.get_typ(var_name.get_content()) {
+                    None => panic!(
+                    "ICE : undefined variable {} at {:?} should be cought by inferencer",
                     var_name.get_content(),
                     expr.loc
-                ),
-            };
-            (mutable, typ, typed_rust::ExprInner::Var(var_name))
+                    ),
+                    Some(typ) =>
+                        (false, typ.clone(), typed_rust::ExprInner::Var(var_name)),
+                    
+                }
+            }
         }
 
         rust::ExprInner::Ref(b, expr) => {
@@ -747,8 +757,8 @@ pub fn type_bloc(
     let mut reachable = true;
     let len = bloc.content.len();
     for (id, instr) in bloc.content.into_iter().enumerate() {
-        match instr {
-            rust::Instr::Expr(b, expr) => {
+        match instr.content {
+            rust::InstrInner::Expr(b, expr) => {
                 let expr = type_checker(ctxt, expr, loc_ctxt, output, None, typing_info)?.1;
                 let b = if id + 1 == len {
                     b
@@ -758,13 +768,13 @@ pub fn type_bloc(
                 content.push(typed_rust::Instr::Expr(b, expr));
                 //                todo!();
             }
-            rust::Instr::Binding(mutable, ident, expr) => {
+            rust::InstrInner::Binding(mutable, ident, expr) => {
                 let expr = type_checker(ctxt, expr, loc_ctxt, output, None, typing_info)?.1;
                 loc_ctxt.add_var(&ident, mutable, &expr.typed);
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
                 //                todo!();
             }
-            rust::Instr::While(condition, bloc) => {
+            rust::InstrInner::While(condition, bloc) => {
                 let condition = type_checker(
                     ctxt,
                     condition,
@@ -780,14 +790,14 @@ pub fn type_bloc(
                 let bloc = type_bloc(bloc, ctxt, loc_ctxt, output, None, typing_info)?;
                 content.push(typed_rust::Instr::While(condition, bloc));
             }
-            rust::Instr::Return(None) => match &output.content {
+            rust::InstrInner::Return(None) => match &output.content {
                 typed_rust::PostTypeInner::Tuple(l) if l.is_empty() => {
                     content.push(typed_rust::Instr::Return(None));
                     reachable = false;
                 }
                 _ => todo!(),
             },
-            rust::Instr::Return(Some(expr)) => {
+            rust::InstrInner::Return(Some(expr)) => {
                 let expr = type_checker(ctxt, expr, loc_ctxt, output, Some(output), typing_info)?.1;
                 if are_compatible(output, &expr.typed) {
                     content.push(typed_rust::Instr::Return(Some(expr)));

@@ -1,5 +1,7 @@
 use super::common;
 use std::collections::HashMap;
+use std::env::Args;
+use std::fmt::Display;
 
 pub struct File {
     pub name: String,
@@ -108,6 +110,55 @@ impl Types {
             _ => None,
         }
     }
+}
+
+impl Display for Types {
+
+    fn fmt(&self, f : &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        match self {
+            Self::Bool => write!(f, "bool"),
+            Self::Fun(args, _) =>
+                write!(f, "fn [{}] -> _", args.len()),
+            Self::Int(None, None) =>
+                write!(f, "{{integer}}"),
+            Self::Int(Some(true), None) =>
+                write!(f, "{{signed integer}}"),
+            Self::Int(Some(false), None) =>
+                write!(f, "{{usigned integer}}"),
+            Self::Int(None, Some(size)) => {
+                write!(f, "{{{:?}-bits integer}}", size)
+            }
+            Self::Int(Some(b), Some(size)) => {
+                let b = common::BuiltinType::Int(*b, *size);
+                write!(f, "{}", b.to_str())
+            }
+            Self::Struct(name, _) => {
+                write!(f, "{}", name)
+            }
+            Self::Ref(_, _) => {
+                write!(f, "&_")
+            }
+            Self::Array(_, None) => {
+                write!(f, "{{array}}")
+            }
+            Self::Array(_, Some(length)) => {
+                write!(f, "[_; {}]", length)
+            }
+            Self::Enum(name) => {
+                write!(f, "{}", name)
+            }
+            Self::Tuple(args) => {
+                write!(f, "{{{} tuple}}", args.len())
+            }
+
+            Self::SameAs(_) => panic!("ICE"),
+            Self::Deref(_) => panic!("ICE"),
+            Self::Unknown => panic!("ICE"),
+
+//            _ => todo!(),
+        }
+    }
+
 }
 
 #[derive(Debug)]
@@ -260,7 +311,10 @@ impl<T> Bloc<T> {
     pub fn from_expr(expr: Expr<T>) -> Self {
         Self {
             loc: expr.loc,
-            content: vec![Instr::Expr(common::ComputedValue::Keep, expr)],
+            content: vec![Instr {
+                loc : expr.loc,
+                content : InstrInner::Expr(common::ComputedValue::Keep, expr),
+            }],
         }
     }
 
@@ -273,11 +327,26 @@ impl<T> Bloc<T> {
 }
 
 #[derive(Debug, Clone)]
-pub enum Instr<T = Option<PreType>> {
+pub struct Instr<T = Option<PreType>> {
+    pub content : InstrInner<T>,
+    pub loc : common::Location,
+}
+
+#[derive(Debug, Clone)]
+pub enum InstrInner<T = Option<PreType>> {
     Expr(common::ComputedValue, Expr<T>),
     Binding(bool, common::Ident, Expr<T>),
     While(Expr<T>, Bloc<T>),
     Return(Option<Expr<T>>),
+}
+
+impl<T> InstrInner<T> {
+    pub fn to_instr(self, start : usize, end : usize) -> Instr<T> {
+        Instr {
+            loc : common::Location::new(start, end),
+            content : self,
+        }
+    }
 }
 
 #[derive(Clone)]

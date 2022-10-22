@@ -29,6 +29,21 @@ impl BST {
     if !self.sub[1].is_null() { self.sub[1].print() }
     print!(")");
   }
+
+  fn insert(&mut self, x: i32) {
+    if x == self.value { return; }
+    if x < self.value {
+      if self.sub[0].is_null()
+        { self.sub[0] = leaf(x); }
+      else
+        { self.sub[0].insert(x); }
+    } else {
+      if self.sub[1].is_null()
+        { self.sub[1] = leaf(x); }
+      else
+        { self.sub[1].insert(x); }
+    }
+  }
 }
 
 // Petit Rust ne permet pas de définir ces raccourcis ; tant pis...
@@ -44,21 +59,6 @@ fn leaf(v: i32) -> BST {
     r
 }
   
-fn insert(a: &mut BST, x: i32) {
-  if x == a.value { return; }
-  if x < a.value {
-    if a.sub[0].is_null()
-      { a.sub[0] = leaf(x); }
-    else
-      { insert(&mut a.sub[0], x); }
-  } else {
-    if a.sub[1].is_null()
-      { a.sub[1] = leaf(x); }
-    else
-      { insert(&mut a.sub[1], x); }
-  }
-}
-  
 fn print_bool(b: bool) {
     if b { print!("true\n") } else { print!("false\n") }
 }
@@ -71,17 +71,17 @@ fn print_int(x: i32) {
 
 fn main() {
     let mut d = leaf(1);
-    insert(&mut d, 17);
-    insert(&mut d, -5);
-    insert(&mut d, 8);
+    d.insert(17);
+    d.insert(-5);
+    d.insert(8);
     print_bool(d.contient(-5));
     print_bool(d.contient(0));
     print_bool(d.contient(17));
     print_bool(d.contient(3));
-    insert(&mut d, 42);
-    insert(&mut d, 8);
-    insert(&mut d, -1000);
-    insert(&mut d, 0);
+    d.insert(42);
+    d.insert(8);
+    d.insert(-1000);
+    d.insert(0);
     d.print(); print!("\n")
 }
   

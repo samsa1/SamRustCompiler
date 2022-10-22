@@ -383,7 +383,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 typed: top_expr.typed,
             },
             None => llr::Expr {
-                content: Box::new(llr::ExprInner::Constant(var_name.content())),
+                content: Box::new(llr::ExprInner::FunVar(var_name.content())),
                 loc: top_expr.loc,
                 size: names_info.compute_size(&top_expr.typed),
                 typed: top_expr.typed,

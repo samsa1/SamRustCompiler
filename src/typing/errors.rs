@@ -3,6 +3,10 @@ use crate::ast::common::{ErrorReporter, Ident, Location, Sizes};
 use crate::ast::rust::Types;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 
+const RED : &str = "\x1b[1;31m";
+const NC : &str = "\x1b[0m";
+const BLUE : &str = "\x1b[1;34m";
+
 #[derive(Debug)]
 enum TypeErrorInfo {
     ExpectedStruct(Types),
@@ -23,8 +27,69 @@ enum TypeErrorInfo {
     ExpectedUnsigned,
     IncompatibleSizes(Sizes, Sizes),
     DoesNotImpTrait(PostType, Trait),
-    UndefinedStruct(String),
     OutOfBoundTuple(usize, usize),
+    WrongMutability(bool, bool),
+}
+
+impl TypeErrorInfo {
+    fn get_id(&self) -> usize {
+        match self {
+            Self::ExpectedStruct(_) => 1,
+            Self::ExpectedTuple(_) => 2,
+            Self::ExpectedTuple2(_) => 3,
+            Self::NotCompatible(_, _) => 4,
+            Self::TryUnref(_) => 5,
+            Self::UndeclaredVariable(_) => 6,
+            Self::CannotAffectValue => 7,
+            Self::UndeclaredStruct(_) => 8,
+            Self::WrongNbArgs(_, _) => 9,
+            Self::ExpectedFun(_) => 10,
+            Self::StructDoesNotHasField(_, _) => 11,
+            Self::MissingField(_, _) => 12,
+            Self::CannotBorrowAsMutable => 13,
+            Self::SameArgName(_, _) => 14,
+            Self::ExpectedSigned => 15,
+            Self::ExpectedUnsigned => 16,
+            Self::IncompatibleSizes(_, _) => 17,
+            Self::DoesNotImpTrait(_, _) => 18,
+            Self::OutOfBoundTuple(_, _) => 19,
+            Self::WrongMutability(_, _) => 20,
+        }
+    }
+
+    fn get_error_name(&self) -> &'static str {
+        match self {
+            Self::ExpectedStruct(_) => "expected struct",
+            Self::ExpectedTuple(_) => "expected tuple",
+            Self::ExpectedTuple2(_) => "expected tuple",
+            Self::NotCompatible(_, _) => "incompatible types",
+            Self::TryUnref(_) => "invalid dereferencing",
+            Self::UndeclaredVariable(_) => "undeclared variable",
+            Self::CannotAffectValue => "invalid affectation",
+            Self::UndeclaredStruct(_) => "unkown struct",
+            Self::WrongNbArgs(_, _) => "invalid number of arguments",
+            Self::ExpectedFun(_) => "expected function",
+            Self::StructDoesNotHasField(_, _) => "invalid field",
+            Self::MissingField(_, _) => "missing field",
+            Self::CannotBorrowAsMutable => "cannot borrow as mut",
+            Self::SameArgName(_, _) => "identifier bound multiple times",
+            Self::ExpectedSigned => "expected signed integer",
+            Self::ExpectedUnsigned => "expected unsigned integer",
+            Self::IncompatibleSizes(_, _) => "integer of different sizes",
+            Self::DoesNotImpTrait(_, _) => "type does not implement trait",
+            Self::OutOfBoundTuple(_, _) => "index out of bound",
+            Self::WrongMutability(_, _) => "mutability incompatibility",
+        }
+    }
+
+    fn get_message(&self) -> String {
+        match self {
+            Self::ExpectedStruct(typ) => format!("{} is not a struct", typ),
+            Self::ExpectedTuple(typ) => format!("{} is not a tuple", typ),
+            Self::NotCompatible(typ1, typ2) => format!("expected {}, found {}", typ1, typ2),
+            _ => format!("undefined message for error {}", self.get_id())
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -34,6 +99,13 @@ pub struct TypeError {
 }
 
 impl TypeError {
+    pub fn wrong_mutability(loc : Location, expected : bool, got : bool) -> Self {
+        Self {
+            loc,
+            info : TypeErrorInfo::WrongMutability(expected, got)
+        }
+    }
+
     pub fn expected_struct(typ: Types, loc: Location) -> Self {
         Self {
             loc,
@@ -64,10 +136,10 @@ impl TypeError {
         }
     */
 
-    pub fn not_compatible(loc: Location, typ1: Types, typ2: Types) -> Self {
+    pub fn not_compatible(loc: Location, got: Types, expected: Types) -> Self {
         Self {
             loc,
-            info: TypeErrorInfo::NotCompatible(typ1, typ2),
+            info: TypeErrorInfo::NotCompatible(expected, got),
         }
     }
 
@@ -169,13 +241,6 @@ impl TypeError {
         }
     }
 
-    pub fn undefined_struct(id: Ident) -> Self {
-        Self {
-            loc: id.get_loc(),
-            info: TypeErrorInfo::UndefinedStruct(id.content()),
-        }
-    }
-
     pub fn out_of_bound_tuple(loc: Location, id: usize, len: usize) -> Self {
         Self {
             loc,
@@ -187,24 +252,41 @@ impl TypeError {
         if self.loc.start() == usize::MAX {
             println!("Unknown line")
         } else {
+            println!("{}error[E{:0>4}]{}: {}", RED, self.info.get_id(), NC, self.info.get_error_name());
             let fst_line_id = err_reporter.get_fst_line_id(self.loc);
             let lst_line_id = err_reporter.get_last_line_id(self.loc);
             let line_str = err_reporter.get_line(fst_line_id).unwrap();
-            let char_id_fst = err_reporter.get_line_start_char(fst_line_id).unwrap();
+            let char_id_fst = *err_reporter.get_line_start_char(fst_line_id).unwrap();
+            println!(
+                " {}-->{} {}:{}:{}:",
+                BLUE,
+                NC,
+                err_reporter.get_file_name(),
+                fst_line_id + 1,
+                self.loc.start() - char_id_fst + 1,
+            );
             if fst_line_id == lst_line_id {
-                println!(
-                    "File \"{}\", line {}, characters {}-{}:",
-                    err_reporter.get_file_name(),
-                    fst_line_id + 1,
-                    self.loc.start() - char_id_fst + 1,
-                    self.loc.start() - char_id_fst + 1
-                );
-                print!("{line_str}");
-                println!("Error {:?}", self.info);
+                let mut i = 1;
+                let mut str = String::new();
+                while i <= fst_line_id + 1 {
+                    str.push(' ');
+                    i *= 10                    
+                }
+                println!("{str} {BLUE}|{NC}");
+                print!("{BLUE}{} |{NC} {line_str}", fst_line_id + 1);
+                print!("{str} {BLUE}|{NC} ");
+                for _ in char_id_fst..self.loc.start() {
+                    print!(" ")
+                }
+                print!("{}", RED);
+                for _ in self.loc.start()..self.loc.end() {
+                    print!("^")
+                }
+                println!(" {}{}", self.info.get_message(), NC);
             } else {
+                println!("{:?}", self);
                 todo!()
             }
-            println!("{:?}", self)
         }
     }
 }

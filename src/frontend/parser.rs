@@ -155,7 +155,7 @@ peg::parser! {
                   out:arrow_typ() b:bloc() space()
               {
                   DeclFun {
-                      public : None::<()>.is_some(),
+                      public : p.is_some(),
                       name : n,
                       self_arg : None,
                       args,
@@ -178,7 +178,7 @@ peg::parser! {
           "struct" spaces() n:name() space() "{"
               args:typ_decls() "}" space() {
               DeclStruct {
-                  public : None::<()>.is_some(),
+                  public : p.is_some(),
                   name : n,
                   args,
               }
@@ -198,7 +198,7 @@ peg::parser! {
                   out:arrow_typ() b:bloc() space()
               {
                   DeclFun {
-                      public : None::<()>.is_some(),
+                      public : p.is_some(),
                       name : n,
                       self_arg : args.0,
                       args : args.1,
@@ -272,24 +272,38 @@ peg::parser! {
 
       rule bloc_inner() -> (Vec<Instr>, usize) = precedence! {
           i:instr() space() "}" end:position!() { (vec![i], end) }
-          e:expr() space() "}" end:position!() { (vec![Instr::Expr(ComputedValue::Keep, e)], end) }
+          e:expr() space() "}" end:position!()
+            { (vec![Instr {
+                    loc : e.loc,
+                    content : InstrInner::Expr(ComputedValue::Keep, e),
+                }], end)
+            }
           i:instr() space() t:@
               { let (mut v, end) = t; v.push(i); (v, end)}
           "}" end:position!() { (Vec::new(), end) }
       }
 
       rule instr() -> Instr = precedence! {
-          ";" { Instr::Expr(ComputedValue::Drop, Expr::unit()) }
-          "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";"
-              { Instr::Binding(b != None, n, e) }
-          "while" spaces() e:expr() space() b:bloc()
-              { Instr::While(e, b) }
-          "return" space() ";"
-              { Instr::Return(None) }
-          "return" spaces() e:expr() ";"
-              { Instr::Return(Some(e)) }
-          e:expr() space() (quiet!{";"} / expected!("end of expr")) { Instr::Expr(ComputedValue::Drop, e) }
-          i:if() { Instr::Expr(ComputedValue::Keep, i) }
+          start:position!() ";" { InstrInner::Expr(ComputedValue::Drop, Expr::unit()).to_instr(start, start + 1) }
+          start:position!() "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";" end:position!()
+              { InstrInner::Binding(b != None, n, e).to_instr(start, end) }
+          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
+              { InstrInner::While(e, b).to_instr(start, end) }
+          start:position!() "return" space() ";" end:position!()
+              { InstrInner::Return(None).to_instr(start, end) }
+          start:position!() "return" spaces() e:expr() ";" end:position!()
+              { InstrInner::Return(Some(e)).to_instr(start, end) }
+          e:expr() space() (quiet!{";"} / expected!("end of expr"))
+              { Instr {
+                    loc : e.loc,
+                    content : InstrInner::Expr(ComputedValue::Drop, e)
+                }
+              }
+/*          i:if() { Instr {
+            loc : i.loc,
+            content : InstrInner::Expr(ComputedValue::Keep, i) }
+*/
+          }
       }
 
       rule if() -> Expr = precedence! {
@@ -360,6 +374,7 @@ peg::parser! {
       rule expr() -> Expr = precedence! {
           n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
+          i:if() { i }
           n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
           start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()

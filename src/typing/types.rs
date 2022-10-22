@@ -156,6 +156,8 @@ pub fn biggest_compatible(typ1: &PostType, typ2: &PostType) -> Option<PostType> 
             }
         }
 
+        (sub_typ1, sub_typ2) if sub_typ1 == sub_typ2 => Some(typ1.clone()),
+
         _ => {
             println!(
                 "unkown biggest compatible for\n {:?}\n {:?}",

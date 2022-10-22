@@ -170,16 +170,22 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             ..top_expr
         },
 
-        ExprInner::FunCall(args, name, exprs) => Expr {
-            content: Box::new(ExprInner::FunCall(
-                args,
-                name,
-                exprs
-                    .into_iter()
-                    .map(|e| rewrite_expr(e, counter))
-                    .collect(),
-            )),
-            ..top_expr
+        ExprInner::FunCall(args, name, exprs) => {
+            let name = match counter.get_name(name.get_content()) {
+                None => name,
+                Some(new_name) => Ident::new(new_name, name.get_loc()),
+            };
+            Expr {
+                content: Box::new(ExprInner::FunCall(
+                    args,
+                    name,
+                    exprs
+                        .into_iter()
+                        .map(|e| rewrite_expr(e, counter))
+                        .collect(),
+                )),
+                ..top_expr
+            }
         },
 
         ExprInner::Deref(expr) => Expr {
@@ -198,27 +204,28 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut GiveUniqueId) -> Bloc {
     counter.add_layer();
     let mut vec_out = Vec::new();
     for instr in bloc.content.into_iter() {
-        match instr {
-            Instr::Expr(drop, expr) => {
+        let content = match instr.content {
+            InstrInner::Expr(drop, expr) => {
                 let expr = rewrite_expr(expr, counter);
-                vec_out.push(Instr::Expr(drop, expr))
+                InstrInner::Expr(drop, expr)
             }
-            Instr::Return(None) => vec_out.push(Instr::Return(None)),
-            Instr::Return(Some(expr)) => {
+            InstrInner::Return(None) => InstrInner::Return(None),
+            InstrInner::Return(Some(expr)) => {
                 let expr = rewrite_expr(expr, counter);
-                vec_out.push(Instr::Return(Some(expr)))
+                InstrInner::Return(Some(expr))
             }
-            Instr::While(expr, bloc) => {
+            InstrInner::While(expr, bloc) => {
                 let expr = rewrite_expr(expr, counter);
                 let bloc = rewrite_bloc(bloc, counter);
-                vec_out.push(Instr::While(expr, bloc));
+                InstrInner::While(expr, bloc)
             }
-            Instr::Binding(mutable, name, expr) => {
+            InstrInner::Binding(mutable, name, expr) => {
                 let expr = rewrite_expr(expr, counter);
                 let name = counter.add_name(name);
-                vec_out.push(Instr::Binding(mutable, name, expr))
+                InstrInner::Binding(mutable, name, expr)
             }
-        }
+        };
+        vec_out.push(Instr { content, ..instr})
     }
     counter.pop_layer();
     Bloc {
