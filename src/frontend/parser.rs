@@ -59,13 +59,14 @@ peg::parser! {
           = p1:position!() n:$(['0'..='9']+) typ_opt:int_type_anotation()? p2:position!() { ((p1, p2), n.parse().unwrap(), typ_opt) }
 
       rule special_chars() -> Vec<char> = precedence! {
+          "\n"   {vec!['\\', 'n']}
           "\\n"   {vec!['\\', 'n']}
           "\\\""  {vec!['\\', '\"']}
           "\\\\"  {vec!['\\', '\\']}
       }
 
       rule string() -> ((usize, usize), String)
-          = p1:position!() "\"" n:((['\t'|'\n'|' '|'!'|'#'..='['|']'..='~']+ / special_chars())*) "\"" p2:position!()
+          = p1:position!() "\"" n:((['\t'|' '|'!'|'#'..='['|']'..='~']+ / special_chars())*) "\"" p2:position!()
               { ((p1, p2), n.into_iter().flatten().collect()) }
 
       rule char() -> char =
