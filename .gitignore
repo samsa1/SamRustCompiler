@@ -12,3 +12,7 @@ Cargo.lock
 
 /tests/exec/*.s
 /tests/exec-fail/*.s
+
+
+a.out
+out
