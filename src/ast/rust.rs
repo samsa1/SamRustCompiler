@@ -403,6 +403,7 @@ pub enum ExprInner<T = Option<PreType>> {
     Array(Vec<Expr<T>>),
     Parenthesis(Expr<T>),
     Index(Expr<T>, Expr<T>),
+    Coercion(Expr<T>, T),
 }
 
 impl<T> ExprInner<T> {

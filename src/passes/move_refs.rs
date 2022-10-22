@@ -20,6 +20,7 @@ fn is_ref(
         | ExprInner::MacroCall(_, _)
         | ExprInner::Tuple(_)
         | ExprInner::Array(_)
+        | ExprInner::Coercion(_, _)
         | ExprInner::Method(_, _, _) => {
             top_expr = rewrite_expr(top_expr, context, counter);
             let name = counter.new_name();
@@ -186,6 +187,11 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
 
         ExprInner::Proj(expr, proj) => Expr {
             content: Box::new(ExprInner::Proj(is_ref(false, expr, context, counter), proj)),
+            ..top_expr
+        },
+
+        ExprInner::Coercion(expr, typ) => Expr {
+            content: Box::new(ExprInner::Coercion(rewrite_expr(expr, context, counter), typ)),
             ..top_expr
         },
     }

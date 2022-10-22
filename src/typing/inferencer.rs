@@ -1184,7 +1184,9 @@ fn type_expr(
                     Err(vec![TypeError::unknown_var(var_name)])
                 }
             }
-        }
+        },
+
+        ExprInner::Coercion(_, _) => todo!(),
     };
     /*    println!("");
         println!("{:?}", types);

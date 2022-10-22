@@ -733,6 +733,7 @@ pub fn type_checker(
         ),
 
         rust::ExprInner::Array(_a) => todo!(),
+        rust::ExprInner::Coercion(_, _) => todo!(),
     };
     Ok((
         affectable,

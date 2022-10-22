@@ -197,6 +197,10 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             content: Box::new(ExprInner::Proj(rewrite_expr(expr, counter), proj)),
             ..top_expr
         },
+        ExprInner::Coercion(expr, typ) => Expr {
+            content: Box::new(ExprInner::Coercion(rewrite_expr(expr, counter), typ)),
+            ..top_expr
+        },
     }
 }
 
