@@ -675,7 +675,8 @@ fn compile_expr_val(
             };
             (
                 Location::Rax,
-                deplq(reg::Label::from_str(label_name), RDI)
+                leaq(reg::Operand::LabRelAddr(reg::Label::from_str(label_name)), RDI)
+//                deplq(reg::Label::from_str(label_name), RDI)
                     + movq(immq(0), reg!(RAX))
                     + subq(immq(missing), reg!(RSP))
                     + call(reg::Label::printf())
