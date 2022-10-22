@@ -684,7 +684,15 @@ fn compile_expr_val(
         }
         llr::ExprInner::Proj(sub_expr, offset) => {
             let sub_expr = if sub_expr.typed.is_ref() {
-                compile_expr_val(ctxt, sub_expr, stack_offset, is_main).1
+                let (loc, sub_expr) = compile_expr_val(ctxt, sub_expr, stack_offset, is_main);
+                match loc {
+                    Location::Rax | Location::Never => sub_expr,
+                    Location::StackWithPadding(pad) => {
+                        sub_expr
+                            + popq(RAX)
+                            + addq(immq(pad as i64), reg!(RAX))
+                    }
+                }
             } else {
                 compile_expr_pointer(ctxt, sub_expr, stack_offset, is_main)
             };
@@ -877,9 +885,9 @@ fn compile_bloc(
             stack_offset = ctxt.insert(*id, expr.size, stack_offset)
         }
     }
-    while stack_offset % 16 != 0 {
+/*    while stack_offset % 16 != 0 {
         stack_offset += 1
-    }
+    } */
 
     let mut asm = subq(
         immq((stack_offset - initial_stack_offset) as i64),

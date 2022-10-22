@@ -1,6 +1,5 @@
 use super::common;
 use std::collections::HashMap;
-use std::env::Args;
 use std::fmt::Display;
 
 pub struct File {
@@ -30,7 +29,7 @@ pub struct DeclStruct {
 pub struct DeclFun {
     pub public: bool,
     pub name: common::Ident,
-    pub self_arg: Option<bool>,
+    pub self_arg: Option<Option<bool>>,
     pub args: Vec<(common::Ident, bool, PreType)>,
     pub output: PreType,
     pub content: Bloc,

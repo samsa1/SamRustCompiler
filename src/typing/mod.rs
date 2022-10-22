@@ -178,9 +178,9 @@ pub fn handle_implemantations(
                     let typ = rust::PreType {
                         content: rust::PreTypeInner::Ident(impl_decl.name.clone()),
                     };
-                    let typ = if b {
+                    let typ = if let Some(b) = b {
                         rust::PreType {
-                            content: rust::PreTypeInner::Ref(false, Box::new(typ)),
+                            content: rust::PreTypeInner::Ref(b, Box::new(typ)),
                         }
                     } else {
                         typ

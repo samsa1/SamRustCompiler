@@ -184,10 +184,15 @@ peg::parser! {
               }
       }
 
-      rule impl_fun_args() -> (Option<bool>, Vec<(Ident, bool, PreType)>) = precedence! {
-        space() b:"&"? "self" space() "," args:(fun_arg() ++ ",") ","? space()
-            { (Some(b.is_some()), args) }
-        space() b:"&"? "self" space()   { (Some(b.is_some()), Vec::new()) }
+      rule ref_mut() -> bool = precedence! {
+        "&" space() "mut" spaces() { true }
+        "&" { false }
+      }
+
+      rule impl_fun_args() -> (Option<Option<bool>>, Vec<(Ident, bool, PreType)>) = precedence! {
+        space() b:ref_mut()? "self" space() "," args:(fun_arg() ++ ",") ","? space()
+            { (Some(b), args) }
+        space() b:ref_mut()? "self" space()   { (Some(b), Vec::new()) }
         args:fun_args() { (None, args) }
       }
 
@@ -299,10 +304,10 @@ peg::parser! {
                     content : InstrInner::Expr(ComputedValue::Drop, e)
                 }
               }
-/*          i:if() { Instr {
+          i:if() { Instr {
             loc : i.loc,
             content : InstrInner::Expr(ComputedValue::Keep, i) }
-          }*/
+          }
       }
 
       rule if() -> Expr = precedence! {
