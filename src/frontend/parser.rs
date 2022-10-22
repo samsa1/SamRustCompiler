@@ -302,8 +302,7 @@ peg::parser! {
 /*          i:if() { Instr {
             loc : i.loc,
             content : InstrInner::Expr(ComputedValue::Keep, i) }
-*/
-          }
+          }*/
       }
 
       rule if() -> Expr = precedence! {
