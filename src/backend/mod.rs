@@ -1190,7 +1190,7 @@ pub fn to_asm(file: llr::File) -> file::File {
     text_ss = text_ss + default_vec_function(&ctxt);
 
     let data_ss = data::Data::from_strings(file.strings)
-        + data::dstring("my_string".to_string(), "%zd\n".to_string());
+        + data::dstring("my_string".to_string(), "%zd\\n".to_string());
 
     file::File {
         globl: Some(new_label("main")),
