@@ -20,7 +20,7 @@ test_rustc() {
 echo -n "syntax... "
 for f in tests/syntax/bad/*.rs; do
     if rustc $f -o a.out > /dev/null 2>&1 ; then
-      echo "succ�s de rustc sur $f"; exit 1
+      echo "succès de rustc sur $f"; exit 1
     fi
 done
 echo "OK"
@@ -28,11 +28,11 @@ echo "OK"
 echo -n "typing... "
 for f in tests/syntax/good/*.rs tests/typing/good/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
     rustc --emit=dep-info $f -o a.out  > /dev/null 2>&1 ||
-     (echo "echec de rustc sur $f"; exit 1)
+     (echo "Échec de rustc sur $f"; exit 1)
 done
 for f in tests/typing/bad/*.rs tests/typing2/bad/*.rs; do
     if rustc $f -o a.out > /dev/null 2>&1 ; then
-      echo "succ�s de rustc sur $f"; exit 1
+      echo "succès de rustc sur $f"; exit 1
     fi
 done
 echo "OK"
@@ -47,7 +47,7 @@ for f in tests/exec/*.rs; do
           echo "mauvaise sortie de rustc sur $f"; exit 1
       fi
     else
-      echo "�chec de rustc sur $f"; exit 1
+      echo "Échec de rustc sur $f"; exit 1
     fi
 done
 
@@ -57,10 +57,10 @@ for f in tests/exec-fail/*.rs; do
     expected=exec/`basename $f .rs`.out
     if rustc $f -o a.out > /dev/null 2>&1 ; then
       if ./a.out > /dev/null 2>&1 ; then
-          echo "n'�choue pas sur $f"; exit 1
+          echo "n'échoue pas sur $f"; exit 1
       fi
     else
-      echo "�chec de rustc sur $f"; exit 1
+      echo "Échec de rustc sur $f"; exit 1
     fi
 done
 }
@@ -94,11 +94,11 @@ for f in tests/syntax/bad/*.rs; do
     case $a in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait �chouer)";;
+	echo "ÉCHEC sur "$f" (devrait échouer)";;
 	"1") score=`expr $score + 1`;;
 	*)
 	echo $a;
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";;
     esac
 done
 echo
@@ -112,11 +112,11 @@ for f in tests/syntax/good/*.rs tests/typing/bad/*.rs tests/typing/good/*.rs tes
     case $? in
 	"1")
 	echo
-	echo "ECHEC sur "$f" (devrait reussir)";;
+	echo "ÉCHEC sur "$f" (devrait réussir)";;
 	"0") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";;
     esac
 done
 echo
@@ -143,12 +143,12 @@ for f in tests/syntax/good/*.rs tests/typing/bad/*.rs tests/typing/good/*.rs tes
 	echo "";
     verbose=1;
     compile --parse-only $f;
-	echo "ECHEC sur "$f" (devrait reussir)";
+	echo "ÉCHEC sur "$f" (devrait réussir)";
     exit 1;;
 	"0") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";
     exit 1;;
     esac
 done
@@ -163,11 +163,11 @@ for f in tests/syntax/bad/*.rs; do
     case $? in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait �chouer)";
+	echo "ÉCHEC sur "$f" (devrait échouer)";
     exit 1;;
 	"1") score=`expr $score + 1`;;
 	*)
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";
     exit 1;;
     esac
 done
@@ -195,11 +195,11 @@ for f in tests/typing/bad/*.rs; do
     case $? in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait �chouer)";;
+	echo "ÉCHEC sur "$f" (devrait échouer)";;
 	"1") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";;
     esac
 done
 echo
@@ -213,11 +213,11 @@ for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs t
     case $? in
 	"1")
 	echo
-	echo "ECHEC sur "$f" (devrait reussir)";;
+	echo "ÉCHEC sur "$f" (devrait réussir)";;
 	"0") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";;
     esac
 done
 echo
@@ -245,14 +245,14 @@ for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs t
     verbose=1;
     compile --type-only $f;
 	echo
-	echo "ECHEC sur "$f" (devrait reussir)";
+	echo "ÉCHEC sur "$f" (devrait réussir)";
     exit 1;;
 	"0") score=`expr $score + 1`;;
 	*)
     verbose=1;
     compile --type-only $f;
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";
     exit 1;;
     esac
 done
@@ -270,14 +270,14 @@ for f in tests/typing/bad/*.rs; do
     verbose=1;
     compile --type-only $f;
 	echo
-	echo "ECHEC sur "$f" (devrait �chouer)";
+	echo "ÉCHEC sur "$f" (devrait échouer)";
     exit 1;;
 	"1") score=`expr $score + 1`;;
 	*)
     verbose=1;
     compile --type-only $f;
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";
     exit 1;;
     esac
 done
@@ -305,11 +305,11 @@ for f in tests/typing2/bad/*.rs; do
     case $? in
 	"0")
 	echo
-	echo "ECHEC sur "$f" (devrait �chouer)";;
+	echo "ÉCHEC sur "$f" (devrait échouer)";;
 	"1") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";;
     esac
 done
 echo
@@ -323,11 +323,11 @@ for f in tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
     case $? in
 	"1")
 	echo
-	echo "ECHEC sur "$f" (devrait reussir)";;
+	echo "ÉCHEC sur "$f" (devrait réussir)";;
 	"0") score=`expr $score + 1`;;
 	*)
 	echo
-	echo "ECHEC sur "$f" (pour une mauvaise raison)";;
+	echo "ÉCHEC sur "$f" (pour une mauvaise raison)";;
     esac
 done
 echo
@@ -370,20 +370,20 @@ for f in tests/exec/*.rs; do
 		score_test=`expr $score_test + 1`;
 	    else
 		echo
-		echo "ECHEC : mauvaise sortie pour $f"
+		echo "ÉCHEC : mauvaise sortie pour $f"
 	    fi
 	else
 		echo
-		echo "ECHEC du code produit pour $f"
+		echo "ÉCHEC du code produit pour $f"
 	fi
     else
 	echo
-	echo "ECHEC de la compilation sur $f (devrait r�ussir)"
+	echo "ÉCHEC de la compilation sur $f (devrait réussir)"
     fi
 done
 echo
 
-echo "Execution conduisant � un �chec"
+echo "Execution conduisant à un échec"
 echo "-------------------------------"
 
 for f in tests/exec-fail/*.rs; do
@@ -395,14 +395,14 @@ for f in tests/exec-fail/*.rs; do
 	score_comp=`expr $score_comp + 1`;
 	if { ./a.out; } > /dev/null 2>&1; then
 	    echo
-	    echo "ECHEC : le code $f devrait �chouer"
+	    echo "ÉCHEC : le code $f devrait échouer"
 	else
 	    score_test=`expr $score_test + 1`;
 	    score_out=`expr $score_out + 1`;
 	fi
     else
 	echo
-	echo "ECHEC de la compilation sur $f (devrait r�ussir)"
+	echo "ÉCHEC de la compilation sur $f (devrait réussir)"
     fi
 done
 
@@ -450,27 +450,27 @@ for f in tests/exec/*.rs; do
 		score_test=`expr $score_test + 1`;
 	    else
 		echo
-		echo "ECHEC : mauvaise sortie pour $f";
+		echo "ÉCHEC : mauvaise sortie pour $f";
         cmp out $expected;
         exit 1;
 	    fi
 	else
         ./a.out;
 		echo
-		echo "ECHEC du code produit pour $f";
+		echo "ÉCHEC du code produit pour $f";
         exit 1;
 	fi
     else
     verbose=1;
     compile $f;
 	echo
-	echo "ECHEC de la compilation sur $f (devrait r�ussir)";
+	echo "ÉCHEC de la compilation sur $f (devrait réussir)";
     exit 1;
     fi
 done
 echo
 
-echo "Execution conduisant � un �chec"
+echo "Execution conduisant à un échec"
 echo "-------------------------------"
 
 for f in tests/exec-fail/*.rs; do
@@ -483,7 +483,7 @@ for f in tests/exec-fail/*.rs; do
 	if { ./a.out; } > /dev/null 2>&1; then
         ./a.out;
 	    echo
-	    echo "ECHEC : le code $f devrait �chouer";
+	    echo "ÉCHEC : le code $f devrait échouer";
         exit 1;
 	else
 	    score_test=`expr $score_test + 1`;
@@ -493,7 +493,7 @@ for f in tests/exec-fail/*.rs; do
     verbose=1;
     compile $f;
 	echo
-	echo "ECHEC de la compilation sur $f (devrait r�ussir)";
+	echo "ÉCHEC de la compilation sur $f (devrait réussir)";
     exit 1;
     fi
 done
@@ -546,7 +546,7 @@ case $option in
         test_rustc;;
     * )
         echo "usage : $0 <option> <compilo>"
-        echo "sp�cifier une option parmi : "
+        echo "spécifier une option parmi : "
         echo "-1      : tester la partie 1"
         echo "-2      : tester la partie 2"
         echo "-2b     : tester la partie 2b"
