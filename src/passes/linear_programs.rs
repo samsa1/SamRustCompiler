@@ -18,6 +18,7 @@ fn is_ref(
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _)
         | ExprInner::If(_, _, _)
+        | ExprInner::Coercion(_, _, _)
         | ExprInner::BinOp(_, _, _)
         | ExprInner::UnaOp(_, _)
         | ExprInner::Ref(_, _) => {
@@ -159,6 +160,15 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             content: Box::new(ExprInner::UnaOp(
                 unaop,
                 is_ref(false, expr, context, counter),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::Coercion(expr, typ1, typ2) => Expr {
+            content: Box::new(ExprInner::Coercion(
+                is_ref(false, expr, context, counter),
+                typ1,
+                typ2,
             )),
             ..top_expr
         },

@@ -2,6 +2,15 @@
 
 shopt -s nullglob
 
+if [[ $OSTYPE == 'darwin'* ]]; then
+  GCC=gcc
+fi
+
+if [[ $OSTYPE == 'linux'* ]]; then
+  GCC="gcc -no-pie"
+fi
+
+
 # script de test pour le projet de compilation
 
 option=$1
@@ -364,7 +373,7 @@ for f in tests/exec/*.rs; do
     if compile $f; then
 	rm -f out
 	score_comp=`expr $score_comp + 1`;
-	if gcc -no-pie $asm && ./a.out > out; then
+	if $GCC $asm && ./a.out > out; then
 	    score_out=`expr $score_out + 1`;
 	    if cmp --quiet out $expected; then
 		score_test=`expr $score_test + 1`;
@@ -391,7 +400,7 @@ for f in tests/exec-fail/*.rs; do
     asm=tests/exec-fail/`basename $f .rs`.s
     rm -f $asm
     max=`expr $max + 1`;
-    if compile $f && gcc -no-pie $asm; then
+    if compile $f && $GCC $asm; then
 	score_comp=`expr $score_comp + 1`;
 	if { ./a.out; } > /dev/null 2>&1; then
 	    echo
@@ -444,7 +453,7 @@ for f in tests/exec/*.rs; do
     if compile $f; then
 	rm -f out
 	score_comp=`expr $score_comp + 1`;
-	if gcc -no-pie $asm && ./a.out > out; then
+	if $GCC $asm && ./a.out > out; then
 	    score_out=`expr $score_out + 1`;
 	    if cmp --quiet out $expected; then
 		score_test=`expr $score_test + 1`;
@@ -478,7 +487,7 @@ for f in tests/exec-fail/*.rs; do
     asm=tests/exec-fail/`basename $f .rs`.s
     rm -f $asm
     max=`expr $max + 1`;
-    if compile $f && gcc -no-pie $asm; then
+    if compile $f && $GCC $asm; then
 	score_comp=`expr $score_comp + 1`;
 	if { ./a.out; } > /dev/null 2>&1; then
         ./a.out;

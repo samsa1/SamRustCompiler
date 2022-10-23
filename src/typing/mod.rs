@@ -18,12 +18,19 @@ fn type_funs(
     let mut fun_types = Vec::new();
     let mut fun_names = HashSet::new();
     for fun_decl in funs.iter() {
-        let args: Vec<typed_rust::PostType> = fun_decl
+        let args: Option<Vec<typed_rust::PostType>> = fun_decl
             .args
             .iter()
             .map(|(_, _, typ)| types::translate_typ(typ.clone(), known_types))
             .collect();
-        let output = types::translate_typ(fun_decl.output.clone(), known_types);
+        let args = match args {
+            Some(a) => a,
+            None => todo!(),
+        };
+        let output = match types::translate_typ(fun_decl.output.clone(), known_types) {
+            Some(out) => out,
+            None => todo!(),
+        };
         fun_types.push((args.clone(), output.clone()));
         let fun_typ = typed_rust::PostType {
             content: typed_rust::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),

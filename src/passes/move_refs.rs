@@ -26,8 +26,8 @@ fn is_ref(
             let name = counter.new_name();
             let id = Ident::new_from(name, top_expr.loc.start(), top_expr.loc.end());
             context.push(Instr {
-                loc : Location::default(),
-                content : InstrInner::Binding(
+                loc: Location::default(),
+                content: InstrInner::Binding(
                     mutable,
                     id.clone(),
                     Expr {
@@ -35,7 +35,8 @@ fn is_ref(
                         typed: top_expr.typed.clone(),
                         content: top_expr.content,
                     },
-            )});
+                ),
+            });
             top_expr.content = Box::new(ExprInner::Var(id));
             top_expr
         }
@@ -191,7 +192,10 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
         },
 
         ExprInner::Coercion(expr, typ) => Expr {
-            content: Box::new(ExprInner::Coercion(rewrite_expr(expr, context, counter), typ)),
+            content: Box::new(ExprInner::Coercion(
+                rewrite_expr(expr, context, counter),
+                typ,
+            )),
             ..top_expr
         },
     }

@@ -112,18 +112,13 @@ impl Types {
 }
 
 impl Display for Types {
-
-    fn fmt(&self, f : &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
             Self::Bool => write!(f, "bool"),
-            Self::Fun(args, _) =>
-                write!(f, "fn [{}] -> _", args.len()),
-            Self::Int(None, None) =>
-                write!(f, "{{integer}}"),
-            Self::Int(Some(true), None) =>
-                write!(f, "{{signed integer}}"),
-            Self::Int(Some(false), None) =>
-                write!(f, "{{usigned integer}}"),
+            Self::Fun(args, _) => write!(f, "fn [{}] -> _", args.len()),
+            Self::Int(None, None) => write!(f, "{{integer}}"),
+            Self::Int(Some(true), None) => write!(f, "{{signed integer}}"),
+            Self::Int(Some(false), None) => write!(f, "{{usigned integer}}"),
             Self::Int(None, Some(size)) => {
                 write!(f, "{{{:?}-bits integer}}", size)
             }
@@ -153,11 +148,9 @@ impl Display for Types {
             Self::SameAs(_) => panic!("ICE"),
             Self::Deref(_) => panic!("ICE"),
             Self::Unknown => panic!("ICE"),
-
-//            _ => todo!(),
+            //            _ => todo!(),
         }
     }
-
 }
 
 #[derive(Debug)]
@@ -311,8 +304,8 @@ impl<T> Bloc<T> {
         Self {
             loc: expr.loc,
             content: vec![Instr {
-                loc : expr.loc,
-                content : InstrInner::Expr(common::ComputedValue::Keep, expr),
+                loc: expr.loc,
+                content: InstrInner::Expr(common::ComputedValue::Keep, expr),
             }],
         }
     }
@@ -327,8 +320,8 @@ impl<T> Bloc<T> {
 
 #[derive(Debug, Clone)]
 pub struct Instr<T = Option<PreType>> {
-    pub content : InstrInner<T>,
-    pub loc : common::Location,
+    pub content: InstrInner<T>,
+    pub loc: common::Location,
 }
 
 #[derive(Debug, Clone)]
@@ -340,10 +333,10 @@ pub enum InstrInner<T = Option<PreType>> {
 }
 
 impl<T> InstrInner<T> {
-    pub fn to_instr(self, start : usize, end : usize) -> Instr<T> {
+    pub fn to_instr(self, start: usize, end: usize) -> Instr<T> {
         Instr {
-            loc : common::Location::new(start, end),
-            content : self,
+            loc: common::Location::new(start, end),
+            content: self,
         }
     }
 }

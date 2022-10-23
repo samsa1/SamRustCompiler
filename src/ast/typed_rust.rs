@@ -194,4 +194,5 @@ pub enum ExprInner {
     //    Vec(Vec<Expr>),
     BinOp(common::TypedBinop, Expr, Expr),
     UnaOp(common::TypedUnaop, Expr),
+    Coercion(Expr, common::BuiltinType, common::BuiltinType),
 }

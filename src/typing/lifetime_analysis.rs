@@ -74,6 +74,7 @@ fn check_scopes_expr(
         ExprInner::If(_, _, _) => todo!(),
         ExprInner::BinOp(_, _, _) => todo!(),
         ExprInner::UnaOp(_, _) => todo!(),
+        ExprInner::Coercion(_, _, _) => todo!(),
     }
 }
 
