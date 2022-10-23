@@ -134,6 +134,7 @@ peg::parser! {
           df:decl_fun()     { Decl::Fun(df) }
           ds:decl_struct()  { Decl::Struct(ds) }
           di:decl_impl()    { Decl::Impl(di) }
+          dc:decl_const()   { Decl::Const(dc) }
       }
 
       rule arrow_typ() -> PreType = precedence! {
@@ -184,6 +185,16 @@ peg::parser! {
                   args,
               }
       }
+
+      rule decl_const() -> DeclConst =
+          p:("pub" spaces())? "const" spaces() n:name() space() "=" e:expr_ws() ";" space()
+          {
+            DeclConst {
+                public : p.is_some(),
+                name : n,
+                expr : e,
+            }
+          }
 
       rule ref_mut() -> bool = precedence! {
         "&" space() "mut" spaces() { true }

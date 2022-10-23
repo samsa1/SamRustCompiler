@@ -241,7 +241,7 @@ fn rewrite_fun(mut fun_decl: DeclFun) -> DeclFun {
 
 pub fn rewrite_decl(decl: Decl) -> Decl {
     match decl {
-        Decl::Struct(_) => decl,
+        Decl::Const(_) | Decl::Struct(_) => decl,
         Decl::Fun(decl_fun) => Decl::Fun(rewrite_fun(decl_fun)),
         Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
             content: decl_impl.content.into_iter().map(rewrite_fun).collect(),

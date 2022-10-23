@@ -217,6 +217,7 @@ pub fn type_inferencer(file: rust::File, needs_main: bool) -> typed_rust::File {
             rust::Decl::Fun(f) => funs.push(f),
             rust::Decl::Struct(s) => structs.push(s),
             rust::Decl::Impl(i) => impls.push(i),
+            rust::Decl::Const(_) => todo!(),
         }
     }
 

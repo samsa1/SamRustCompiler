@@ -235,6 +235,10 @@ pub fn rewrite_decl(decl: Decl) -> Decl {
             content: decl_impl.content.into_iter().map(rewrite_fun).collect(),
             ..decl_impl
         }),
+        Decl::Const(decl_const) => Decl::Const(DeclConst {
+            expr: rewrite_expr(decl_const.expr, &mut IdCounter::new()),
+            ..decl_const
+        }),
     }
 }
 

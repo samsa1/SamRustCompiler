@@ -18,6 +18,13 @@ pub enum Decl<DF = DeclFun> {
     Fun(DF),
     Struct(DeclStruct),
     Impl(DeclImpl),
+    Const(DeclConst),
+}
+
+pub struct DeclConst<T = Option<PreType>> {
+    pub name: common::Ident,
+    pub public: bool,
+    pub expr: Expr<T>,
 }
 
 pub struct DeclStruct {
