@@ -187,11 +187,12 @@ peg::parser! {
       }
 
       rule decl_const() -> DeclConst =
-          p:("pub" spaces())? "const" spaces() n:name() space() "=" e:expr_ws() ";" space()
+          p:("pub" spaces())? "const" spaces() n:name() space() ":" t:typ_ws() "=" e:expr_ws() ";" space()
           {
             DeclConst {
                 public : p.is_some(),
                 name : n,
+                typ : t,
                 expr : e,
             }
           }

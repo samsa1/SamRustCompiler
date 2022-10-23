@@ -24,6 +24,7 @@ pub enum Decl<DF = DeclFun> {
 pub struct DeclConst<T = Option<PreType>> {
     pub name: common::Ident,
     pub public: bool,
+    pub typ: PreType,
     pub expr: Expr<T>,
 }
 
