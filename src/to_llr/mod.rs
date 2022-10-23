@@ -407,6 +407,17 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             size: names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
+
+        tr::ExprInner::Coercion(expr, typ1, typ2) => llr::Expr {
+            content: Box::new(llr::ExprInner::Coercion(
+                rewrite_expr(expr, names_info),
+                typ1,
+                typ2,
+            )),
+            loc: top_expr.loc,
+            size: typ2.to_byte_size(),
+            typed: top_expr.typed,
+        },
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::ast::common::{ComputedValue, Sizes, TypedBinop, TypedUnaop};
+use crate::ast::common::{BuiltinType, ComputedValue, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;
 use crate::ast::typed_rust::PostType;
 
@@ -73,6 +73,7 @@ fn compile_expr_pointer(
         | llr::ExprInner::Bloc(_)
         | llr::ExprInner::Bool(_)
         | llr::ExprInner::BuildStruct(_, _)
+        | llr::ExprInner::Coercion(_, _, _)
         | llr::ExprInner::FunCall(_, _)
         | llr::ExprInner::FunCallVar(_, _)
         | llr::ExprInner::If(_, _, _)
@@ -129,6 +130,17 @@ fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
     }
 }
 
+fn move_stack_to_rax(pad: u64, size: usize) -> Text {
+    match size {
+        0 => addq(immq(pad as i64), reg!(RSP)),
+        1 => movb(addr!(RSP), reg!(AH)) + addq(immq(1 + pad as i64), reg!(RSP)),
+        2 => movw(addr!(RSP), reg!(AX)) + addq(immq(2 + pad as i64), reg!(RSP)),
+        4 => movl(addr!(RSP), reg!(EAX)) + addq(immq(4 + pad as i64), reg!(RSP)),
+        8 => popq(RAX) + addq(immq(pad as i64), reg!(RSP)),
+        _ => panic!("No handled"),
+    }
+}
+
 fn compile_expr_val(
     ctxt: &mut context::Context,
     expr: llr::Expr,
@@ -142,24 +154,7 @@ fn compile_expr_val(
             let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
             let expr = match loc {
                 Location::Never | Location::Rax => expr,
-                Location::StackWithPadding(pad) => {
-                    expr + match size {
-                        1 => {
-                            movb(addr!(RSP), reg!(AH))
-                                + addq(immq(pad as i64 + size as i64), reg!(RSP))
-                        }
-                        2 => {
-                            movw(addr!(RSP), reg!(AX))
-                                + addq(immq(pad as i64 + size as i64), reg!(RSP))
-                        }
-                        4 => {
-                            movl(addr!(RSP), reg!(EAX))
-                                + addq(immq(pad as i64 + size as i64), reg!(RSP))
-                        }
-                        8 => popq(RAX) + addq(immq(pad as i64), reg!(RSP)),
-                        _ => panic!("ICE"),
-                    }
-                }
+                Location::StackWithPadding(pad) => expr + move_stack_to_rax(pad, size),
             };
             let op = match op {
                 TypedUnaop::Neg(Sizes::S8) => negb(reg!(AH)),
@@ -224,19 +219,7 @@ fn compile_expr_val(
             println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
-                Location::StackWithPadding(pad) => {
-                    expr1
-                        + match size {
-                            0 => nop(),
-                            1 => movb(addr!(RSP), reg!(AH)) + addq(immq(1 + pad as i64), reg!(RSP)),
-                            2 => movw(addr!(RSP), reg!(AX)) + addq(immq(2 + pad as i64), reg!(RSP)),
-                            4 => {
-                                movl(addr!(RSP), reg!(EAX)) + addq(immq(4 + pad as i64), reg!(RSP))
-                            }
-                            8 => popq(RAX) + addq(immq(pad as i64), reg!(RSP)),
-                            _ => panic!("No handled"),
-                        }
-                }
+                Location::StackWithPadding(pad) => expr1 + move_stack_to_rax(pad, size),
             };
             let mov = match size {
                 0 => nop(),
@@ -376,6 +359,73 @@ fn compile_expr_val(
                 }
             };
             (Location::Rax, expr2 + expr1 + mov + op)
+        }
+
+        llr::ExprInner::Coercion(expr, typ1, typ2) => {
+            let size_in = expr.size;
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let expr = match loc {
+                Location::Rax | Location::Never => expr,
+                Location::StackWithPadding(pad) => expr + move_stack_to_rax(pad, size_in),
+            };
+            let conversion = match (typ1, typ2) {
+                (t1, t2) if t1 == t2 => nop(),
+                (BuiltinType::Int(true, s1), BuiltinType::Int(_, s2)) => match (s1, s2) {
+                    (Sizes::S8, Sizes::S8)
+                    | (Sizes::S16, Sizes::S16)
+                    | (Sizes::S32, Sizes::S32)
+                    | (Sizes::S64, Sizes::S64)
+                    | (Sizes::S64, Sizes::SUsize)
+                    | (Sizes::SUsize, Sizes::S64)
+                    | (Sizes::SUsize, Sizes::SUsize) => nop(),
+                    (Sizes::S8, Sizes::S16) => movsbw(reg!(AH), AX),
+                    (Sizes::S8, Sizes::S32) => movsbl(reg!(AH), EAX),
+                    (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => movsbq(reg!(AH), RAX),
+                    (Sizes::S16, Sizes::S32) => movswl(reg!(AX), EAX),
+                    (Sizes::S16, Sizes::S64) | (Sizes::S16, Sizes::SUsize) => movswq(reg!(AX), RAX),
+                    (Sizes::S32, Sizes::S64) | (Sizes::S32, Sizes::SUsize) => {
+                        movslq(reg!(EAX), RAX)
+                    }
+
+                    _ => {
+                        assert!(s1.to_byte_size() < s2.to_byte_size());
+                        nop()
+                    }
+                },
+                (BuiltinType::Int(false, s1), BuiltinType::Int(_, s2)) => {
+                    match (s1, s2) {
+                        (Sizes::S8, Sizes::S8)
+                        | (Sizes::S16, Sizes::S16)
+                        | (Sizes::S32, Sizes::S32)
+                        | (Sizes::S64, Sizes::S64)
+                        | (Sizes::S64, Sizes::SUsize)
+                        | (Sizes::SUsize, Sizes::S64)
+                        | (Sizes::SUsize, Sizes::SUsize) => nop(),
+                        (Sizes::S8, Sizes::S16) => movzbw(reg!(AH), AX),
+                        (Sizes::S8, Sizes::S32) => movzbl(reg!(AH), EAX),
+                        (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => {
+                            movzbq(reg!(AH), RAX)
+                        }
+                        (Sizes::S16, Sizes::S32) => movzwl(reg!(AX), EAX),
+                        (Sizes::S16, Sizes::S64) | (Sizes::S16, Sizes::SUsize) => {
+                            movzwq(reg!(AX), RAX)
+                        }
+                        (Sizes::S32, Sizes::S64) | (Sizes::S32, Sizes::SUsize) => {
+                            // this instruction should fill top bytes of RAX with zeros
+                            movl(reg!(EAX), reg!(EAX))
+                        }
+                        _ => {
+                            assert!(s1.to_byte_size() < s2.to_byte_size());
+                            nop()
+                        }
+                    }
+                }
+                (t1, t2) => {
+                    println!("Coercion {:?} {:?} to do", t1, t2);
+                    todo!()
+                }
+            };
+            (Location::Rax, expr + conversion)
         }
 
         llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset, is_main),
@@ -554,8 +604,9 @@ fn compile_expr_val(
                 asm = asm + arg + asm2;
             }
             assert_eq!(current_offset, stack_offset);
-            asm = asm + 
-            call_star(addr!(ctxt.find(fun_var_id), RBP)) + addq(immq(total_size as i64), reg::Operand::Reg(RSP));
+            asm = asm
+                + call_star(addr!(ctxt.find(fun_var_id), RBP))
+                + addq(immq(total_size as i64), reg::Operand::Reg(RSP));
             (Location::StackWithPadding(missing), asm)
         }
         llr::ExprInner::If(expr, bloc1, bloc2) => {
@@ -576,34 +627,10 @@ fn compile_expr_val(
                 (loc, Location::Never) => (loc, bloc1, bloc2),
                 (Location::Rax, Location::Rax) => (Location::Rax, bloc1, bloc2),
                 (Location::Rax, Location::StackWithPadding(pad)) => {
-                    let mov = match size {
-                        0 => Text::Concat(Vec::new()),
-                        1 => movb(addr!(RSP), reg::Operand::Reg(AH)),
-                        2 => movw(addr!(RSP), reg::Operand::Reg(AX)),
-                        4 => movl(addr!(RSP), reg::Operand::Reg(EAX)),
-                        8 => movq(addr!(RSP), reg::Operand::Reg(RAX)),
-                        _ => panic!("ICE"),
-                    };
-                    (
-                        Location::Rax,
-                        bloc1,
-                        bloc2 + mov + addq(immq(pad as i64 + size as i64), reg!(RSP)),
-                    )
+                    (Location::Rax, bloc1, bloc2 + move_stack_to_rax(pad, size))
                 }
                 (Location::StackWithPadding(pad), Location::Rax) => {
-                    let mov = match size {
-                        0 => Text::Concat(Vec::new()),
-                        1 => movb(addr!(RSP), reg::Operand::Reg(AH)),
-                        2 => movw(addr!(RSP), reg::Operand::Reg(AX)),
-                        4 => movl(addr!(RSP), reg::Operand::Reg(EAX)),
-                        8 => movq(addr!(RSP), reg::Operand::Reg(RAX)),
-                        _ => panic!("ICE move of size {size}"),
-                    };
-                    (
-                        Location::Rax,
-                        bloc1 + mov + addq(immq(pad as i64 + size as i64), reg!(RSP)),
-                        bloc2,
-                    )
+                    (Location::Rax, bloc1 + move_stack_to_rax(pad, size), bloc2)
                 }
                 (Location::StackWithPadding(pad1), Location::StackWithPadding(pad2))
                     if pad1 == pad2 =>
@@ -675,8 +702,10 @@ fn compile_expr_val(
             };
             (
                 Location::Rax,
-                leaq(reg::Operand::LabRelAddr(reg::Label::from_str(label_name)), RDI)
-                    + movq(immq(0), reg!(RAX))
+                leaq(
+                    reg::Operand::LabRelAddr(reg::Label::from_str(label_name)),
+                    RDI,
+                ) + movq(immq(0), reg!(RAX))
                     + subq(immq(missing), reg!(RSP))
                     + call(reg::Label::printf())
                     + addq(immq(missing), reg!(RSP)),
@@ -688,9 +717,7 @@ fn compile_expr_val(
                 match loc {
                     Location::Rax | Location::Never => sub_expr,
                     Location::StackWithPadding(pad) => {
-                        sub_expr
-                            + popq(RAX)
-                            + addq(immq(pad as i64), reg!(RAX))
+                        sub_expr + popq(RAX) + addq(immq(pad as i64), reg!(RAX))
                     }
                 }
             } else {
@@ -828,9 +855,7 @@ fn compile_expr_val(
             }
             (Location::StackWithPadding(0), asm)
         }
-        llr::ExprInner::FunVar(str) => {
-            (Location::Rax, leaq(lab!(ctxt.fun_label(&str)), RAX))
-        },
+        llr::ExprInner::FunVar(str) => (Location::Rax, leaq(lab!(ctxt.fun_label(&str)), RAX)),
         llr::ExprInner::VarId(id) => {
             let offset_from_rbp = ctxt.find(id);
             if expr.size == 1 {
@@ -885,7 +910,7 @@ fn compile_bloc(
             stack_offset = ctxt.insert(*id, expr.size, stack_offset)
         }
     }
-/*    while stack_offset % 16 != 0 {
+    /*    while stack_offset % 16 != 0 {
         stack_offset += 1
     } */
 

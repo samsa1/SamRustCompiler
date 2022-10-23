@@ -364,7 +364,10 @@ pub fn type_structs(
                 println!("Type {} was declared multiple times", name.content());
                 std::process::exit(1)
             } else {
-                assert!(args.insert(name.content(), typ).is_none())
+                match typ {
+                    None => todo!(),
+                    Some(typ) => assert!(args.insert(name.content(), typ).is_none()),
+                }
             }
         }
         sizes.add_struct(

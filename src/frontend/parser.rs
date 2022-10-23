@@ -428,6 +428,7 @@ peg::parser! {
           start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
           start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Not, e)) }
           start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Neg, e)) }
+          e:@ spaces() "as" spaces() typ:typ() { to_expr(e.loc.start(), e.loc.end(), ExprInner::Coercion(e, Some(typ))) }
           e:(quiet!{small_expr()} / expected!("value")) { e }
       }
 

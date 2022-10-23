@@ -46,7 +46,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
             let mut vec = Vec::new();
             let vec_name = counter.new_name();
             vec.push(Instr {
-                content : InstrInner::Binding(
+                content: InstrInner::Binding(
                     true,
                     Ident::new(&vec_name, top_expr.loc),
                     Expr {
@@ -57,14 +57,15 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
                         )),
                         loc: top_expr.loc,
                         typed: None,
-                    },),
-                loc : Location::default(),
+                    },
+                ),
+                loc: Location::default(),
             });
             for expr in exprs.into_iter() {
                 let expr = rewrite_expr(expr, counter);
                 vec.push(Instr {
-                    loc : Location::default(),
-                    content : InstrInner::Expr(
+                    loc: Location::default(),
+                    content: InstrInner::Expr(
                         ComputedValue::Drop,
                         Expr {
                             content: Box::new(ExprInner::Method(
@@ -75,15 +76,13 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
                             loc: top_expr.loc,
                             typed: None,
                         },
-                )})
+                    ),
+                })
             }
             vec.push(Instr {
-                content : InstrInner::Expr (
-                    ComputedValue::Keep,
-                    Expr::var(&vec_name, top_expr.loc),),
-                loc : top_expr.loc,
-                }
-            );
+                content: InstrInner::Expr(ComputedValue::Keep, Expr::var(&vec_name, top_expr.loc)),
+                loc: top_expr.loc,
+            });
             Expr {
                 content: Box::new(ExprInner::Bloc(Bloc {
                     content: vec,
@@ -183,6 +182,10 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
             content: Box::new(ExprInner::Proj(rewrite_expr(expr, counter), proj)),
             ..top_expr
         },
+        ExprInner::Coercion(expr, typ) => Expr {
+            content: Box::new(ExprInner::Coercion(rewrite_expr(expr, counter), typ)),
+            ..top_expr
+        },
     }
 }
 
@@ -209,7 +212,7 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
                 InstrInner::Binding(mutable, name, expr)
             }
         };
-        vec_out.push(Instr { content, ..instr})
+        vec_out.push(Instr { content, ..instr })
     }
     Bloc {
         content: vec_out,

@@ -36,29 +36,29 @@ pub fn compute_size(typ: &PreType, sizes: &GlobalContext) -> usize {
     }
 }
 
-pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> PostType {
+pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
     match typ.content {
         PreTypeInner::Fun(args, out) => {
             let mut args2 = Vec::new();
             for args in args.into_iter() {
-                args2.push(translate_typ(args, sizes))
+                args2.push(translate_typ(args, sizes)?)
             }
-            let out = translate_typ(*out, sizes);
-            PostType {
+            let out = translate_typ(*out, sizes)?;
+            Some(PostType {
                 content: PostTypeInner::Fun(vec![], args2, Box::new(out)),
-            }
+            })
         }
         PreTypeInner::Ident(id) => match sizes.get_typ(id.get_content()) {
             None => todo!(),
-            Some(post_type) => post_type.clone(),
+            Some(post_type) => Some(post_type.clone()),
         },
         PreTypeInner::IdentParametrized(id, mut args) => match id.get_content() {
             "Vec" => {
                 if args.len() == 1 {
-                    let typ = translate_typ(args.pop().unwrap(), sizes);
-                    PostType {
+                    let typ = translate_typ(args.pop().unwrap(), sizes)?;
+                    Some(PostType {
                         content: PostTypeInner::Struct(String::from("Vec"), vec![typ]),
-                    }
+                    })
                 } else {
                     todo!()
                 }
@@ -69,17 +69,17 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> PostType {
             _ => todo!(),
         },
 
-        PreTypeInner::Ref(mutable, typ) => translate_typ(*typ, sizes).to_ref(mutable),
+        PreTypeInner::Ref(mutable, typ) => Some(translate_typ(*typ, sizes)?.to_ref(mutable)),
 
         PreTypeInner::Tuple(elements) => {
             let mut elements2 = Vec::new();
             for el in elements.into_iter() {
-                let el = translate_typ(el, sizes);
+                let el = translate_typ(el, sizes)?;
                 elements2.push(el);
             }
-            PostType {
+            Some(PostType {
                 content: PostTypeInner::Tuple(elements2),
-            }
+            })
         }
     }
 }

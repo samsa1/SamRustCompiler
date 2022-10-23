@@ -1,5 +1,6 @@
 use super::context::GlobalContext;
 use super::errors::TypeError;
+use super::types::translate_typ;
 use crate::ast::common::{
     BinOperator, BuiltinType, ComputedValue, Ident, Location, Projector, UnaOperator,
 };
@@ -97,14 +98,28 @@ fn get_tuple(
 }
 
 fn check_coherence(
-    _types: &mut TypeStorage,
-    _type_id: usize,
+    types: &mut TypeStorage,
+    type_id: usize,
     type_2: Option<PreType>,
-    _loc: Location,
+    loc: Location,
+    g_ctxt: &GlobalContext,
 ) -> Result<(), Vec<TypeError>> {
     match type_2 {
         None => Ok(()),
-        Some(_) => todo!(),
+        Some(typ) => {
+            if let Some(pt) = translate_typ(typ, g_ctxt) {
+                forces_to(
+                    types,
+                    type_id,
+                    &pt,
+                    loc,
+                    &HashMap::new(),
+                    UnificationMethod::StrictSnd,
+                )
+            } else {
+                todo!()
+            }
+        }
     }
 }
 
@@ -319,18 +334,22 @@ fn make_coherent(
             let out = make_coherent(types, *out1, *out2, loc, UnificationMethod::StrictEq)?;
             let mut type_vec = Vec::new();
             for (type_id1, type_id2) in args1.into_iter().zip(args2.into_iter()) {
-                type_vec.push(make_coherent(types, type_id1, type_id2, loc, UnificationMethod::StrictEq)?)
+                type_vec.push(make_coherent(
+                    types,
+                    type_id1,
+                    type_id2,
+                    loc,
+                    UnificationMethod::StrictEq,
+                )?)
             }
             Ok(types.insert_type(Types::Fun(type_vec, out)))
         }
 
-        (Types::Fun(_, _), _) | (_, Types::Fun(_, _)) => {
-            Err(vec![TypeError::not_compatible(
-                loc,
-                typ1.clone(),
-                typ2.clone(),
-            )])
-        }
+        (Types::Fun(_, _), _) | (_, Types::Fun(_, _)) => Err(vec![TypeError::not_compatible(
+            loc,
+            typ1.clone(),
+            typ2.clone(),
+        )]),
 
         (t1, t2) => {
             println!("not implemented for {t1:?} {t2:?}");
@@ -516,7 +535,7 @@ fn type_expr(
                     UnificationMethod::StrictFst,
                 )?;
                 let type_id = types.insert_unit();
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
                     Expr {
@@ -549,7 +568,7 @@ fn type_expr(
                     expr2.loc,
                     UnificationMethod::NoRef,
                 )?;
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
                     Expr {
@@ -573,7 +592,7 @@ fn type_expr(
                     UnificationMethod::Smallest,
                 )?;
                 let type_id = types.insert_bool();
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
                     Expr {
@@ -604,7 +623,7 @@ fn type_expr(
                     top_expr.loc,
                     UnificationMethod::NoRef,
                 )?;*/
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
                     Expr {
@@ -620,7 +639,7 @@ fn type_expr(
 
         ExprInner::Bloc(bloc) => {
             let (type_id, bloc) = type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?;
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -633,7 +652,7 @@ fn type_expr(
 
         ExprInner::Bool(b) => {
             let type_id = types.insert_bool();
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -679,7 +698,7 @@ fn type_expr(
                     None => (),
                 };
                 let type_id = types.insert_type(Types::struct_from_str(struct_name.get_content()));
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
                     Expr {
@@ -696,7 +715,7 @@ fn type_expr(
         ExprInner::Deref(expr) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             let (affectable, type_id) = try_deref(types, expr.typed, expr.loc)?;
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 affectable,
                 Expr {
@@ -736,7 +755,13 @@ fn type_expr(
                                     exprs_out.push(expr)
                                 }
                                 let type_id = add_type(types, out, &free_types);
-                                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                                check_coherence(
+                                    types,
+                                    type_id,
+                                    top_expr.typed,
+                                    top_expr.loc,
+                                    ctxt,
+                                )?;
                                 Ok((
                                     false,
                                     Expr {
@@ -760,37 +785,34 @@ fn type_expr(
                     }
                 }
                 Some(type_id) if args.is_empty() => match types.get(type_id).unwrap() {
-                        Types::Unknown if args.is_empty() => todo!(),
-                        Types::Fun(args_type_id, out_type_id) if args.is_empty() => {
-                            let out_type_id = *out_type_id;
-                            let mut exprs_out = Vec::new();
-                            for (expr, typ) in exprs.into_iter().zip(args_type_id.clone().into_iter()) {
-                                let expr =
-                                    type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                                make_coherent(
-                                    types,
-                                    expr.typed,
-                                    typ,
-                                    expr.loc,
-                                    UnificationMethod::StrictSnd,
-                                )?;
-                                exprs_out.push(expr)
-                            }
-                            check_coherence(types, out_type_id, top_expr.typed, top_expr.loc)?;
-                            Ok((
-                                false,
-                                Expr {
-                                    content: Box::new(ExprInner::FunCall(
-                                        Vec::new(), name, exprs_out,
-                                    )),
-                                    loc: top_expr.loc,
-                                    typed: out_type_id,
-                                },
-                            ))
-                        },
-                        _ => todo!(),
-                    },
-                Some(_) => todo!()
+                    Types::Unknown if args.is_empty() => todo!(),
+                    Types::Fun(args_type_id, out_type_id) if args.is_empty() => {
+                        let out_type_id = *out_type_id;
+                        let mut exprs_out = Vec::new();
+                        for (expr, typ) in exprs.into_iter().zip(args_type_id.clone().into_iter()) {
+                            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                            make_coherent(
+                                types,
+                                expr.typed,
+                                typ,
+                                expr.loc,
+                                UnificationMethod::StrictSnd,
+                            )?;
+                            exprs_out.push(expr)
+                        }
+                        check_coherence(types, out_type_id, top_expr.typed, top_expr.loc, ctxt)?;
+                        Ok((
+                            false,
+                            Expr {
+                                content: Box::new(ExprInner::FunCall(Vec::new(), name, exprs_out)),
+                                loc: top_expr.loc,
+                                typed: out_type_id,
+                            },
+                        ))
+                    }
+                    _ => todo!(),
+                },
+                Some(_) => todo!(),
             }
         }
 
@@ -813,7 +835,7 @@ fn type_expr(
                 top_expr.loc,
                 UnificationMethod::Smallest,
             )?;
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -841,7 +863,7 @@ fn type_expr(
                 if name == "Vec" && args.len() == 1 {
                     let type_id = args[0];
                     // can be improved
-                    check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                    check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                     Ok((
                         affectable,
                         Expr {
@@ -860,7 +882,7 @@ fn type_expr(
 
         ExprInner::Int(int, None) => {
             let type_id = types.insert_type(Types::int());
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -873,7 +895,7 @@ fn type_expr(
 
         ExprInner::Int(int, Some((signed, size))) => {
             let type_id = types.insert_type(Types::Int(Some(signed), Some(size)));
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -896,7 +918,7 @@ fn type_expr(
                     UnificationMethod::NoRef,
                 )?;
                 let type_id = types.insert_unit();
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
                     Expr {
@@ -924,7 +946,7 @@ fn type_expr(
                 UnificationMethod::Smallest,
             )?;
             let type_id = types.insert_unit();
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -977,7 +999,7 @@ fn type_expr(
                                 exprs_out.push(expr)
                             }
                             let type_id = add_type(types, out, &free_types);
-                            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                             Ok((
                                 false,
                                 Expr {
@@ -1003,7 +1025,7 @@ fn type_expr(
 
         ExprInner::Parenthesis(expr) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-            check_coherence(types, expr.typed, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, expr.typed, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((false, expr))
         }
 
@@ -1024,7 +1046,7 @@ fn type_expr(
             } else {
                 (true, types.insert_type(Types::unknown()))
             };
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 affectable,
                 Expr {
@@ -1054,7 +1076,7 @@ fn type_expr(
             } else {
                 (true, types.insert_type(Types::unknown()))
             };
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 affectable,
                 Expr {
@@ -1071,7 +1093,7 @@ fn type_expr(
                 return Err(vec![TypeError::cannot_borrow_as_mut(top_expr.loc)]);
             }
             let type_id = types.insert_type(Types::Ref(Some(mutable), expr.typed));
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -1084,7 +1106,7 @@ fn type_expr(
 
         ExprInner::String(string) => {
             let type_id = types.insert_string();
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -1104,7 +1126,7 @@ fn type_expr(
                 vec_exprs.push(expr);
             }
             let type_id = types.insert_type(Types::tuple(vec_types));
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -1125,7 +1147,7 @@ fn type_expr(
                 expr.loc,
                 UnificationMethod::NoRef,
             )?;
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -1146,7 +1168,7 @@ fn type_expr(
                 expr.loc,
                 UnificationMethod::NoRef,
             )?;
-            check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((
                 false,
                 Expr {
@@ -1159,7 +1181,7 @@ fn type_expr(
 
         ExprInner::Var(var_name) => {
             if let Some(type_id) = local_ctxt.get_typ(&var_name) {
-                check_coherence(types, type_id, top_expr.typed, top_expr.loc)?;
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     local_ctxt.is_mut(&var_name).unwrap(),
                     Expr {
@@ -1171,19 +1193,41 @@ fn type_expr(
             } else {
                 if let Some(typ) = ctxt.get_typ(var_name.get_content()) {
                     let type_id = types.insert_type(Types::unknown());
-                    forces_to(types, type_id, typ, top_expr.loc, &HashMap::new(), UnificationMethod::Smallest)?;
+                    forces_to(
+                        types,
+                        type_id,
+                        typ,
+                        top_expr.loc,
+                        &HashMap::new(),
+                        UnificationMethod::Smallest,
+                    )?;
                     Ok((
                         false,
                         Expr {
-                            content : Box::new(ExprInner::Var(var_name)),
-                            loc : top_expr.loc,
-                            typed : type_id,
-                        }
+                            content: Box::new(ExprInner::Var(var_name)),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
                     ))
                 } else {
                     Err(vec![TypeError::unknown_var(var_name)])
                 }
             }
+        }
+
+        ExprInner::Coercion(expr, typ) => {
+            let (_, expr) = type_expr(ctxt, local_ctxt, expr, types, out_type)?;
+            let type_id = types.insert_type(Types::unknown());
+            check_coherence(types, type_id, typ, top_expr.loc, ctxt)?;
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::Coercion(expr, type_id)),
+                    loc: top_expr.loc,
+                    typed: type_id,
+                },
+            ))
         }
     };
     /*    println!("");
@@ -1253,8 +1297,8 @@ fn type_bloc(
             }
         };
         content.push(Instr {
-            content : instr_content,
-            loc : instr.loc,
+            content: instr_content,
+            loc: instr.loc,
         })
         /*        println!("");
                 println!("{types:?}");
@@ -1282,7 +1326,13 @@ fn type_bloc(
                     InstrInner::Return(_) => types.insert_type(Types::unknown()),
                     _ => {
                         let type_id2 = types.insert_unit();
-                        make_coherent(types, type_id2, type_id, instr.loc, UnificationMethod::NoRef)?
+                        make_coherent(
+                            types,
+                            type_id2,
+                            type_id,
+                            instr.loc,
+                            UnificationMethod::NoRef,
+                        )?
                     }
                 },
             };

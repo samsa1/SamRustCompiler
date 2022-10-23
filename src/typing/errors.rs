@@ -3,9 +3,9 @@ use crate::ast::common::{ErrorReporter, Ident, Location, Sizes};
 use crate::ast::rust::Types;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 
-const RED : &str = "\x1b[1;31m";
-const NC : &str = "\x1b[0m";
-const BLUE : &str = "\x1b[1;34m";
+const RED: &str = "\x1b[1;31m";
+const NC: &str = "\x1b[0m";
+const BLUE: &str = "\x1b[1;34m";
 
 #[derive(Debug)]
 enum TypeErrorInfo {
@@ -87,7 +87,7 @@ impl TypeErrorInfo {
             Self::ExpectedStruct(typ) => format!("{} is not a struct", typ),
             Self::ExpectedTuple(typ) => format!("{} is not a tuple", typ),
             Self::NotCompatible(typ1, typ2) => format!("expected {}, found {}", typ1, typ2),
-            _ => format!("undefined message for error {}", self.get_id())
+            _ => format!("undefined message for error {}", self.get_id()),
         }
     }
 }
@@ -99,10 +99,10 @@ pub struct TypeError {
 }
 
 impl TypeError {
-    pub fn wrong_mutability(loc : Location, expected : bool, got : bool) -> Self {
+    pub fn wrong_mutability(loc: Location, expected: bool, got: bool) -> Self {
         Self {
             loc,
-            info : TypeErrorInfo::WrongMutability(expected, got)
+            info: TypeErrorInfo::WrongMutability(expected, got),
         }
     }
 
@@ -252,7 +252,13 @@ impl TypeError {
         if self.loc.start() == usize::MAX {
             println!("Unknown line")
         } else {
-            println!("{}error[E{:0>4}]{}: {}", RED, self.info.get_id(), NC, self.info.get_error_name());
+            println!(
+                "{}error[E{:0>4}]{}: {}",
+                RED,
+                self.info.get_id(),
+                NC,
+                self.info.get_error_name()
+            );
             let fst_line_id = err_reporter.get_fst_line_id(self.loc);
             let lst_line_id = err_reporter.get_last_line_id(self.loc);
             let line_str = err_reporter.get_line(fst_line_id).unwrap();
@@ -270,7 +276,7 @@ impl TypeError {
                 let mut str = String::new();
                 while i <= fst_line_id + 1 {
                     str.push(' ');
-                    i *= 10                    
+                    i *= 10
                 }
                 println!("{str} {BLUE}|{NC}");
                 print!("{BLUE}{} |{NC} {line_str}", fst_line_id + 1);

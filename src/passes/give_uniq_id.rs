@@ -186,7 +186,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
                 )),
                 ..top_expr
             }
-        },
+        }
 
         ExprInner::Deref(expr) => Expr {
             content: Box::new(ExprInner::Deref(rewrite_expr(expr, counter))),
@@ -195,6 +195,10 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
 
         ExprInner::Proj(expr, proj) => Expr {
             content: Box::new(ExprInner::Proj(rewrite_expr(expr, counter), proj)),
+            ..top_expr
+        },
+        ExprInner::Coercion(expr, typ) => Expr {
+            content: Box::new(ExprInner::Coercion(rewrite_expr(expr, counter), typ)),
             ..top_expr
         },
     }
@@ -225,7 +229,7 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut GiveUniqueId) -> Bloc {
                 InstrInner::Binding(mutable, name, expr)
             }
         };
-        vec_out.push(Instr { content, ..instr})
+        vec_out.push(Instr { content, ..instr })
     }
     counter.pop_layer();
     Bloc {

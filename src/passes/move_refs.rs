@@ -20,13 +20,14 @@ fn is_ref(
         | ExprInner::MacroCall(_, _)
         | ExprInner::Tuple(_)
         | ExprInner::Array(_)
+        | ExprInner::Coercion(_, _)
         | ExprInner::Method(_, _, _) => {
             top_expr = rewrite_expr(top_expr, context, counter);
             let name = counter.new_name();
             let id = Ident::new_from(name, top_expr.loc.start(), top_expr.loc.end());
             context.push(Instr {
-                loc : Location::default(),
-                content : InstrInner::Binding(
+                loc: Location::default(),
+                content: InstrInner::Binding(
                     mutable,
                     id.clone(),
                     Expr {
@@ -34,7 +35,8 @@ fn is_ref(
                         typed: top_expr.typed.clone(),
                         content: top_expr.content,
                     },
-            )});
+                ),
+            });
             top_expr.content = Box::new(ExprInner::Var(id));
             top_expr
         }
@@ -186,6 +188,14 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
 
         ExprInner::Proj(expr, proj) => Expr {
             content: Box::new(ExprInner::Proj(is_ref(false, expr, context, counter), proj)),
+            ..top_expr
+        },
+
+        ExprInner::Coercion(expr, typ) => Expr {
+            content: Box::new(ExprInner::Coercion(
+                rewrite_expr(expr, context, counter),
+                typ,
+            )),
             ..top_expr
         },
     }
