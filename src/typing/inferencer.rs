@@ -1249,10 +1249,25 @@ fn type_bloc(
     let mut content = Vec::new();
     for instr in bloc.content.into_iter() {
         let instr_content = match instr.content {
-            InstrInner::Binding(mutable, name, expr) => {
+            InstrInner::Binding(mutable, name, typ, expr) => {
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                let type_id = match typ {
+                    None => expr.typed,
+                    Some(typ) => {
+                        let type_id = types.insert_type(Types::unknown());
+                        check_coherence(types, type_id, Some(typ), expr.loc, ctxt)?;
+                        make_coherent(
+                            types,
+                            expr.typed,
+                            type_id,
+                            expr.loc,
+                            UnificationMethod::StrictSnd,
+                        )?;
+                        type_id
+                    }
+                };
                 local_ctxt.add_var(&name, mutable, expr.typed);
-                InstrInner::Binding(mutable, name, expr)
+                InstrInner::Binding(mutable, name, type_id, expr)
             }
 
             InstrInner::Expr(drop, expr) => {
@@ -1349,6 +1364,10 @@ fn type_bloc(
             loc: bloc.loc,
         },
     ))
+}
+
+pub fn type_const(expr: Expr, ctxt: &GlobalContext) -> Result<Expr<usize>, Vec<TypeError>> {
+    todo!()
 }
 
 pub fn type_funs(

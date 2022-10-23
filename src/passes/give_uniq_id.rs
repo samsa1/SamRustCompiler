@@ -223,10 +223,10 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut GiveUniqueId) -> Bloc {
                 let bloc = rewrite_bloc(bloc, counter);
                 InstrInner::While(expr, bloc)
             }
-            InstrInner::Binding(mutable, name, expr) => {
+            InstrInner::Binding(mutable, name, typ, expr) => {
                 let expr = rewrite_expr(expr, counter);
                 let name = counter.add_name(name);
-                InstrInner::Binding(mutable, name, expr)
+                InstrInner::Binding(mutable, name, typ, expr)
             }
         };
         vec_out.push(Instr { content, ..instr })

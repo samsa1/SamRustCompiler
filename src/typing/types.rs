@@ -115,6 +115,15 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
         (PostTypeInner::FreeType(id1), PostTypeInner::FreeType(id2)) if id1 == id2 => {
             panic!("Weird")
         }
+        (PostTypeInner::Fun(free1, args1, out1), PostTypeInner::Fun(free2, args2, out2))
+            if free1.is_empty() && free2.is_empty() =>
+        {
+            let mut b = are_compatible(&*out1, &*out2) && args1.len() == args2.len();
+            for (a1, a2) in args1.iter().zip(args2.iter()) {
+                b &= are_compatible(a1, a2)
+            }
+            b
+        }
         _ => {
             println!("not compatible :\n {:?}\n {:?}", expected, got);
             todo!()

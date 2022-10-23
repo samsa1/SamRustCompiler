@@ -768,6 +768,13 @@ pub fn type_checker(
     ))
 }
 
+pub fn type_const(
+    expr: rust::Expr<usize>,
+    ctxt: &context::GlobalContext,
+) -> Result<typed_rust::Expr, Vec<TypeError>> {
+    todo!()
+}
+
 pub fn type_bloc(
     bloc: rust::Bloc<usize>,
     ctxt: &context::GlobalContext,
@@ -792,8 +799,15 @@ pub fn type_bloc(
                 content.push(typed_rust::Instr::Expr(b, expr));
                 //                todo!();
             }
-            rust::InstrInner::Binding(mutable, ident, expr) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, output, None, typing_info)?.1;
+            rust::InstrInner::Binding(mutable, ident, type_id, expr) => {
+                let typ = match build_type(typing_info, type_id) {
+                    None => todo!(),
+                    Some(t) => t,
+                };
+                let expr = type_checker(ctxt, expr, loc_ctxt, output, Some(&typ), typing_info)?.1;
+                if !are_compatible(&typ, &expr.typed) {
+                    todo!()
+                };
                 loc_ctxt.add_var(&ident, mutable, &expr.typed);
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
                 //                todo!();
@@ -882,78 +896,3 @@ pub fn type_bloc(
 
     Ok(typed_rust::Bloc { content, last_type })
 }
-
-/*[Expr(Expr {
-    content: If(
-        Expr {
-            content: FunCall(Ident { name: "i32_eq", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } },
-                [Expr {
-                    content: Var(Ident { name: "i", loc: Location { start: 85, end: 86 } }),
-                    loc: Location { start: 85, end: 86 },
-                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } },
-                Expr {
-                    content: Int(0),
-                    loc: Location { start: 90, end: 91 },
-                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 1 } }]),
-            loc: Location { start: 85, end: 91 },
-            typed: PostType { content: BuiltIn(Bool), size: 1 } },
-        Expr {
-            content: Bloc(Bloc {
-                content: [],
-                expr: Some(Expr {
-                        content: Proj(
-                            Expr {
-                                content: Var(Ident { name: "l", loc: Location { start: 94, end: 95 } }),
-                                loc: Location { start: 94, end: 95 },
-                                typed: PostType { content: Ref(false, PostType { content: Struct("L"), size: 12 }), size: 8 } },
-                            Name(Ident { name: "head", loc: Location { start: 96, end: 100 } })),
-                        loc: Location { start: 94, end: 100 },
-                        typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }) }),
-            loc: Location { start: 92, end: 102 },
-            typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } },
-        Expr {
-            content: Bloc(Bloc {
-                content: [],
-                expr: Some(Expr {
-                    content: FunCall(Ident { name: "get", loc: Location { start: 110, end: 113 } },
-                        [Expr {
-                            content: Ref(false,
-                                Expr {
-                                    content: FunCall(Ident { name: "get_element_vec", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } },
-                                        [Expr {
-                                            content: Proj(
-                                                Expr {
-                                                    content: Var(Ident { name: "l", loc: Location { start: 115, end: 116 } }),
-                                                    loc: Location { start: 115, end: 116 },
-                                                    typed: PostType { content: Ref(false, PostType { content: Struct("L"), size: 12 }), size: 8 } },
-                                                Name(Ident { name: "next", loc: Location { start: 117, end: 121 } })),
-                                            loc: Location { start: 115, end: 121 },
-                                            typed: PostType { content: IdentParametrized(Ident { name: "Vec", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } }, [PostType { content: Struct("L"), size: 12 }]), size: 8 } },
-                                        Expr {
-                                            content: Int(0),
-                                            loc: Location { start: 122, end: 123 },
-                                            typed: PostType { content: BuiltIn(Int(true, S32)), size: 1 } }]),
-                                    loc: Location { start: 115, end: 124 },
-                                    typed: PostType { content: Struct("L"), size: 12 } }),
-                            loc: Location { start: 114, end: 124 },
-                            typed: PostType { content: Ref(false, PostType { content: Struct("L"), size: 12 }), size: 8 } },
-                        Expr {
-                            content: FunCall(Ident { name: "i32_sub", loc: Location { start: 18446744073709551615, end: 18446744073709551615 } },
-                                [Expr {
-                                    content: Var(Ident { name: "i", loc: Location { start: 126, end: 127 } }),
-                                    loc: Location { start: 126, end: 127 },
-                                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } },
-                                Expr {
-                                    content: Int(1),
-                                    loc: Location { start: 128, end: 129 },
-                                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 1 } }]),
-                            loc: Location { start: 126, end: 129 },
-                            typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }]),
-                    loc: Location { start: 110, end: 130 },
-                    typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }) }),
-                loc: Location { start: 108, end: 132 },
-                typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } }),
-            loc: Location { start: 82, end: 132 },
-            typed: PostType { content: BuiltIn(Int(true, S32)), size: 4 } })]
-
-*/

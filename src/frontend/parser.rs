@@ -301,10 +301,13 @@ peg::parser! {
           "}" end:position!() { (Vec::new(), end) }
       }
 
+      rule type_bind() -> PreType =
+        ":" t:typ_ws() { t }
+
       rule instr() -> Instr = precedence! {
           start:position!() ";" { InstrInner::Expr(ComputedValue::Drop, Expr::unit()).to_instr(start, start + 1) }
-          start:position!() "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";" end:position!()
-              { InstrInner::Binding(b != None, n, e).to_instr(start, end) }
+          start:position!() "let" spaces() b:("mut" spaces())? n:name() space() t:type_bind()?  "=" e:expr_ws() ";" end:position!()
+              { InstrInner::Binding(b != None, n, t, e).to_instr(start, end) }
           start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
               { InstrInner::While(e, b).to_instr(start, end) }
           start:position!() "return" space() ";" end:position!()

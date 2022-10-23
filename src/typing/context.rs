@@ -1,6 +1,7 @@
 use crate::ast::common::Ident;
-use crate::ast::typed_rust::PostType;
+use crate::ast::typed_rust::{Expr, PostType};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct TraitInner {
@@ -79,13 +80,30 @@ impl StructInfo {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+pub struct Const {
+    typ: PostType,
+    value: Option<Expr>,
+}
+
+impl Const {
+    pub fn new(typ: PostType) -> Self {
+        Self { typ, value: None }
+    }
+
+    pub fn set_val(&mut self, val: Expr) {
+        self.value = Some(val)
+    }
+}
+
+#[derive(Debug)]
 pub struct GlobalContext {
     structs: HashMap<String, StructInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, String>>,
     known_types: HashMap<String, PostType>,
     sizes: HashMap<String, usize>,
+    constants: HashMap<String, Const>,
 }
 
 impl GlobalContext {
@@ -96,6 +114,7 @@ impl GlobalContext {
             methods: HashMap::new(),
             known_types: HashMap::new(),
             sizes: HashMap::new(),
+            constants: HashMap::new(),
         }
     }
 
@@ -192,6 +211,14 @@ impl GlobalContext {
     ) -> Option<PostType> {
         self.structs.insert(name.clone(), StructInfo::new(args));
         self.insert(name, typ)
+    }
+
+    pub fn add_const(&mut self, name: String, typ: PostType) -> Option<Const> {
+        self.constants.insert(name, Const::new(typ))
+    }
+
+    pub fn add_const_val(&mut self, name: &str, val: Expr) {
+        self.constants.get_mut(name).unwrap().set_val(val)
     }
 }
 

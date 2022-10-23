@@ -2,6 +2,10 @@ use crate::ast::{common::*, rust, typed_rust};
 use std::collections::HashSet;
 use std::str::FromStr;
 
+use self::context::GlobalContext;
+use self::structs::topological_sort;
+
+mod consts;
 pub mod context;
 pub mod errors;
 mod expr;
@@ -208,20 +212,58 @@ pub fn handle_implemantations(
     }
 }
 
+fn handle_constants(
+    consts: Vec<rust::DeclConst>,
+    ctxt: &mut GlobalContext,
+    err_reporter: &ErrorReporter,
+) {
+    let mut graph = structs::Graph::new();
+    for const_decl in consts.iter() {
+        let typ = match types::translate_typ(const_decl.typ.clone(), ctxt) {
+            Some(t) => t,
+            None => todo!(),
+        };
+        // is this relevant ?
+        ctxt.add_const(const_decl.name.get_content().to_string(), typ);
+        graph.add_node(const_decl.name.get_content().to_string());
+    }
+    for const_decl in consts.iter() {
+        consts::add_deps(&const_decl.expr, const_decl.name.get_content(), &mut graph);
+    }
+    let consts = match topological_sort(consts, &graph) {
+        Ok(c) => c,
+        _ => todo!(),
+    };
+    for const_decl in consts.into_iter() {
+        let expr = match inferencer::type_const(const_decl.expr, ctxt) {
+            Ok(e) => e,
+            _ => todo!(),
+        };
+        let expr = match expr::type_const(expr, ctxt) {
+            Ok(e) => e,
+            _ => todo!(),
+        };
+        let val = consts::compute_const(expr, ctxt);
+
+        ctxt.add_const_val(const_decl.name.get_content(), val);
+    }
+}
+
 pub fn type_inferencer(file: rust::File, needs_main: bool) -> typed_rust::File {
     let mut funs = Vec::new();
     let mut structs = Vec::new();
     let mut impls = Vec::new();
+    let mut consts = Vec::new();
     for decl in file.content.into_iter() {
         match decl {
             rust::Decl::Fun(f) => funs.push(f),
             rust::Decl::Struct(s) => structs.push(s),
             rust::Decl::Impl(i) => impls.push(i),
-            rust::Decl::Const(_) => todo!(),
+            rust::Decl::Const(c) => consts.push(c),
         }
     }
-
     let (mut global_ctxt, structs) = structs::type_structs(structs);
+    handle_constants(consts, &mut global_ctxt, &file.err_reporter);
     handle_implemantations(impls, &mut funs, &mut global_ctxt, &file.err_reporter);
     let funs = type_funs(funs, &mut global_ctxt, &file.err_reporter);
     let mut has_main = false;
