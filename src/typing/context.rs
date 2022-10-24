@@ -1,5 +1,6 @@
-use crate::ast::common::Ident;
-use crate::ast::typed_rust::{Expr, PostType};
+use super::consts::Val;
+use crate::ast::common::{Ident, Location, TypedUnaop};
+use crate::ast::typed_rust::{Expr, ExprInner, PostType};
 use std::collections::{HashMap, HashSet};
 use std::hash::Hash;
 
@@ -82,17 +83,59 @@ impl StructInfo {
 
 #[derive(Debug)]
 pub struct Const {
-    typ: PostType,
-    value: Option<Expr>,
+    pub typ: PostType,
+    value: Val,
 }
 
 impl Const {
-    pub fn new(typ: PostType) -> Self {
-        Self { typ, value: None }
+    pub fn new(typ: PostType, value: Val) -> Self {
+        Self { typ, value }
     }
 
-    pub fn set_val(&mut self, val: Expr) {
-        self.value = Some(val)
+    pub fn get_value(&self) -> &Val {
+        &self.value
+    }
+
+    pub fn get_type(&self) -> &PostType {
+        &self.typ
+    }
+
+    pub fn get_expr(&self) -> Expr {
+        match &self.value {
+            Val::Uinteger(i, s) => Expr {
+                content: Box::new(ExprInner::Int(*i)),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::Integer(i, s) if *i >= 0 => Expr {
+                content: Box::new(ExprInner::Int(*i as u64)),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::Integer(i, s) => Expr {
+                content: Box::new(ExprInner::UnaOp(
+                    TypedUnaop::Neg(*s),
+                    Expr {
+                        content: Box::new(ExprInner::Int((-*i) as u64)),
+                        loc: Location::default(),
+                        typed: self.typ.clone(),
+                    },
+                )),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::String(s) => Expr {
+                content: Box::new(ExprInner::String(s.to_string())),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::Bool(b) => Expr {
+                content: Box::new(ExprInner::Bool(*b)),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            _ => todo!(),
+        }
     }
 }
 
@@ -213,12 +256,12 @@ impl GlobalContext {
         self.insert(name, typ)
     }
 
-    pub fn add_const(&mut self, name: String, typ: PostType) -> Option<Const> {
-        self.constants.insert(name, Const::new(typ))
+    pub fn add_const(&mut self, name: String, typ: PostType, value: Val) -> Option<Const> {
+        self.constants.insert(name, Const::new(typ, value))
     }
 
-    pub fn add_const_val(&mut self, name: &str, val: Expr) {
-        self.constants.get_mut(name).unwrap().set_val(val)
+    pub fn get_const_val(&self, name: &str) -> Option<&Const> {
+        self.constants.get(name)
     }
 }
 

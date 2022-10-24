@@ -1,4 +1,4 @@
-use super::context::GlobalContext;
+use super::context::{Const, GlobalContext};
 use super::errors::TypeError;
 use super::types::translate_typ;
 use crate::ast::common::{
@@ -1191,26 +1191,31 @@ fn type_expr(
                     },
                 ))
             } else {
-                if let Some(typ) = ctxt.get_typ(var_name.get_content()) {
-                    let type_id = types.insert_type(Types::unknown());
-                    forces_to(
-                        types,
-                        type_id,
-                        typ,
-                        top_expr.loc,
-                        &HashMap::new(),
-                        UnificationMethod::Smallest,
-                    )?;
-                    Ok((
-                        false,
-                        Expr {
-                            content: Box::new(ExprInner::Var(var_name)),
-                            loc: top_expr.loc,
-                            typed: type_id,
-                        },
-                    ))
-                } else {
-                    Err(vec![TypeError::unknown_var(var_name)])
+                match (
+                    ctxt.get_typ(var_name.get_content()),
+                    ctxt.get_const_val(var_name.get_content()),
+                ) {
+                    (Some(typ), None) | (None, Some(Const { typ, .. })) => {
+                        let type_id = types.insert_type(Types::unknown());
+                        forces_to(
+                            types,
+                            type_id,
+                            typ,
+                            top_expr.loc,
+                            &HashMap::new(),
+                            UnificationMethod::Smallest,
+                        )?;
+                        Ok((
+                            false,
+                            Expr {
+                                content: Box::new(ExprInner::Var(var_name)),
+                                loc: top_expr.loc,
+                                typed: type_id,
+                            },
+                        ))
+                    }
+                    (None, None) => Err(vec![TypeError::unknown_var(var_name)]),
+                    (Some(typ), Some(constant)) => todo!(),
                 }
             }
         }
@@ -1366,8 +1371,24 @@ fn type_bloc(
     ))
 }
 
-pub fn type_const(expr: Expr, ctxt: &GlobalContext) -> Result<Expr<usize>, Vec<TypeError>> {
-    todo!()
+pub fn type_const(
+    expr: Expr,
+    ctxt: &GlobalContext,
+    expected_typ: &PostType,
+) -> Result<(TypeStorage, Expr<usize>), Vec<TypeError>> {
+    let mut local_ctxt = LocalContext::new(Vec::new()).unwrap();
+    let mut types = TypeStorage::new();
+    let out_type = types.insert_unit();
+    let expr = type_expr(ctxt, &mut local_ctxt, expr, &mut types, out_type)?.1;
+    forces_to(
+        &mut types,
+        expr.typed,
+        expected_typ,
+        expr.loc,
+        &HashMap::new(),
+        UnificationMethod::StrictSnd,
+    )?;
+    Ok((types, expr))
 }
 
 pub fn type_funs(

@@ -3,7 +3,9 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 use self::context::GlobalContext;
+use self::errors::TypeError;
 use self::structs::topological_sort;
+use self::types::translate_typ;
 
 mod consts;
 pub mod context;
@@ -102,12 +104,7 @@ fn type_funs(
             fun_decl.content.clone(),
         ) {
             Ok(out) => out,
-            Err(errs) => {
-                for err in errs.into_iter() {
-                    err.report_error(err_reporter);
-                }
-                std::process::exit(1);
-            }
+            Err(errs) => err_reporter.report(errs),
         };
         //        {println!("typing not finished"); std::process::exit(0)},
         let mut local_ctxt = context::LocalContext::new(&in_types);
@@ -121,12 +118,7 @@ fn type_funs(
             &types,
         ) {
             Ok(out) => out,
-            Err(errs) => {
-                for err in errs.into_iter() {
-                    err.report_error(err_reporter);
-                }
-                std::process::exit(1);
-            }
+            Err(errs) => err_reporter.report(errs),
         };
         if !fun_names.insert(fun_decl.name.get_content().to_string()) {
             println!(
@@ -160,8 +152,8 @@ pub fn handle_implemantations(
             .get(impl_decl.name.get_content())
             .is_none()
         {
-            errors::TypeError::unknown_struct(impl_decl.name).report_error(err_reporter);
-            std::process::exit(1)
+            let errs = vec![errors::TypeError::unknown_struct(impl_decl.name)];
+            err_reporter.report(errs)
         };
         for mut decl_fun in impl_decl.content {
             let mut new_name = impl_decl.name.get_content().to_string();
@@ -219,12 +211,6 @@ fn handle_constants(
 ) {
     let mut graph = structs::Graph::new();
     for const_decl in consts.iter() {
-        let typ = match types::translate_typ(const_decl.typ.clone(), ctxt) {
-            Some(t) => t,
-            None => todo!(),
-        };
-        // is this relevant ?
-        ctxt.add_const(const_decl.name.get_content().to_string(), typ);
         graph.add_node(const_decl.name.get_content().to_string());
     }
     for const_decl in consts.iter() {
@@ -232,20 +218,32 @@ fn handle_constants(
     }
     let consts = match topological_sort(consts, &graph) {
         Ok(c) => c,
-        _ => todo!(),
+        Err((id, mut consts)) => {
+            let constant = consts.swap_remove(id);
+            let err = TypeError::self_referencing_constant(constant.name);
+            err_reporter.report(vec![err])
+        }
     };
     for const_decl in consts.into_iter() {
-        let expr = match inferencer::type_const(const_decl.expr, ctxt) {
-            Ok(e) => e,
-            _ => todo!(),
+        let expected_typ = match translate_typ(const_decl.typ, ctxt) {
+            None => todo!(),
+            Some(t) => t,
         };
-        let expr = match expr::type_const(expr, ctxt) {
+        let (typing_info, expr) = match inferencer::type_const(const_decl.expr, ctxt, &expected_typ)
+        {
             Ok(e) => e,
-            _ => todo!(),
+            Err(errs) => err_reporter.report(errs),
         };
-        let val = consts::compute_const(expr, ctxt);
-
-        ctxt.add_const_val(const_decl.name.get_content(), val);
+        let expr = match expr::type_const(expr, ctxt, &expected_typ, &typing_info) {
+            Ok(e) => e,
+            Err(errs) => err_reporter.report(errs),
+        };
+        let value = consts::compute_const(expr, ctxt);
+        ctxt.add_const(
+            const_decl.name.get_content().to_string(),
+            expected_typ,
+            value,
+        );
     }
 }
 

@@ -1,8 +1,8 @@
-use super::context;
+use super::context::{self, LocalContext};
 use super::errors::TypeError;
 use super::types::*;
 use crate::ast::common::*;
-use crate::ast::typed_rust::PostTypeInner;
+use crate::ast::typed_rust::{PostType, PostTypeInner};
 use crate::ast::{rust, typed_rust};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -233,13 +233,21 @@ pub fn type_checker(
 
         rust::ExprInner::Var(var_name) => match loc_ctxt.get_typ(&var_name) {
             Some((mutable, typ)) => (*mutable, typ.clone(), typed_rust::ExprInner::Var(var_name)),
-            None => match ctxt.get_typ(var_name.get_content()) {
-                None => panic!(
+            None => match (
+                ctxt.get_typ(var_name.get_content()),
+                ctxt.get_const_val(var_name.get_content()),
+            ) {
+                (None, None) => panic!(
                     "ICE : undefined variable {} at {:?} should be cought by inferencer",
                     var_name.get_content(),
                     expr.loc
                 ),
-                Some(typ) => (false, typ.clone(), typed_rust::ExprInner::Var(var_name)),
+                (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::Var(var_name)),
+                (None, Some(constant)) => {
+                    let expr = constant.get_expr();
+                    (false, expr.typed, *expr.content)
+                }
+                (Some(_), Some(_)) => todo!(),
             },
         },
 
@@ -771,8 +779,20 @@ pub fn type_checker(
 pub fn type_const(
     expr: rust::Expr<usize>,
     ctxt: &context::GlobalContext,
+    expected_typ: &PostType,
+    typing_info: &rust::TypeStorage,
 ) -> Result<typed_rust::Expr, Vec<TypeError>> {
-    todo!()
+    let out = PostType::unit();
+    let mut loc_ctxt = LocalContext::new(&Vec::new());
+    Ok(type_checker(
+        ctxt,
+        expr,
+        &mut loc_ctxt,
+        &out,
+        Some(expected_typ),
+        typing_info,
+    )?
+    .1)
 }
 
 pub fn type_bloc(

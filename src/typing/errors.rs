@@ -29,6 +29,7 @@ enum TypeErrorInfo {
     DoesNotImpTrait(PostType, Trait),
     OutOfBoundTuple(usize, usize),
     WrongMutability(bool, bool),
+    SelfRefConst(String),
 }
 
 impl TypeErrorInfo {
@@ -54,6 +55,7 @@ impl TypeErrorInfo {
             Self::DoesNotImpTrait(_, _) => 18,
             Self::OutOfBoundTuple(_, _) => 19,
             Self::WrongMutability(_, _) => 20,
+            Self::SelfRefConst(_) => 21,
         }
     }
 
@@ -79,6 +81,7 @@ impl TypeErrorInfo {
             Self::DoesNotImpTrait(_, _) => "type does not implement trait",
             Self::OutOfBoundTuple(_, _) => "index out of bound",
             Self::WrongMutability(_, _) => "mutability incompatibility",
+            Self::SelfRefConst(_) => "cycle detected in const evaluating",
         }
     }
 
@@ -245,6 +248,13 @@ impl TypeError {
         Self {
             loc,
             info: TypeErrorInfo::OutOfBoundTuple(id, len),
+        }
+    }
+
+    pub fn self_referencing_constant(id: Ident) -> Self {
+        Self {
+            loc: id.get_loc(),
+            info: TypeErrorInfo::SelfRefConst(id.content()),
         }
     }
 
