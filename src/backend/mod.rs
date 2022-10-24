@@ -112,6 +112,8 @@ fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
         TypedBinop::And(_)
         | TypedBinop::Or(_)
         | TypedBinop::Add(_)
+        | TypedBinop::Shl(_)
+        | TypedBinop::Shr(_)
         | TypedBinop::Sub(_)
         | TypedBinop::Mod(_, _)
         | TypedBinop::Mul(_, _)
@@ -133,7 +135,7 @@ fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
 fn move_stack_to_rax(pad: u64, size: usize) -> Text {
     match size {
         0 => addq(immq(pad as i64), reg!(RSP)),
-        1 => movb(addr!(RSP), reg!(AH)) + addq(immq(1 + pad as i64), reg!(RSP)),
+        1 => movb(addr!(RSP), reg!(AL)) + addq(immq(1 + pad as i64), reg!(RSP)),
         2 => movw(addr!(RSP), reg!(AX)) + addq(immq(2 + pad as i64), reg!(RSP)),
         4 => movl(addr!(RSP), reg!(EAX)) + addq(immq(4 + pad as i64), reg!(RSP)),
         8 => popq(RAX) + addq(immq(pad as i64), reg!(RSP)),
@@ -157,12 +159,12 @@ fn compile_expr_val(
                 Location::StackWithPadding(pad) => expr + move_stack_to_rax(pad, size),
             };
             let op = match op {
-                TypedUnaop::Neg(Sizes::S8) => negb(reg!(AH)),
+                TypedUnaop::Neg(Sizes::S8) => negb(reg!(AL)),
                 TypedUnaop::Neg(Sizes::S16) => negw(reg!(AX)),
                 TypedUnaop::Neg(Sizes::S32) => negl(reg!(EAX)),
                 TypedUnaop::Neg(Sizes::S64) => negq(reg!(RAX)),
                 TypedUnaop::Neg(Sizes::SUsize) => negq(reg!(RAX)),
-                TypedUnaop::Not(Sizes::S8) => xorb(immb(1), reg!(AH)),
+                TypedUnaop::Not(Sizes::S8) => xorb(immb(1), reg!(AL)),
                 TypedUnaop::Not(Sizes::S16) => xorw(immw(1), reg!(AX)),
                 TypedUnaop::Not(Sizes::S32) => xorl(imml(1), reg!(EAX)),
                 TypedUnaop::Not(Sizes::S64) => xorq(immq(1), reg!(RAX)),
@@ -180,7 +182,7 @@ fn compile_expr_val(
                 Location::Never => expr2,
                 Location::Rax => match size {
                     0 => expr2,
-                    1 => expr2 + subq(immq(1), reg!(RSP)) + movb(reg!(AH), addr!(RSP)),
+                    1 => expr2 + subq(immq(1), reg!(RSP)) + movb(reg!(AL), addr!(RSP)),
                     2 => expr2 + subq(immq(2), reg!(RSP)) + movw(reg!(AX), addr!(RSP)),
                     4 => expr2 + subq(immq(4), reg!(RSP)) + movl(reg!(EAX), addr!(RSP)),
                     8 => expr2 + pushq(reg!(RAX)),
@@ -190,9 +192,9 @@ fn compile_expr_val(
                     0 => expr2,
                     1 => {
                         expr2
-                            + movb(addr!(RSP), reg!(AH))
+                            + movb(addr!(RSP), reg!(AL))
                             + addq(immq(pad as i64), reg!(RSP))
-                            + movb(reg!(AH), addr!(RSP))
+                            + movb(reg!(AL), addr!(RSP))
                     }
                     2 => {
                         expr2
@@ -223,21 +225,21 @@ fn compile_expr_val(
             };
             let mov = match size {
                 0 => nop(),
-                1 => movb(addr!(RSP), reg!(CH)) + addq(immq(1), reg!(RSP)),
+                1 => movb(addr!(RSP), reg!(CL)) + addq(immq(1), reg!(RSP)),
                 2 => movw(addr!(RSP), reg!(CX)) + addq(immq(2), reg!(RSP)),
                 4 => movl(addr!(RSP), reg!(ECX)) + addq(immq(4), reg!(RSP)),
                 8 => popq(RCX),
                 _ => todo!(),
             };
             let op = match op {
-                TypedBinop::Add(Sizes::S8) => addb(reg!(CH), reg!(AH)),
+                TypedBinop::Add(Sizes::S8) => addb(reg!(CL), reg!(AL)),
                 TypedBinop::Add(Sizes::S16) => addw(reg!(CX), reg!(AX)),
                 TypedBinop::Add(Sizes::S32) => addl(reg!(ECX), reg!(EAX)),
                 TypedBinop::Add(Sizes::S64) | TypedBinop::Add(Sizes::SUsize) => {
                     addq(reg!(RCX), reg!(RAX))
                 }
 
-                TypedBinop::Sub(Sizes::S8) => subb(reg!(CH), reg!(AH)),
+                TypedBinop::Sub(Sizes::S8) => subb(reg!(CL), reg!(AL)),
                 TypedBinop::Sub(Sizes::S16) => subw(reg!(CX), reg!(AX)),
                 TypedBinop::Sub(Sizes::S32) => subl(reg!(ECX), reg!(EAX)),
                 TypedBinop::Sub(Sizes::S64) | TypedBinop::Sub(Sizes::SUsize) => {
@@ -295,19 +297,28 @@ fn compile_expr_val(
                         + movq(reg!(RDX), reg!(RAX))
                 }
 
-                TypedBinop::And(Sizes::S8) => andb(reg!(CH), reg!(AH)),
+                TypedBinop::And(Sizes::S8) => andb(reg!(CL), reg!(AL)),
                 TypedBinop::And(Sizes::S16) => andw(reg!(CX), reg!(AX)),
                 TypedBinop::And(Sizes::S32) => andl(reg!(ECX), reg!(EAX)),
                 TypedBinop::And(Sizes::S64) | TypedBinop::And(Sizes::SUsize) => {
                     andq(reg!(RCX), reg!(RAX))
                 }
 
-                TypedBinop::Or(Sizes::S8) => orb(reg!(CH), reg!(AH)),
+                TypedBinop::Or(Sizes::S8) => orb(reg!(CL), reg!(AL)),
                 TypedBinop::Or(Sizes::S16) => orw(reg!(CX), reg!(AX)),
                 TypedBinop::Or(Sizes::S32) => orl(reg!(ECX), reg!(EAX)),
                 TypedBinop::Or(Sizes::S64) | TypedBinop::Or(Sizes::SUsize) => {
                     orq(reg!(RCX), reg!(RAX))
                 }
+
+                TypedBinop::Shl(Sizes::S8) => shlb_reg(reg!(AL)),
+                TypedBinop::Shl(Sizes::S16) => shlw_reg(reg!(AX)),
+                TypedBinop::Shl(Sizes::S32) => shll_reg(reg!(EAX)),
+                TypedBinop::Shl(Sizes::S64) | TypedBinop::Shl(Sizes::SUsize) => shlq_reg(reg!(RAX)),
+                TypedBinop::Shr(Sizes::S8) => shrb_reg(reg!(AL)),
+                TypedBinop::Shr(Sizes::S16) => shrw_reg(reg!(AX)),
+                TypedBinop::Shr(Sizes::S32) => shrl_reg(reg!(EAX)),
+                TypedBinop::Shr(Sizes::S64) | TypedBinop::Shr(Sizes::SUsize) => shrq_reg(reg!(RAX)),
 
                 TypedBinop::Eq(Sizes::S8)
                 | TypedBinop::Neq(Sizes::S8)
@@ -315,7 +326,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S8)
                 | TypedBinop::Greater(_, Sizes::S8)
                 | TypedBinop::GreaterEq(_, Sizes::S8) => {
-                    cmpb(reg!(CH), reg!(AH)) + set(get_cond(op).unwrap(), reg!(AH))
+                    cmpb(reg!(CL), reg!(AL)) + set(get_cond(op).unwrap(), reg!(AL))
                 }
                 TypedBinop::Eq(Sizes::S16)
                 | TypedBinop::Neq(Sizes::S16)
@@ -323,7 +334,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S16)
                 | TypedBinop::Greater(_, Sizes::S16)
                 | TypedBinop::GreaterEq(_, Sizes::S16) => {
-                    cmpw(reg!(CX), reg!(AX)) + set(get_cond(op).unwrap(), reg!(AH))
+                    cmpw(reg!(CX), reg!(AX)) + set(get_cond(op).unwrap(), reg!(AL))
                 }
 
                 TypedBinop::Eq(Sizes::S32)
@@ -332,7 +343,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S32)
                 | TypedBinop::Greater(_, Sizes::S32)
                 | TypedBinop::GreaterEq(_, Sizes::S32) => {
-                    cmpl(reg!(ECX), reg!(EAX)) + set(get_cond(op).unwrap(), reg!(AH))
+                    cmpl(reg!(ECX), reg!(EAX)) + set(get_cond(op).unwrap(), reg!(AL))
                 }
 
                 TypedBinop::Eq(Sizes::S64)
@@ -341,7 +352,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S64)
                 | TypedBinop::Greater(_, Sizes::S64)
                 | TypedBinop::GreaterEq(_, Sizes::S64) => {
-                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AH))
+                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AL))
                 }
 
                 TypedBinop::Eq(Sizes::SUsize)
@@ -350,7 +361,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::SUsize)
                 | TypedBinop::Greater(_, Sizes::SUsize)
                 | TypedBinop::GreaterEq(_, Sizes::SUsize) => {
-                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AH))
+                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AL))
                 }
 
                 op => {
@@ -378,9 +389,9 @@ fn compile_expr_val(
                     | (Sizes::S64, Sizes::SUsize)
                     | (Sizes::SUsize, Sizes::S64)
                     | (Sizes::SUsize, Sizes::SUsize) => nop(),
-                    (Sizes::S8, Sizes::S16) => movsbw(reg!(AH), AX),
-                    (Sizes::S8, Sizes::S32) => movsbl(reg!(AH), EAX),
-                    (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => movsbq(reg!(AH), RAX),
+                    (Sizes::S8, Sizes::S16) => movsbw(reg!(AL), AX),
+                    (Sizes::S8, Sizes::S32) => movsbl(reg!(AL), EAX),
+                    (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => movsbq(reg!(AL), RAX),
                     (Sizes::S16, Sizes::S32) => movswl(reg!(AX), EAX),
                     (Sizes::S16, Sizes::S64) | (Sizes::S16, Sizes::SUsize) => movswq(reg!(AX), RAX),
                     (Sizes::S32, Sizes::S64) | (Sizes::S32, Sizes::SUsize) => {
@@ -388,7 +399,7 @@ fn compile_expr_val(
                     }
 
                     _ => {
-                        assert!(s1.to_byte_size() < s2.to_byte_size());
+                        assert!(s1.to_byte_size() > s2.to_byte_size());
                         nop()
                     }
                 },
@@ -401,10 +412,10 @@ fn compile_expr_val(
                         | (Sizes::S64, Sizes::SUsize)
                         | (Sizes::SUsize, Sizes::S64)
                         | (Sizes::SUsize, Sizes::SUsize) => nop(),
-                        (Sizes::S8, Sizes::S16) => movzbw(reg!(AH), AX),
-                        (Sizes::S8, Sizes::S32) => movzbl(reg!(AH), EAX),
+                        (Sizes::S8, Sizes::S16) => movzbw(reg!(AL), AX),
+                        (Sizes::S8, Sizes::S32) => movzbl(reg!(AL), EAX),
                         (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => {
-                            movzbq(reg!(AH), RAX)
+                            movzbq(reg!(AL), RAX)
                         }
                         (Sizes::S16, Sizes::S32) => movzwl(reg!(AX), EAX),
                         (Sizes::S16, Sizes::S64) | (Sizes::S16, Sizes::SUsize) => {
@@ -415,7 +426,8 @@ fn compile_expr_val(
                             movl(reg!(EAX), reg!(EAX))
                         }
                         _ => {
-                            assert!(s1.to_byte_size() < s2.to_byte_size());
+                            println!("{s1:?} {s2:?}");
+                            assert!(s1.to_byte_size() > s2.to_byte_size());
                             nop()
                         }
                     }
@@ -431,9 +443,9 @@ fn compile_expr_val(
         llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset, is_main),
         llr::ExprInner::Bool(b) => {
             if b {
-                (Location::Rax, movb(immb(1), reg::Operand::Reg(AH)))
+                (Location::Rax, movb(immb(1), reg::Operand::Reg(AL)))
             } else {
-                (Location::Rax, movb(immb(0), reg::Operand::Reg(AH)))
+                (Location::Rax, movb(immb(0), reg::Operand::Reg(AL)))
             }
         }
         llr::ExprInner::BuildStruct(struct_size, exprs) => {
@@ -448,7 +460,7 @@ fn compile_expr_val(
                         Location::Rax => {
                             if size == 1 {
                                 movb(
-                                    reg::Operand::Reg(AH),
+                                    reg::Operand::Reg(AL),
                                     addr!(
                                         -(stack_offset as i64 + struct_size as i64) + offset as i64,
                                         RBP
@@ -490,7 +502,7 @@ fn compile_expr_val(
                                 RBP,
                                 -(stack_offset as i64 + struct_size as i64) + offset as i64,
                                 size as u64,
-                                (RAX, EAX, AX, AH),
+                                (RAX, EAX, AX, AL),
                             ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                         }
                     }
@@ -510,7 +522,7 @@ fn compile_expr_val(
             (
                 Location::StackWithPadding(0),
                 expr + subq(immq(size as i64), reg!(RSP))
-                    + mov_struct(RAX, 0, RSP, 0, size as u64, (RCX, ECX, CX, CH)),
+                    + mov_struct(RAX, 0, RSP, 0, size as u64, (RCX, ECX, CX, CL)),
             )
         }
         llr::ExprInner::FunCall(name, args) => {
@@ -536,7 +548,7 @@ fn compile_expr_val(
                 let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset, is_main);
                 let asm2 = match loc {
                     Location::Rax => match size {
-                        1 => movb(reg::Operand::Reg(AH), addr!(-(current_offset as i64), RBP)),
+                        1 => movb(reg::Operand::Reg(AL), addr!(-(current_offset as i64), RBP)),
                         2 => movw(reg::Operand::Reg(AX), addr!(-(current_offset as i64), RBP)),
                         4 => movl(reg::Operand::Reg(EAX), addr!(-(current_offset as i64), RBP)),
                         8 => movq(reg::Operand::Reg(RAX), addr!(-(current_offset as i64), RBP)),
@@ -550,7 +562,7 @@ fn compile_expr_val(
                             RBP,
                             -(current_offset as i64),
                             size as u64,
-                            (RAX, EAX, AX, AH),
+                            (RAX, EAX, AX, AL),
                         ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                     }
                 };
@@ -582,7 +594,7 @@ fn compile_expr_val(
                 let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset, is_main);
                 let asm2 = match loc {
                     Location::Rax => match size {
-                        1 => movb(reg::Operand::Reg(AH), addr!(-(current_offset as i64), RBP)),
+                        1 => movb(reg::Operand::Reg(AL), addr!(-(current_offset as i64), RBP)),
                         2 => movw(reg::Operand::Reg(AX), addr!(-(current_offset as i64), RBP)),
                         4 => movl(reg::Operand::Reg(EAX), addr!(-(current_offset as i64), RBP)),
                         8 => movq(reg::Operand::Reg(RAX), addr!(-(current_offset as i64), RBP)),
@@ -596,7 +608,7 @@ fn compile_expr_val(
                             RBP,
                             -(current_offset as i64),
                             size as u64,
-                            (RAX, EAX, AX, AH),
+                            (RAX, EAX, AX, AL),
                         ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                     }
                 };
@@ -615,7 +627,7 @@ fn compile_expr_val(
                 Location::Never => todo!(),
                 Location::Rax => expr,
                 Location::StackWithPadding(pad) => {
-                    expr + movb(addr!(0, RSP), reg::Operand::Reg(AH))
+                    expr + movb(addr!(0, RSP), reg::Operand::Reg(AL))
                         + addq(immq(pad as i64 + 1), reg!(RSP))
                 }
             };
@@ -652,7 +664,7 @@ fn compile_expr_val(
                                 RSP,
                                 0,
                                 size as u64,
-                                (RAX, EAX, AX, AH),
+                                (RAX, EAX, AX, AL),
                             )
                     };
                     let bloc2 = {
@@ -664,7 +676,7 @@ fn compile_expr_val(
                                 RSP,
                                 0,
                                 size as u64,
-                                (RAX, EAX, AX, AH),
+                                (RAX, EAX, AX, AL),
                             )
                     };
 
@@ -674,7 +686,7 @@ fn compile_expr_val(
             (
                 loc,
                 expr
-                + testb(reg::Operand::Reg(AH), reg::Operand::Reg(AH))
+                + testb(reg::Operand::Reg(AL), reg::Operand::Reg(AL))
                 + jz(else_label.clone())
                 + bloc1
 //                + todo!()
@@ -688,7 +700,7 @@ fn compile_expr_val(
         llr::ExprInner::Int(i, size) => (
             Location::Rax,
             match size {
-                Sizes::S8 => movb(immb(i as i8), reg::Operand::Reg(AH)),
+                Sizes::S8 => movb(immb(i as i8), reg::Operand::Reg(AL)),
                 Sizes::S16 => movw(immw(i as i16), reg::Operand::Reg(AX)),
                 Sizes::S32 => movl(imml(i as i32), reg::Operand::Reg(EAX)),
                 Sizes::S64 | Sizes::SUsize => movq(immq(i as i64), reg!(RAX)),
@@ -726,7 +738,7 @@ fn compile_expr_val(
             match expr.size {
                 1 => (
                     Location::Rax,
-                    sub_expr + movb(addr!(offset as i64, RAX), reg::Operand::Reg(AH)),
+                    sub_expr + movb(addr!(offset as i64, RAX), reg::Operand::Reg(AL)),
                 ),
                 2 => (
                     Location::Rax,
@@ -744,7 +756,7 @@ fn compile_expr_val(
                     Location::StackWithPadding(0),
                     sub_expr
                         + subq(immq(size as i64), reg::Operand::Reg(RSP))
-                        + mov_struct(RAX, offset as i64, RSP, 0, size as u64, (RCX, ECX, CX, CH)),
+                        + mov_struct(RAX, offset as i64, RSP, 0, size as u64, (RCX, ECX, CX, CL)),
                 ),
             }
         }
@@ -761,7 +773,7 @@ fn compile_expr_val(
                 Location::Never => expr,
                 Location::Rax => match size {
                     0 => expr,
-                    1 => (expr + movb(reg!(AH), addr!(offset_from_rbp, RBP))),
+                    1 => (expr + movb(reg!(AL), addr!(offset_from_rbp, RBP))),
                     2 => (expr + movw(reg!(AX), addr!(offset_from_rbp, RBP))),
                     4 => (expr + movl(reg!(EAX), addr!(offset_from_rbp, RBP))),
                     8 => (expr + movq(reg!(RAX), addr!(offset_from_rbp, RBP))),
@@ -774,7 +786,7 @@ fn compile_expr_val(
                         RBP,
                         offset_from_rbp,
                         size as u64,
-                        (RAX, EAX, AX, AH),
+                        (RAX, EAX, AX, AL),
                     ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                 }
             };
@@ -796,7 +808,7 @@ fn compile_expr_val(
                     Location::Rax => {
                         popq(RCX)
                             + if size == 1 {
-                                movb(reg::Operand::Reg(AH), addr!(RCX))
+                                movb(reg::Operand::Reg(AL), addr!(RCX))
                             } else if size == 2 {
                                 movw(reg::Operand::Reg(AX), addr!(RCX))
                             } else if size == 4 {
@@ -810,7 +822,7 @@ fn compile_expr_val(
                     Location::Never => nop(),
                     Location::StackWithPadding(pad) => {
                         movq(addr!(-(stack_offset as i64 + 8), RBP), reg!(RCX))
-                            + mov_struct(RSP, 0, RCX, 0, size as u64, (RAX, EAX, AX, AH))
+                            + mov_struct(RSP, 0, RCX, 0, size as u64, (RAX, EAX, AX, AL))
                             + addq(immq(pad as i64 + size as i64 + 8), reg!(RSP))
                     }
                 };
@@ -831,7 +843,7 @@ fn compile_expr_val(
                             if size == 0 {
                                 nop()
                             } else if size == 1 {
-                                movb(reg::Operand::Reg(AH), addr!(current_offset, RSP))
+                                movb(reg::Operand::Reg(AL), addr!(current_offset, RSP))
                             } else if size == 4 {
                                 movl(reg::Operand::Reg(EAX), addr!(current_offset, RSP))
                             } else if size == 8 {
@@ -847,7 +859,7 @@ fn compile_expr_val(
                                 RSP,
                                 size as i64 + pad as i64,
                                 size as u64,
-                                (RAX, EAX, AX, AH),
+                                (RAX, EAX, AX, AL),
                             ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                         }
                     };
@@ -861,7 +873,7 @@ fn compile_expr_val(
             if expr.size == 1 {
                 (
                     Location::Rax,
-                    movb(addr!(offset_from_rbp, RBP), reg::Operand::Reg(AH)),
+                    movb(addr!(offset_from_rbp, RBP), reg::Operand::Reg(AL)),
                 )
             } else if expr.size == 2 {
                 (
@@ -889,7 +901,7 @@ fn compile_expr_val(
                             RSP,
                             0,
                             size as u64,
-                            (RAX, EAX, AX, AH),
+                            (RAX, EAX, AX, AL),
                         ),
                 )
             }
@@ -953,7 +965,7 @@ fn compile_bloc(
                 asm = asm
                     + label(in_label.clone())
                     + expr
-                    + testb(reg!(AH), reg!(AH))
+                    + testb(reg!(AL), reg!(AL))
                     + jz(out_label.clone())
                     + bloc
                     + jmp(in_label)
@@ -981,7 +993,7 @@ fn compile_bloc(
                     + expr
                     + match loc {
                         Location::Rax => match size {
-                            1 => movb(reg::Operand::Reg(AH), addr!(ctxt.get_return_offset(), RBP)),
+                            1 => movb(reg::Operand::Reg(AL), addr!(ctxt.get_return_offset(), RBP)),
                             2 => movw(reg::Operand::Reg(AX), addr!(ctxt.get_return_offset(), RBP)),
                             4 => movl(reg::Operand::Reg(EAX), addr!(ctxt.get_return_offset(), RBP)),
                             8 => movq(reg::Operand::Reg(RAX), addr!(ctxt.get_return_offset(), RBP)),
@@ -994,7 +1006,7 @@ fn compile_bloc(
                             RBP,
                             ctxt.get_return_offset(),
                             size,
-                            (RAX, EAX, AX, AH),
+                            (RAX, EAX, AX, AL),
                         ),
                     }
                     + movq(reg!(RBP), reg!(RSP))
@@ -1121,8 +1133,8 @@ and then arg
         + label(reg::Label::from_str("push_copy_while_start".to_string()))
         + testq(reg!(RDI), reg!(RDI))
         + jz(reg::Label::from_str("push_copy_while_end".to_string()))
-        + movb(addr!(RCX), reg!(DH))
-        + movb(reg!(DH), addr!(RAX))
+        + movb(addr!(RCX), reg!(DL))
+        + movb(reg!(DL), addr!(RAX))
         + decq(reg!(RDI))
         + incq(reg!(RAX))
         + incq(reg!(RCX))
@@ -1170,13 +1182,13 @@ fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
                         RBP,
                         ctxt.get_return_offset(),
                         size as u64,
-                        (RAX, EAX, AX, AH),
+                        (RAX, EAX, AX, AL),
                     )
             }
             Location::Rax => {
                 asm = match size {
                     0 => asm,
-                    1 => asm + movb(reg!(AH), addr!(ctxt.get_return_offset(), RBP)),
+                    1 => asm + movb(reg!(AL), addr!(ctxt.get_return_offset(), RBP)),
                     2 => asm + movw(reg!(AX), addr!(ctxt.get_return_offset(), RBP)),
                     4 => asm + movl(reg!(EAX), addr!(ctxt.get_return_offset(), RBP)),
                     8 => asm + movq(reg!(RAX), addr!(ctxt.get_return_offset(), RBP)),

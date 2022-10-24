@@ -1,8 +1,13 @@
 // Heap is stored as :
 // 
 
-const NULL_PTR : usize = usize::MAX;
+const NULL_PTR : usize = 18_446_744_073_709_551_615usize;
+const U32_MAX : usize = 1 << 32;
 const FREE_BIT : u32 = 1;
+
+fn zero() -> usize {
+    0
+}
 
 fn init(vec: &mut Vec<u32>) {
     vec[0] = (vec.len() - 4) as u32 | FREE_BIT;
@@ -13,17 +18,17 @@ fn init(vec: &mut Vec<u32>) {
 }
 
 fn malloc(vec : &mut Vec<u32>, size : usize) -> usize {
-    if size > u32::MAX as usize {
-        return NULL_PTR
+    if size >= U32_MAX {
+        return NULL_PTR;
     }
     let mut size = size as u32;
     size = (size + 7) >> 2; // is even
     let mut pos = 0;
     let mut previous = 0;
-    loop {
+    while true {
         if vec[pos] & FREE_BIT == 1 {
             let available = vec[pos] - 1; // is even
-            println!("free at {pos} of size {available}");
+//            println!("free at {pos} of size {available}");
             if available >= size + 2 {
                 if available > size + 4 {
                     vec[pos + (size as usize) + 2] = (available - size - 2) | FREE_BIT; // is odd
@@ -34,7 +39,7 @@ fn malloc(vec : &mut Vec<u32>, size : usize) -> usize {
                 }
                 vec[pos] = size + 2;  
                 vec[pos + 1] = previous;              
-                return pos + 2
+                return pos + 2;
             }
             previous = pos as u32;
             pos = pos + vec[pos] as usize + 1;
@@ -42,7 +47,8 @@ fn malloc(vec : &mut Vec<u32>, size : usize) -> usize {
             previous = pos as u32;
             pos = pos + vec[pos] as usize;
         }
-    }
+    };
+    0
 }
 
 
@@ -64,11 +70,14 @@ fn realloc(vec : &mut Vec<u32>, pos : usize, size : usize) -> usize {
         let new_size = (size + 7) >> 3;
         if available as usize >= size {
             let last_pos = next_pos + ((vec[next_pos] | FREE_BIT) + FREE_BIT) as usize;
-            todo!();
+            print!("todo\n");
+            1 / zero()
         } else {
             let new_pos = malloc(vec, size);
-            for offset in 0..(vec[real_pos] as usize - 2)  {
-                vec[new_pos + offset] = vec[pos + offset]
+            let mut offset = 0;
+            while offset < (vec[real_pos] as usize - 2)  {
+                vec[new_pos + offset] = vec[pos + offset];
+                offset = offset + 1;
             }
             free(vec, pos);
             new_pos
@@ -81,7 +90,8 @@ fn realloc(vec : &mut Vec<u32>, pos : usize, size : usize) -> usize {
 fn free(vec : &mut Vec<u32>, pos : usize) {
     let mut real_pos = pos - 2;
     if vec[real_pos] as u32 & FREE_BIT == 1 {
-        panic!("Segfault")
+        print!("Segfault\n");
+        1/zero();
     } else {
         let mut last_pos = real_pos + vec[real_pos] as usize/* = size + 2 */;
         if vec[last_pos] & FREE_BIT == 1 {
@@ -92,24 +102,29 @@ fn free(vec : &mut Vec<u32>, pos : usize) {
             real_pos = previous_pos
         }
         vec[last_pos + 1] = real_pos as u32;
-        vec[real_pos] = (last_pos - real_pos - 2) as u32 | FREE_BIT
+        vec[real_pos] = (last_pos - real_pos - 2) as u32 | FREE_BIT;
     }
 }
 
 
 fn main() {
-    let mut array = vec![42; 20];
+    let mut array = vec![
+        42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42,
+        42, 42, 42, 42, 42,
+    ];
     init(&mut array);
-    println!("{array:?}");
+    print!("{array:?}\n");
     let id1 = malloc(&mut array, 2);
-    println!("{array:?} malloc -> {id1}");
+    print!("{array:?} malloc -> {id1}\n");
     let id2 = malloc(&mut array, 1);
-    println!("{array:?} malloc -> {id2}");
+    print!("{array:?} malloc -> {id2}\n");
     let id3 = malloc(&mut array, 3);
-    println!("{array:?} malloc -> {id3}");
+    print!("{array:?} malloc -> {id3}\n");
     free(&mut array, id2);
-    println!("{array:?} free <- {id2}");
+    print!("{array:?} free <- {id2}\n");
     free(&mut array, id3);
-    println!("{array:?} free <- {id3}");
+    print!("{array:?} free <- {id3}\n");
 
 }

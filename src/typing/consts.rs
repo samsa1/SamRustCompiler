@@ -65,6 +65,8 @@ fn compute_i64(bin: TypedBinop, i1: i64, i2: i64) -> Val {
         TypedBinop::LowerEq(_, _) => Val::Bool(i1 < i2),
         TypedBinop::And(s) => Val::Integer(i1 & i2, s),
         TypedBinop::Or(s) => Val::Integer(i1 | i2, s),
+        TypedBinop::Shl(s) => Val::Integer(i1 << i2, s),
+        TypedBinop::Shr(s) => todo!(),
     }
 }
 
@@ -83,6 +85,8 @@ fn compute_u64(bin: TypedBinop, i1: u64, i2: u64) -> Val {
         TypedBinop::LowerEq(_, _) => Val::Bool(i1 < i2),
         TypedBinop::And(s) => Val::Uinteger(i1 & i2, s),
         TypedBinop::Or(s) => Val::Uinteger(i1 | i2, s),
+        TypedBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
+        TypedBinop::Shr(s) => todo!(),
     }
 }
 fn compute_bool(bin: TypedBinop, i1: bool, i2: bool) -> Val {

@@ -40,6 +40,8 @@ fn main() {
         std::process::exit(0)
     }
 
+    println!("<- parsing");
+
     let unfolded_macros = passes::macros::rewrite_file(parsed_file);
     let distinct_names = passes::give_uniq_id::rewrite_file(unfolded_macros);
     let moved_refs = passes::move_refs::rewrite_file(distinct_names);

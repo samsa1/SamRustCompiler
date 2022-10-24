@@ -20,8 +20,10 @@ impl Module {
 
     fn new_inner(file_name: PathBuf, is_base: bool) -> Self {
         let content = parser::parse_file(file_name.to_str().unwrap().to_string());
+        println!("parsed one");
         let mut submodules = HashMap::new();
         for dep in content.dep.iter() {
+            println!("handling deps");
             match dep {
                 Open::Use(_, _) => (),
                 Open::Mod(b, name1, name2) => {
@@ -52,6 +54,7 @@ impl Module {
                 }
             }
         }
+        println!("handled deps");
         Self {
             content,
             submodules,

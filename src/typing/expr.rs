@@ -105,8 +105,11 @@ fn to_typed_binop(binop: BinOperator, typ: &PostTypeInner) -> IsTypeBinop {
             BinOperator::Mul => IsTypeBinop::BuiltIn(TypedBinop::Mul(*signed, *size)),
             BinOperator::Div => IsTypeBinop::BuiltIn(TypedBinop::Div(*signed, *size)),
 
-            BinOperator::And => IsTypeBinop::BuiltIn(TypedBinop::And(*size)),
-            BinOperator::Or => IsTypeBinop::BuiltIn(TypedBinop::Or(*size)),
+            BinOperator::BitAnd => IsTypeBinop::BuiltIn(TypedBinop::And(*size)),
+            BinOperator::BitOr => IsTypeBinop::BuiltIn(TypedBinop::Or(*size)),
+
+            BinOperator::Shl => IsTypeBinop::BuiltIn(TypedBinop::Shl(*size)),
+            BinOperator::Shr => IsTypeBinop::BuiltIn(TypedBinop::Shr(*size)),
 
             BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(*size)),
             BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Neq(*size)),
@@ -117,6 +120,7 @@ fn to_typed_binop(binop: BinOperator, typ: &PostTypeInner) -> IsTypeBinop {
             BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(*signed, *size)),
 
             BinOperator::Set => panic!("ICE"),
+            _ => IsTypeBinop::NotBuiltIn,
         },
         _ => IsTypeBinop::NotBuiltIn,
     }

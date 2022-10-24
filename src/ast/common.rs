@@ -2,7 +2,7 @@ use std::str::FromStr;
 
 use crate::typing::errors::TypeError;
 
-pub enum BinOp {
+enum BinOp {
     Eq,
     NotEq,
     Lower,
@@ -16,6 +16,10 @@ pub enum BinOp {
     Modulo,
     And,
     Or,
+    BwiseAnd,
+    BwiseOr,
+    LShiftR,
+    LShiftL,
 }
 
 pub enum UnOp {
@@ -251,6 +255,10 @@ pub enum BinOperator {
     Set,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    Shr,
+    Shl,
 }
 
 impl BinOperator {
@@ -261,6 +269,11 @@ impl BinOperator {
             Self::Div => ("Div", ""),
             Self::Mod => ("Mod", ""),
             Self::Mul => ("Mul", ""),
+
+            Self::Shl => ("Shl", ""),
+            Self::Shr => ("Shr", ""),
+            Self::BitAnd => ("BitAnd", ""),
+            Self::BitOr => ("BitOr", ""),
 
             Self::And => ("And", ""),
             Self::Or => ("Or", ""),
@@ -338,6 +351,7 @@ impl ErrorReporter {
         let mut count = 0;
         let mut vec_index = vec![count];
         let mut current_str = String::new();
+        println!("t1");
         for char in file.chars() {
             count += 1;
             current_str.push(char);
@@ -347,6 +361,7 @@ impl ErrorReporter {
                 current_str = String::new();
             };
         }
+        println!("t2");
         vec_str.push(current_str);
         Self {
             lines: vec_str,
@@ -406,6 +421,8 @@ pub enum TypedBinop {
     Mod(bool, Sizes),
     And(Sizes),
     Or(Sizes),
+    Shl(Sizes),
+    Shr(Sizes),
     Eq(Sizes),
     Neq(Sizes),
     Lower(bool, Sizes),

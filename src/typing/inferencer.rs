@@ -606,6 +606,10 @@ fn type_expr(
                 || op == BinOperator::Mod
                 || op == BinOperator::Mul
                 || op == BinOperator::Div
+                || op == BinOperator::Shl
+                || op == BinOperator::Shr
+                || op == BinOperator::BitAnd
+                || op == BinOperator::BitOr
             {
                 make_coherent(
                     types,
