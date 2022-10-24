@@ -487,6 +487,24 @@ pub fn type_checker(
             }
         }
 
+        rust::ExprInner::MacroCall(name, mut args) if name.get_content() == "print_usize" => {
+            if args.len() == 1 {
+                let expr = args.pop().unwrap();
+                let expr = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info)?.1;
+                assert!(matches!(
+                    expr.typed.content,
+                    PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize))
+                ));
+                (
+                    false,
+                    typed_rust::PostType::unit(),
+                    typed_rust::ExprInner::PrintPtr(expr),
+                )
+            } else {
+                todo!()
+            }
+        }
+
         rust::ExprInner::MacroCall(name, mut args) if name.get_content() == "print" => {
             if args.len() == 1 {
                 match *args.pop().unwrap().content {

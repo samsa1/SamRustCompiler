@@ -1097,7 +1097,7 @@ pub fn to_asm(file: llr::File, ctxt: &mut context::Context) -> file::File {
 }
 
 fn default_vec_function(heap_address: &str, ctxt: &context::Context) -> Text {
-    let custom_alloc = false;
+    let custom_alloc = true;
 
     label(ctxt.fun_label("print_ptr"))
         + pushq(reg!(RBP))
@@ -1130,7 +1130,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
             + popq(RAX)
             + addq(immq(8), reg!(RSP))
             + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
-            + addq(immq(24), reg!(RAX))
+            + addq(immq(32), reg!(RAX))
         } else { call(reg::Label::malloc()) }
         + movq(reg!(RAX), addr!(24, RSP)) /* Store the pointer to return it */
         + movq(reg!(RAX), reg!(RBP)) /* Store the pointer also in Rbp */
@@ -1147,7 +1147,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
             + popq(RAX)
             + addq(immq(8), reg!(RSP))
             + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
-            + addq(immq(24), reg!(RAX))
+            + addq(immq(32), reg!(RAX))
         } else { call(reg::Label::malloc()) }
         + movq(reg!(RAX), addr!(RBP))
         + movq(immq(0), reg!(RAX))
@@ -1195,14 +1195,14 @@ and then arg
             + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
             + pushq(reg!(RAX))
             + subq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RDI))
-            + subq(immq(24), reg!(RDI))
+            + subq(immq(32), reg!(RDI))
             + pushq(reg!(RDI))
             + pushq(reg!(RSI))
             + call(ctxt.fun_label("realloc"))
             + addq(immq(24), reg!(RSP))
             + popq(RAX)
             + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
-            + addq(immq(24), reg!(RAX))
+            + addq(immq(32), reg!(RAX))
         } else { call(reg::Label::realloc()) }
         + movq(reg!(RAX), addr!(RBP)) // store new pointer
         + movq(addr!(8, RBP), reg!(RAX)) /* get length */
@@ -1239,7 +1239,7 @@ and then arg
 }
 
 pub fn base(ctxt: &mut context::Context) -> file::File {
-    let heap_name = "heap_address".to_string();
+    let heap_address = "heap_address".to_string();
     let heap_size = 8 << 10;
 
     let text_ss = label(reg::Label::from_str("main".to_string()))
@@ -1249,31 +1249,31 @@ pub fn base(ctxt: &mut context::Context) -> file::File {
         + movq(reg!(RSP), reg!(R13))
         + movq(immq(heap_size + 24), reg!(RDI)) // 8ko
         + call(reg::Label::malloc())
-        + movq(reg!(RAX), reg::Operand::LabRelAddr(reg::Label::from_str(heap_name.clone())))
+        + movq(reg!(RAX), reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())))
         + movq(immq(heap_size / 4), reg!(RCX))
         + movq(reg!(RCX), addr!(8, RAX))
         + movq(reg!(RCX), addr!(16, RAX))
         + movq(immq(4), addr!(24, RAX))
         + movq(reg!(RAX), reg!(RCX))
-        + addq(immq(24), reg!(RCX))
+        + addq(immq(32), reg!(RCX))
         + movq(reg!(RCX), addr!(RAX))
-        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_name.clone())), RAX)
+        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), RAX)
         + pushq(reg!(RAX))
         + pushq(reg!(RAX))
         + call(ctxt.fun_label("init"))
         + addq(immq(16), reg!(RSP))
 
         + call(ctxt.fun_label("main"))
-        + movq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_name.clone())), reg!(RDI))
+        + movq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), reg!(RDI))
         + call(reg::Label::free())
         + popq(R13)
         + popq(R12)
         + popq(RBP)
         + xorq(reg!(RAX), reg!(RAX))
         + ret()
-        + default_vec_function("bloup", &ctxt);
+        + default_vec_function(&heap_address, &ctxt);
     let data_ss = data::dstring("my_string".to_string(), "%zd\\n".to_string())
-        + data::dquad(heap_name, vec![0]);
+        + data::dquad(heap_address, vec![0]);
 
     file::File {
         globl: Some(reg::Label::from_str("main".to_string())),

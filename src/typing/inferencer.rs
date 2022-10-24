@@ -961,6 +961,30 @@ fn type_expr(
             ))
         }
 
+        ExprInner::MacroCall(name, mut exprs)
+            if name.get_content() == "print_usize" && exprs.len() == 1 =>
+        {
+            let expr = type_expr(ctxt, local_ctxt, exprs.pop().unwrap(), types, out_type)?.1;
+            let type_id = types.insert_type(Types::usize());
+            make_coherent(
+                types,
+                type_id,
+                expr.typed,
+                top_expr.loc,
+                UnificationMethod::Smallest,
+            )?;
+            let type_id = types.insert_unit();
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::MacroCall(name, vec![expr])),
+                    typed: type_id,
+                    loc: top_expr.loc,
+                },
+            ))
+        }
+
         ExprInner::MacroCall(_, _) => todo!(),
 
         ExprInner::Method(expr, method_name, exprs) => {

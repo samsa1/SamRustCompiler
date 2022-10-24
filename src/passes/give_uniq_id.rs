@@ -92,7 +92,8 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
         }
 
         ExprInner::MacroCall(name, mut exprs)
-            if name.get_content() == "print_ptr" && exprs.len() == 1 =>
+            if (name.get_content() == "print_ptr" || name.get_content() == "print_usize")
+                && exprs.len() == 1 =>
         {
             eprintln!("Didn't unfold a print macro");
             Expr {
