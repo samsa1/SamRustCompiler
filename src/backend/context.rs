@@ -57,21 +57,17 @@ impl Context {
     }
 
     pub fn fun_label(&self, fun_name: &str) -> Label {
-        if fun_name == "main" {
-            Label::from_str(fun_name.to_string())
-        } else {
-            let mut fun_name2 = String::new();
-            for char in fun_name.chars() {
-                match char {
-                    '<' => fun_name2.push_str(".l"),
-                    '>' => fun_name2.push_str(".g"),
-                    ':' => fun_name2.push('.'),
-                    _ => fun_name2.push(char),
-                }
+        let mut fun_name2 = String::new();
+        for char in fun_name.chars() {
+            match char {
+                '<' => fun_name2.push_str(".l"),
+                '>' => fun_name2.push_str(".g"),
+                ':' => fun_name2.push('.'),
+                _ => fun_name2.push(char),
             }
-            let str = format!("user_fun_{fun_name2}");
-            Label::from_str(str)
         }
+        let str = format!("user_fun_{fun_name2}");
+        Label::from_str(str)
     }
 
     pub fn add_layer(&mut self) {

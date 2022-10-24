@@ -62,12 +62,7 @@ fn mov_struct(
     asm
 }
 
-fn compile_expr_pointer(
-    ctxt: &mut context::Context,
-    expr: llr::Expr,
-    stack_offset: u64,
-    is_main: bool,
-) -> Text {
+fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offset: u64) -> Text {
     match *expr.content {
         llr::ExprInner::BinOp(_, _, _)
         | llr::ExprInner::Bloc(_)
@@ -84,7 +79,7 @@ fn compile_expr_pointer(
         | llr::ExprInner::Tuple(_, _)
         | llr::ExprInner::UnaOp(_, _) => panic!("ICE"),
         llr::ExprInner::Deref(expr) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             match loc {
                 Location::Rax | Location::Never => expr,
                 Location::StackWithPadding(pad) => {
@@ -97,9 +92,9 @@ fn compile_expr_pointer(
         }
         llr::ExprInner::Proj(expr, proj) => {
             let expr = if expr.typed.is_ref() {
-                compile_expr_val(ctxt, expr, stack_offset, is_main).1
+                compile_expr_val(ctxt, expr, stack_offset).1
             } else {
-                compile_expr_pointer(ctxt, expr, stack_offset, is_main)
+                compile_expr_pointer(ctxt, expr, stack_offset)
             };
             expr + addq(immq(proj as i64), reg!(RAX))
         }
@@ -147,13 +142,12 @@ fn compile_expr_val(
     ctxt: &mut context::Context,
     expr: llr::Expr,
     stack_offset: u64,
-    is_main: bool,
 ) -> (Location, Text) {
     let size = expr.size;
     match *expr.content {
         llr::ExprInner::UnaOp(op, expr) => {
             let size = expr.size;
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let expr = match loc {
                 Location::Never | Location::Rax => expr,
                 Location::StackWithPadding(pad) => expr + move_stack_to_rax(pad, size),
@@ -176,7 +170,7 @@ fn compile_expr_val(
         llr::ExprInner::BinOp(op, expr1, expr2) => {
             println!("{:?} {:?} {:?}", op, expr1, expr2);
             let size = expr2.size;
-            let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset, is_main);
+            let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
             println!("{:?}", loc);
             let expr2 = match loc {
                 Location::Never => expr2,
@@ -217,7 +211,7 @@ fn compile_expr_val(
                     _ => panic!("ICE"),
                 },
             };
-            let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64, is_main);
+            let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
             println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
@@ -374,7 +368,7 @@ fn compile_expr_val(
 
         llr::ExprInner::Coercion(expr, typ1, typ2) => {
             let size_in = expr.size;
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let expr = match loc {
                 Location::Rax | Location::Never => expr,
                 Location::StackWithPadding(pad) => expr + move_stack_to_rax(pad, size_in),
@@ -440,7 +434,7 @@ fn compile_expr_val(
             (Location::Rax, expr + conversion)
         }
 
-        llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset, is_main),
+        llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset),
         llr::ExprInner::Bool(b) => {
             if b {
                 (Location::Rax, movb(immb(1), reg::Operand::Reg(AL)))
@@ -452,8 +446,7 @@ fn compile_expr_val(
             let mut asm = subq(immq(struct_size as i64), reg::Operand::Reg(RSP));
             for (offset, expr) in exprs {
                 let size = expr.size;
-                let (loc, expr) =
-                    compile_expr_val(ctxt, expr, stack_offset + struct_size as u64, is_main);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + struct_size as u64);
                 asm = asm + expr;
                 asm = asm
                     + match loc {
@@ -511,7 +504,7 @@ fn compile_expr_val(
         }
         llr::ExprInner::Constant(_) => todo!(),
         llr::ExprInner::Deref(expr) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let expr = match loc {
                 Location::Never | Location::Rax => expr,
                 Location::StackWithPadding(pad) => {
@@ -545,7 +538,7 @@ fn compile_expr_val(
             for arg in args {
                 let size = arg.size;
                 current_offset += size as u64;
-                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset, is_main);
+                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset);
                 let asm2 = match loc {
                     Location::Rax => match size {
                         1 => movb(reg::Operand::Reg(AL), addr!(-(current_offset as i64), RBP)),
@@ -591,7 +584,7 @@ fn compile_expr_val(
             for arg in args {
                 let size = arg.size;
                 current_offset += size as u64;
-                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset, is_main);
+                let (loc, arg) = compile_expr_val(ctxt, arg, stack_offset);
                 let asm2 = match loc {
                     Location::Rax => match size {
                         1 => movb(reg::Operand::Reg(AL), addr!(-(current_offset as i64), RBP)),
@@ -622,7 +615,7 @@ fn compile_expr_val(
             (Location::StackWithPadding(missing), asm)
         }
         llr::ExprInner::If(expr, bloc1, bloc2) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let expr = match loc {
                 Location::Never => todo!(),
                 Location::Rax => expr,
@@ -631,8 +624,8 @@ fn compile_expr_val(
                         + addq(immq(pad as i64 + 1), reg!(RSP))
                 }
             };
-            let (loc1, bloc1) = compile_bloc(ctxt, bloc1, stack_offset, is_main);
-            let (loc2, bloc2) = compile_bloc(ctxt, bloc2, stack_offset, is_main);
+            let (loc1, bloc1) = compile_bloc(ctxt, bloc1, stack_offset);
+            let (loc2, bloc2) = compile_bloc(ctxt, bloc2, stack_offset);
             let (else_label, end_label) = ctxt.gen_if_labels();
             let (loc, bloc1, bloc2) = match (loc1, loc2) {
                 (Location::Never, loc) => (loc, bloc1, bloc2),
@@ -725,7 +718,7 @@ fn compile_expr_val(
         }
         llr::ExprInner::Proj(sub_expr, offset) => {
             let sub_expr = if sub_expr.typed.is_ref() {
-                let (loc, sub_expr) = compile_expr_val(ctxt, sub_expr, stack_offset, is_main);
+                let (loc, sub_expr) = compile_expr_val(ctxt, sub_expr, stack_offset);
                 match loc {
                     Location::Rax | Location::Never => sub_expr,
                     Location::StackWithPadding(pad) => {
@@ -733,7 +726,7 @@ fn compile_expr_val(
                     }
                 }
             } else {
-                compile_expr_pointer(ctxt, sub_expr, stack_offset, is_main)
+                compile_expr_pointer(ctxt, sub_expr, stack_offset)
             };
             match expr.size {
                 1 => (
@@ -762,13 +755,13 @@ fn compile_expr_val(
         }
         llr::ExprInner::Ref(expr) => (
             Location::Rax,
-            compile_expr_pointer(ctxt, expr, stack_offset, is_main),
+            compile_expr_pointer(ctxt, expr, stack_offset),
         ),
         llr::ExprInner::Set(size, addr, expr) if addr.is_ref_var() => {
             assert_eq!(size, expr.size);
             let var_id = addr.get_ref_var().unwrap();
             let offset_from_rbp = ctxt.find(var_id);
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let asm = match loc {
                 Location::Never => expr,
                 Location::Rax => match size {
@@ -794,14 +787,14 @@ fn compile_expr_val(
         }
         llr::ExprInner::Set(size, addr, expr) => {
             assert_eq!(size, expr.size);
-            let (loc, addr) = compile_expr_val(ctxt, addr, stack_offset, is_main);
+            let (loc, addr) = compile_expr_val(ctxt, addr, stack_offset);
             let addr = match loc {
                 Location::Rax | Location::Never => addr,
                 Location::StackWithPadding(pad) => {
                     addr + popq(RAX) + addq(immq(pad as i64), reg!(RSP))
                 }
             };
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + 8, is_main);
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + 8);
             let mut asm = addr + pushq(reg::Operand::Reg(RAX)) + expr;
             asm = asm
                 + match loc {
@@ -833,8 +826,7 @@ fn compile_expr_val(
             let mut current_offset = 0;
             for expr in exprs {
                 let size = expr.size;
-                let (loc, expr) =
-                    compile_expr_val(ctxt, expr, stack_offset + tuple_size as u64, is_main);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset + tuple_size as u64);
                 asm = asm + expr;
                 asm = asm
                     + match loc {
@@ -913,7 +905,6 @@ fn compile_bloc(
     ctxt: &mut context::Context,
     bloc: llr::Bloc,
     mut stack_offset: u64,
-    is_main: bool,
 ) -> (Location, Text) {
     let initial_stack_offset = stack_offset;
     ctxt.add_layer();
@@ -950,13 +941,13 @@ fn compile_bloc(
                     size: 0,
                     typed: PostType::unit(),
                 };
-                asm = asm + compile_expr_val(ctxt, expr, stack_offset, is_main).1;
+                asm = asm + compile_expr_val(ctxt, expr, stack_offset).1;
                 last_loc = Location::Rax;
             }
             llr::Instr::While(expr, bloc) => {
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
                 assert!(!matches!(loc, Location::StackWithPadding(_)));
-                let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset, is_main);
+                let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset);
                 let bloc = match loc2 {
                     Location::StackWithPadding(_) => todo!(),
                     Location::Never | Location::Rax => bloc,
@@ -977,18 +968,13 @@ fn compile_bloc(
                 asm = asm
                     + xorq(reg!(RAX), reg!(RAX))
                     + movq(reg!(RBP), reg!(RSP))
-                    + if is_main {
-                        popq(R13) + popq(R12)
-                    } else {
-                        nop()
-                    }
                     + popq(RBP)
                     + ret();
             }
             llr::Instr::Return(Some(expr)) => {
                 let size = expr.size as u64;
                 last_loc = Location::Never;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
                 asm = asm
                     + expr
                     + match loc {
@@ -1015,7 +1001,7 @@ fn compile_bloc(
             }
             llr::Instr::Expr(ComputedValue::Drop, expr) => {
                 let size = expr.size;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
                 asm = asm
                     + match loc {
                         Location::StackWithPadding(pad) => {
@@ -1027,7 +1013,7 @@ fn compile_bloc(
             }
 
             llr::Instr::Expr(ComputedValue::Keep, expr) => {
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset, is_main);
+                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
                 last_loc = loc;
                 asm = asm + expr;
             }
@@ -1050,7 +1036,69 @@ fn compile_bloc(
     (last_loc, asm)
 }
 
-fn default_vec_function(ctxt: &context::Context) -> Text {
+fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
+    let size = fun_decl.output;
+    ctxt.init(fun_decl.args);
+    let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0);
+    let mut asm = label(ctxt.fun_label(fun_decl.name.get_content()))
+        + pushq(reg!(RBP))
+        + movq(reg!(RSP), reg!(RBP))
+        + bloc;
+    match loc {
+        Location::StackWithPadding(_) => {
+            asm = asm
+                + mov_struct(
+                    RSP,
+                    0,
+                    RBP,
+                    ctxt.get_return_offset(),
+                    size as u64,
+                    (RAX, EAX, AX, AL),
+                )
+        }
+        Location::Rax => {
+            asm = match size {
+                0 => asm,
+                1 => asm + movb(reg!(AL), addr!(ctxt.get_return_offset(), RBP)),
+                2 => asm + movw(reg!(AX), addr!(ctxt.get_return_offset(), RBP)),
+                4 => asm + movl(reg!(EAX), addr!(ctxt.get_return_offset(), RBP)),
+                8 => asm + movq(reg!(RAX), addr!(ctxt.get_return_offset(), RBP)),
+                _ => panic!("ICE"),
+            }
+        }
+        Location::Never => (),
+    }
+    asm + movq(reg!(RBP), reg!(RSP)) + popq(RBP) + ret()
+}
+
+pub fn to_asm(file: llr::File, ctxt: &mut context::Context) -> file::File {
+    let mut text_ss = Text::Concat(Vec::new());
+    let mut funs = Vec::new();
+    for fun_decl in file.funs {
+        if fun_decl.name.get_content() == "main" {
+            text_ss = text_ss + compile_fun(fun_decl, ctxt)
+        } else {
+            funs.push(fun_decl)
+        }
+    }
+    for fun_decl in funs {
+        text_ss = text_ss + compile_fun(fun_decl, ctxt)
+    }
+
+    text_ss = text_ss;
+
+    let data_ss = data::Data::from_strings(file.strings);
+
+    file::File {
+        globl: None,
+        text_ss,
+        data_ss,
+    }
+}
+
+fn default_vec_function(heap_address: &str, ctxt: &context::Context) -> Text {
+    let custom_alloc = false;
+
     label(ctxt.fun_label("print_ptr"))
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
@@ -1071,12 +1119,36 @@ A vector is a pointer to a tuple of 4 elements in the stack :
     + label(ctxt.fun_label("std::vec::Vec::new"))
         + pushq(reg!(RBP)) /* bit align for malloc */
         + movq(immq(32), reg!(RDI)) /* Allocate chunk for 4 numbers */
-        + call(reg::Label::malloc())
+        + if custom_alloc {
+            // call of src-malloc
+            subq(immq(16), reg!(RSP))
+            + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
+            + pushq(reg!(RAX))
+            + pushq(reg!(RDI))
+            + call(ctxt.fun_label("malloc"))
+            + addq(immq(16), reg!(RSP))
+            + popq(RAX)
+            + addq(immq(8), reg!(RSP))
+            + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
+            + addq(immq(24), reg!(RAX))
+        } else { call(reg::Label::malloc()) }
         + movq(reg!(RAX), addr!(24, RSP)) /* Store the pointer to return it */
         + movq(reg!(RAX), reg!(RBP)) /* Store the pointer also in Rbp */
         + movq(addr!(16, RSP), reg!(RDI)) /* Get size of elements */
         + movq(reg!(RDI), addr!(24, RBP)) /* Initialize quadri-vector with a capacity of 1 */
-        + call(reg::Label::malloc())
+        + if custom_alloc {
+            // call of src-malloc
+            subq(immq(16), reg!(RSP))
+            + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
+            + pushq(reg!(RAX))
+            + pushq(reg!(RDI))
+            + call(ctxt.fun_label("malloc"))
+            + addq(immq(16), reg!(RSP))
+            + popq(RAX)
+            + addq(immq(8), reg!(RSP))
+            + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
+            + addq(immq(24), reg!(RAX))
+        } else { call(reg::Label::malloc()) }
         + movq(reg!(RAX), addr!(RBP))
         + movq(immq(0), reg!(RAX))
         + movq(reg!(RAX), addr!(8, RBP))
@@ -1117,7 +1189,21 @@ and then arg
         + addq(reg!(RSI), reg!(RSI)) /* double capacity */
         + imulq(addr!(24, RBP), reg!(RSI))
         + movq(addr!(RBP), reg!(RDI))
-        + call(reg::Label::realloc())
+        + if custom_alloc {
+            // call of src-realloc
+            subq(immq(8), reg!(RSP))
+            + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
+            + pushq(reg!(RAX))
+            + subq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RDI))
+            + subq(immq(24), reg!(RDI))
+            + pushq(reg!(RDI))
+            + pushq(reg!(RSI))
+            + call(ctxt.fun_label("realloc"))
+            + addq(immq(24), reg!(RSP))
+            + popq(RAX)
+            + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
+            + addq(immq(24), reg!(RAX))
+        } else { call(reg::Label::realloc()) }
         + movq(reg!(RAX), addr!(RBP)) // store new pointer
         + movq(addr!(8, RBP), reg!(RAX)) /* get length */
         + movq(addr!(16, RBP), reg!(RSI)) /* get capacity */
@@ -1152,85 +1238,74 @@ and then arg
         + ret()
 }
 
-fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
-    let is_main = fun_decl.name.get_content() == "main";
-    let size = fun_decl.output;
-    ctxt.init(fun_decl.args);
-    let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0, is_main);
-    let mut asm = label(ctxt.fun_label(fun_decl.name.get_content()))
+pub fn base(ctxt: &mut context::Context) -> file::File {
+    let heap_name = "heap_address".to_string();
+    let heap_size = 8 << 10;
+
+    let text_ss = label(reg::Label::from_str("main".to_string()))
         + pushq(reg!(RBP))
-        + if is_main {
-            pushq(reg!(R12)) + pushq(reg!(R13)) + movq(reg!(RSP), reg!(R13))
-        } else {
-            nop()
-        }
-        + movq(reg!(RSP), reg!(RBP))
-        + bloc;
-    if is_main {
-        if size == 0 {
-            asm = asm + xorq(reg::Operand::Reg(RAX), reg::Operand::Reg(RAX))
-        } else {
-            todo!()
-        }
-    } else {
-        match loc {
-            Location::StackWithPadding(_) => {
-                asm = asm
-                    + mov_struct(
-                        RSP,
-                        0,
-                        RBP,
-                        ctxt.get_return_offset(),
-                        size as u64,
-                        (RAX, EAX, AX, AL),
-                    )
-            }
-            Location::Rax => {
-                asm = match size {
-                    0 => asm,
-                    1 => asm + movb(reg!(AL), addr!(ctxt.get_return_offset(), RBP)),
-                    2 => asm + movw(reg!(AX), addr!(ctxt.get_return_offset(), RBP)),
-                    4 => asm + movl(reg!(EAX), addr!(ctxt.get_return_offset(), RBP)),
-                    8 => asm + movq(reg!(RAX), addr!(ctxt.get_return_offset(), RBP)),
-                    _ => panic!("ICE"),
-                }
-            }
-            Location::Never => (),
-        }
-    }
-    asm + movq(reg!(RBP), reg!(RSP))
-        + if is_main {
-            popq(R13) + popq(R12)
-        } else {
-            nop()
-        }
+        + pushq(reg!(R12))
+        + pushq(reg!(R13))
+        + movq(reg!(RSP), reg!(R13))
+        + movq(immq(heap_size + 24), reg!(RDI)) // 8ko
+        + call(reg::Label::malloc())
+        + movq(reg!(RAX), reg::Operand::LabRelAddr(reg::Label::from_str(heap_name.clone())))
+        + movq(immq(heap_size / 4), reg!(RCX))
+        + movq(reg!(RCX), addr!(8, RAX))
+        + movq(reg!(RCX), addr!(16, RAX))
+        + movq(immq(4), addr!(24, RAX))
+        + movq(reg!(RAX), reg!(RCX))
+        + addq(immq(24), reg!(RCX))
+        + movq(reg!(RCX), addr!(RAX))
+        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_name.clone())), RAX)
+        + pushq(reg!(RAX))
+        + pushq(reg!(RAX))
+        + call(ctxt.fun_label("init"))
+        + addq(immq(16), reg!(RSP))
+
+        + call(ctxt.fun_label("main"))
+        + movq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_name.clone())), reg!(RDI))
+        + call(reg::Label::free())
+        + popq(R13)
+        + popq(R12)
         + popq(RBP)
+        + xorq(reg!(RAX), reg!(RAX))
         + ret()
-}
-
-pub fn to_asm(file: llr::File) -> file::File {
-    let mut text_ss = Text::Concat(Vec::new());
-    let mut ctxt = context::Context::new();
-    let mut funs = Vec::new();
-    for fun_decl in file.funs {
-        if fun_decl.name.get_content() == "main" {
-            text_ss = text_ss + compile_fun(fun_decl, &mut ctxt)
-        } else {
-            funs.push(fun_decl)
-        }
-    }
-    for fun_decl in funs {
-        text_ss = text_ss + compile_fun(fun_decl, &mut ctxt)
-    }
-
-    text_ss = text_ss + default_vec_function(&ctxt);
-
-    let data_ss = data::Data::from_strings(file.strings)
-        + data::dstring("my_string".to_string(), "%zd\\n".to_string());
+        + default_vec_function("bloup", &ctxt);
+    let data_ss = data::dstring("my_string".to_string(), "%zd\\n".to_string())
+        + data::dquad(heap_name, vec![0]);
 
     file::File {
-        globl: Some(new_label("main")),
+        globl: Some(reg::Label::from_str("main".to_string())),
         text_ss,
         data_ss,
     }
+}
+
+pub fn bind(files: Vec<file::File>) -> file::File {
+    let mut text_ss = Text::Concat(Vec::new());
+    let mut data_ss = data::Data::empty();
+    let mut globl = None;
+
+    for file in files {
+        text_ss = text_ss + file.text_ss;
+        data_ss = data_ss + file.data_ss;
+        if globl.is_none() {
+            globl = file.globl
+        } else {
+            if file.globl.is_some() {
+                panic!("ICE {:?} {:?}", globl, file.globl);
+            }
+        }
+    }
+
+    file::File {
+        globl,
+        text_ss,
+        data_ss,
+    }
+}
+
+pub fn get_ctxt() -> context::Context {
+    context::Context::new()
 }

@@ -60,17 +60,30 @@ fn main() {
         std::process::exit(0)
     }
 
+    let mut std = frontend::Module::new("std/mod.rs".to_string());
+    let allocator = std.remove("allocator").unwrap().content;
+    let allocator = passes::macros::rewrite_file(allocator);
+    let allocator = passes::give_uniq_id::rewrite_file(allocator);
+    let allocator = passes::move_refs::rewrite_file(allocator);
+    let allocator = typing::type_inferencer(allocator, false);
+    let allocator = passes::linear_programs::rewrite_file(allocator);
+    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
+
     println!("<- linear programs pass");
 
     let made_linear = passes::linear_programs::rewrite_file(checked_lifetime);
 
     println!("<- to llr");
 
-    let llr_form = to_llr::rewrite_file(made_linear);
+    let llr_form = to_llr::rewrite_file(made_linear, "file".to_string());
 
     println!("<- to asm");
 
-    let asm = backend::to_asm(llr_form);
+    let mut ctxt = backend::get_ctxt();
+    let entry_point = backend::base(&mut ctxt);
+    let allocator = backend::to_asm(allocator, &mut ctxt);
+    let asm = backend::to_asm(llr_form, &mut ctxt);
+    let asm = backend::bind(vec![entry_point, allocator, asm]);
 
     let mut out_name = std::path::PathBuf::from(in_name);
     out_name.set_extension("s");

@@ -60,4 +60,17 @@ impl Module {
             submodules,
         }
     }
+
+    pub fn remove(&mut self, name: &str) -> Option<Module> {
+        match self.submodules.get(name) {
+            None => None,
+            Some((b, _)) => {
+                if *b {
+                    Some(self.submodules.remove(name).unwrap().1)
+                } else {
+                    None
+                }
+            }
+        }
+    }
 }
