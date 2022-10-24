@@ -89,7 +89,44 @@ impl TypeErrorInfo {
         match self {
             Self::ExpectedStruct(typ) => format!("{} is not a struct", typ),
             Self::ExpectedTuple(typ) => format!("{} is not a tuple", typ),
+            Self::ExpectedTuple2(typ) => format!("{:?} is not a tuple", typ),
             Self::NotCompatible(typ1, typ2) => format!("expected {}, found {}", typ1, typ2),
+            Self::TryUnref(typ) => format!("{} cannot be dereferenced", typ),
+            Self::UndeclaredVariable(var) => format!("{} is not defined", var),
+            Self::CannotAffectValue => String::new(),
+            Self::UndeclaredStruct(s) => String::new(),
+            Self::WrongNbArgs(id1, id2) => format!("expected {} arguments but got {}", id1, id2),
+            Self::ExpectedFun(typ) => format!("{:?} is not a function", typ),
+            Self::StructDoesNotHasField(name, field) => {
+                format!("struct {} does not have field {}", name, field)
+            }
+            Self::MissingField(name, field) => {
+                format!("missing field {} for struct {}", field, name)
+            }
+            Self::CannotBorrowAsMutable => String::new(),
+            Self::SameArgName(_, arg) => format!("argument {} defined multiple times", arg),
+            Self::ExpectedSigned => "expected {signed integer}, found {singed integer}".to_string(),
+            Self::ExpectedUnsigned => {
+                "expected {signed integer}, found {singed integer}".to_string()
+            }
+            Self::IncompatibleSizes(s1, s2) => format!(
+                "expected integer of size {:?}, found integer of size {:?}",
+                s1, s2
+            ),
+            Self::DoesNotImpTrait(name, t) => {
+                format!("type {:?} does not implement trait {:?}", name, t)
+            }
+            Self::OutOfBoundTuple(size, proj) => {
+                format!("cannot access index {} of a {} elements tuple", proj, size)
+            }
+            Self::WrongMutability(mut1, mut2) => {
+                if *mut1 {
+                    "expected mutable and found non-mutable".to_string()
+                } else {
+                    "expected non-mutable and found mutable".to_string()
+                }
+            }
+            Self::SelfRefConst(name) => format!("constant `{name}` depends on itself"),
             _ => format!("undefined message for error {}", self.get_id()),
         }
     }
