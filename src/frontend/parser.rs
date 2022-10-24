@@ -439,19 +439,15 @@ peg::parser! {
               test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::GreaterEq, e1, e2)) }
           --
-          e1:(@) space() (quiet!{"|"}/ expected!("infix operator")) space() e2:@ {
-              test_no_cmp(&e1); test_no_cmp(&e2);
+          e1:(@) space() (quiet!{"|" !"|"}/ expected!("infix operator")) space() e2:@ {
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitOr, e1, e2)) }
           --
-          e1:(@) space() (quiet!{"&"}/ expected!("infix operator")) space() e2:@ {
-            test_no_cmp(&e1); test_no_cmp(&e2);
+          e1:(@) space() (quiet!{"&" !"&"}/ expected!("infix operator")) space() e2:@ {
             to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitAnd, e1, e2)) }
           --
           e1:(@) space() (quiet!{">>"}/ expected!("infix operator")) space() e2:@ {
-              test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shr, e1, e2)) }
           e1:(@) space() (quiet!{"<<"}/ expected!("infix operator")) space() e2:@ {
-              test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shl, e1, e2)) }
           --
           e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@
@@ -508,19 +504,15 @@ peg::parser! {
               test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::GreaterEq, e1, e2)) }
           --
-          e1:(@) space() (quiet!{"|"}/ expected!("infix operator")) space() e2:@ {
-              test_no_cmp(&e1); test_no_cmp(&e2);
+          e1:(@) space() (quiet!{"|" !"|"}/ expected!("infix operator")) space() e2:@ {
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitOr, e1, e2)) }
           --
-          e1:(@) space() (quiet!{"&"}/ expected!("infix operator")) space() e2:@ {
-            test_no_cmp(&e1); test_no_cmp(&e2);
+          e1:(@) space() (quiet!{"&" !"&"}/ expected!("infix operator")) space() e2:@ {
             to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitAnd, e1, e2)) }
           --
           e1:(@) space() (quiet!{">>"}/ expected!("infix operator")) space() e2:@ {
-              test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shr, e1, e2)) }
           e1:(@) space() (quiet!{"<<"}/ expected!("infix operator")) space() e2:@ {
-              test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shl, e1, e2)) }
           --
           e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@

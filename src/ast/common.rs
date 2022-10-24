@@ -2,26 +2,6 @@ use std::str::FromStr;
 
 use crate::typing::errors::TypeError;
 
-enum BinOp {
-    Eq,
-    NotEq,
-    Lower,
-    LowerEq,
-    Greater,
-    GreaterEq,
-    Add,
-    Sub,
-    Mult,
-    Div,
-    Modulo,
-    And,
-    Or,
-    BwiseAnd,
-    BwiseOr,
-    LShiftR,
-    LShiftL,
-}
-
 pub enum UnOp {
     Neg,
     Not,
@@ -351,7 +331,6 @@ impl ErrorReporter {
         let mut count = 0;
         let mut vec_index = vec![count];
         let mut current_str = String::new();
-        println!("t1");
         for char in file.chars() {
             count += 1;
             current_str.push(char);
@@ -361,7 +340,6 @@ impl ErrorReporter {
                 current_str = String::new();
             };
         }
-        println!("t2");
         vec_str.push(current_str);
         Self {
             lines: vec_str,
