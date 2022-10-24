@@ -22,14 +22,14 @@ const DEFAULT_TRAITS_ARITH: [&str; 5] = ["Add", "Div", "Sub", "Mul", "Mod"];
 
 const DEFAULT_TRAITS_LOGIC: [&str; 2] = ["And", "Or"];
 
-struct Graph {
+pub struct Graph {
     size: usize,
     names: HashMap<String, usize>,
     edges: Vec<HashSet<usize>>,
 }
 
 impl Graph {
-    fn new() -> Self {
+    pub fn new() -> Self {
         Self {
             size: 0,
             names: HashMap::new(),
@@ -37,7 +37,7 @@ impl Graph {
         }
     }
 
-    fn add_node(&mut self, name: String) {
+    pub fn add_node(&mut self, name: String) {
         if self.names.get(&name) == None {
             assert!(self.names.insert(name, self.size).is_none());
             self.size += 1;
@@ -48,7 +48,7 @@ impl Graph {
         }
     }
 
-    fn add_edge(&mut self, n1: &str, n2: &str) -> Option<bool> {
+    pub fn add_edge(&mut self, n1: &str, n2: &str) -> Option<bool> {
         let id1 = self.names.get(n1)?;
         let id2 = self.names.get(n2)?;
         Some(self.edges[*id1].insert(*id2))
@@ -132,7 +132,7 @@ fn visit(
     Ok(())
 }
 
-fn topological_sort(structs: Vec<rust::DeclStruct>, graph: &mut Graph) -> Vec<rust::DeclStruct> {
+pub fn topological_sort<T>(structs: Vec<T>, graph: &Graph) -> Result<Vec<T>, (usize, Vec<T>)> {
     let mut permanent_marks = vec![false; graph.size];
     let mut temporary_marks = vec![false; graph.size];
     let mut out_vec = Vec::new();
@@ -145,8 +145,7 @@ fn topological_sort(structs: Vec<rust::DeclStruct>, graph: &mut Graph) -> Vec<ru
                 graph,
                 &mut out_vec,
             ) {
-                println!("{} has infinite size", structs[id].name.get_content());
-                std::process::exit(1)
+                return Err((id, structs));
             }
         }
     }
@@ -159,7 +158,7 @@ fn topological_sort(structs: Vec<rust::DeclStruct>, graph: &mut Graph) -> Vec<ru
     for id in out_vec {
         structs.push(hash_map.remove(&id).unwrap())
     }
-    structs
+    Ok(structs)
 }
 
 pub fn type_structs(
@@ -332,7 +331,13 @@ pub fn type_structs(
         }
     }
 
-    let structs = topological_sort(structs, &mut graph);
+    let structs = match topological_sort(structs, &mut graph) {
+        Ok(s) => s,
+        Err((id, structs)) => {
+            println!("{} has infinite size", structs[id].name.get_content());
+            std::process::exit(1)
+        }
+    };
     let mut structs2 = Vec::new();
 
     for struct_decl in structs.iter() {

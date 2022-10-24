@@ -223,10 +223,10 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut GiveUniqueId) -> Bloc {
                 let bloc = rewrite_bloc(bloc, counter);
                 InstrInner::While(expr, bloc)
             }
-            InstrInner::Binding(mutable, name, expr) => {
+            InstrInner::Binding(mutable, name, typ, expr) => {
                 let expr = rewrite_expr(expr, counter);
                 let name = counter.add_name(name);
-                InstrInner::Binding(mutable, name, expr)
+                InstrInner::Binding(mutable, name, typ, expr)
             }
         };
         vec_out.push(Instr { content, ..instr })
@@ -261,7 +261,7 @@ fn rewrite_fun(fun_decl: DeclFun) -> Result<DeclFun, Vec<TypeError>> {
 
 fn rewrite_decl(decl: Decl) -> Result<Decl, Vec<TypeError>> {
     match decl {
-        Decl::Struct(_) => Ok(decl),
+        Decl::Const(_) | Decl::Struct(_) => Ok(decl),
         Decl::Impl(decl_impl) => {
             let mut content = Vec::new();
             for decl_fun in decl_impl.content {

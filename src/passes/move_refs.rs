@@ -30,6 +30,7 @@ fn is_ref(
                 content: InstrInner::Binding(
                     mutable,
                     id.clone(),
+                    None,
                     Expr {
                         loc: top_expr.loc,
                         typed: top_expr.typed.clone(),
@@ -219,9 +220,9 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
                 let bloc = rewrite_bloc(bloc, counter);
                 InstrInner::While(expr, bloc)
             }
-            InstrInner::Binding(mutable, name, expr) => {
+            InstrInner::Binding(mutable, name, typ, expr) => {
                 let expr = rewrite_expr(expr, &mut vec_out, counter);
-                InstrInner::Binding(mutable, name, expr)
+                InstrInner::Binding(mutable, name, typ, expr)
             }
         };
         vec_out.push(Instr { content, ..instr })
@@ -241,7 +242,7 @@ fn rewrite_fun(mut fun_decl: DeclFun) -> DeclFun {
 
 pub fn rewrite_decl(decl: Decl) -> Decl {
     match decl {
-        Decl::Struct(_) => decl,
+        Decl::Const(_) | Decl::Struct(_) => decl,
         Decl::Fun(decl_fun) => Decl::Fun(rewrite_fun(decl_fun)),
         Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
             content: decl_impl.content.into_iter().map(rewrite_fun).collect(),

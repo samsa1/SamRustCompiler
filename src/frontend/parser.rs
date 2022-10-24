@@ -134,6 +134,7 @@ peg::parser! {
           df:decl_fun()     { Decl::Fun(df) }
           ds:decl_struct()  { Decl::Struct(ds) }
           di:decl_impl()    { Decl::Impl(di) }
+          dc:decl_const()   { Decl::Const(dc) }
       }
 
       rule arrow_typ() -> PreType = precedence! {
@@ -184,6 +185,17 @@ peg::parser! {
                   args,
               }
       }
+
+      rule decl_const() -> DeclConst =
+          p:("pub" spaces())? "const" spaces() n:name() space() ":" t:typ_ws() "=" e:expr_ws() ";" space()
+          {
+            DeclConst {
+                public : p.is_some(),
+                name : n,
+                typ : t,
+                expr : e,
+            }
+          }
 
       rule ref_mut() -> bool = precedence! {
         "&" space() "mut" spaces() { true }
@@ -289,10 +301,13 @@ peg::parser! {
           "}" end:position!() { (Vec::new(), end) }
       }
 
+      rule type_bind() -> PreType =
+        ":" t:typ_ws() { t }
+
       rule instr() -> Instr = precedence! {
           start:position!() ";" { InstrInner::Expr(ComputedValue::Drop, Expr::unit()).to_instr(start, start + 1) }
-          start:position!() "let" spaces() b:("mut" spaces())? n:name() space() "=" e:expr_ws() ";" end:position!()
-              { InstrInner::Binding(b != None, n, e).to_instr(start, end) }
+          start:position!() "let" spaces() b:("mut" spaces())? n:name() space() t:type_bind()?  "=" e:expr_ws() ";" end:position!()
+              { InstrInner::Binding(b != None, n, t, e).to_instr(start, end) }
           start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
               { InstrInner::While(e, b).to_instr(start, end) }
           start:position!() "return" space() ";" end:position!()

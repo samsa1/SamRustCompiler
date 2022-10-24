@@ -1,6 +1,8 @@
-use crate::ast::common::Ident;
-use crate::ast::typed_rust::PostType;
+use super::consts::Val;
+use crate::ast::common::{Ident, Location, TypedUnaop};
+use crate::ast::typed_rust::{Expr, ExprInner, PostType};
 use std::collections::{HashMap, HashSet};
+use std::hash::Hash;
 
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct TraitInner {
@@ -79,13 +81,72 @@ impl StructInfo {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Debug)]
+pub struct Const {
+    pub typ: PostType,
+    value: Val,
+}
+
+impl Const {
+    pub fn new(typ: PostType, value: Val) -> Self {
+        Self { typ, value }
+    }
+
+    pub fn get_value(&self) -> &Val {
+        &self.value
+    }
+
+    pub fn get_type(&self) -> &PostType {
+        &self.typ
+    }
+
+    pub fn get_expr(&self) -> Expr {
+        match &self.value {
+            Val::Uinteger(i, s) => Expr {
+                content: Box::new(ExprInner::Int(*i)),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::Integer(i, s) if *i >= 0 => Expr {
+                content: Box::new(ExprInner::Int(*i as u64)),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::Integer(i, s) => Expr {
+                content: Box::new(ExprInner::UnaOp(
+                    TypedUnaop::Neg(*s),
+                    Expr {
+                        content: Box::new(ExprInner::Int((-*i) as u64)),
+                        loc: Location::default(),
+                        typed: self.typ.clone(),
+                    },
+                )),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::String(s) => Expr {
+                content: Box::new(ExprInner::String(s.to_string())),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            Val::Bool(b) => Expr {
+                content: Box::new(ExprInner::Bool(*b)),
+                loc: Location::default(),
+                typed: self.typ.clone(),
+            },
+            _ => todo!(),
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct GlobalContext {
     structs: HashMap<String, StructInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, String>>,
     known_types: HashMap<String, PostType>,
     sizes: HashMap<String, usize>,
+    constants: HashMap<String, Const>,
 }
 
 impl GlobalContext {
@@ -96,6 +157,7 @@ impl GlobalContext {
             methods: HashMap::new(),
             known_types: HashMap::new(),
             sizes: HashMap::new(),
+            constants: HashMap::new(),
         }
     }
 
@@ -192,6 +254,14 @@ impl GlobalContext {
     ) -> Option<PostType> {
         self.structs.insert(name.clone(), StructInfo::new(args));
         self.insert(name, typ)
+    }
+
+    pub fn add_const(&mut self, name: String, typ: PostType, value: Val) -> Option<Const> {
+        self.constants.insert(name, Const::new(typ, value))
+    }
+
+    pub fn get_const_val(&self, name: &str) -> Option<&Const> {
+        self.constants.get(name)
     }
 }
 

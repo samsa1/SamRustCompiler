@@ -49,6 +49,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
                 content: InstrInner::Binding(
                     true,
                     Ident::new(&vec_name, top_expr.loc),
+                    None,
                     Expr {
                         content: Box::new(ExprInner::FunCall(
                             vec![],
@@ -207,9 +208,9 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
                 let bloc = rewrite_bloc(bloc, counter);
                 InstrInner::While(expr, bloc)
             }
-            InstrInner::Binding(mutable, name, expr) => {
+            InstrInner::Binding(mutable, name, typ, expr) => {
                 let expr = rewrite_expr(expr, counter);
-                InstrInner::Binding(mutable, name, expr)
+                InstrInner::Binding(mutable, name, typ, expr)
             }
         };
         vec_out.push(Instr { content, ..instr })
@@ -234,6 +235,10 @@ pub fn rewrite_decl(decl: Decl) -> Decl {
         Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
             content: decl_impl.content.into_iter().map(rewrite_fun).collect(),
             ..decl_impl
+        }),
+        Decl::Const(decl_const) => Decl::Const(DeclConst {
+            expr: rewrite_expr(decl_const.expr, &mut IdCounter::new()),
+            ..decl_const
         }),
     }
 }

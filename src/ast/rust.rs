@@ -18,6 +18,14 @@ pub enum Decl<DF = DeclFun> {
     Fun(DF),
     Struct(DeclStruct),
     Impl(DeclImpl),
+    Const(DeclConst),
+}
+
+pub struct DeclConst<T = Option<PreType>> {
+    pub name: common::Ident,
+    pub public: bool,
+    pub typ: PreType,
+    pub expr: Expr<T>,
 }
 
 pub struct DeclStruct {
@@ -327,7 +335,7 @@ pub struct Instr<T = Option<PreType>> {
 #[derive(Debug, Clone)]
 pub enum InstrInner<T = Option<PreType>> {
     Expr(common::ComputedValue, Expr<T>),
-    Binding(bool, common::Ident, Expr<T>),
+    Binding(bool, common::Ident, T, Expr<T>),
     While(Expr<T>, Bloc<T>),
     Return(Option<Expr<T>>),
 }

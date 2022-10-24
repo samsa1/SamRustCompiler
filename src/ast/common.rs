@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use crate::typing::errors::TypeError;
+
 pub enum BinOp {
     Eq,
     NotEq,
@@ -385,6 +387,13 @@ impl ErrorReporter {
 
     pub fn get_file_name(&self) -> &String {
         &self.file_name
+    }
+
+    pub fn report(&self, errs: Vec<TypeError>) -> ! {
+        for err in errs.into_iter() {
+            err.report_error(self);
+        }
+        std::process::exit(1);
     }
 }
 
