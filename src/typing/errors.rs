@@ -94,7 +94,7 @@ impl TypeErrorInfo {
             Self::TryUnref(typ) => format!("{} cannot be dereferenced", typ),
             Self::UndeclaredVariable(var) => format!("{} is not defined", var),
             Self::CannotAffectValue => String::new(),
-            Self::UndeclaredStruct(s) => String::new(),
+            Self::UndeclaredStruct(_) => String::new(),
             Self::WrongNbArgs(id1, id2) => format!("expected {} arguments but got {}", id1, id2),
             Self::ExpectedFun(typ) => format!("{:?} is not a function", typ),
             Self::StructDoesNotHasField(name, field) => {
@@ -119,7 +119,7 @@ impl TypeErrorInfo {
             Self::OutOfBoundTuple(size, proj) => {
                 format!("cannot access index {} of a {} elements tuple", proj, size)
             }
-            Self::WrongMutability(mut1, mut2) => {
+            Self::WrongMutability(mut1, _) => {
                 if *mut1 {
                     "expected mutable and found non-mutable".to_string()
                 } else {
@@ -127,7 +127,6 @@ impl TypeErrorInfo {
                 }
             }
             Self::SelfRefConst(name) => format!("constant `{name}` depends on itself"),
-            _ => format!("undefined message for error {}", self.get_id()),
         }
     }
 }

@@ -96,18 +96,14 @@ impl Const {
         &self.value
     }
 
-    pub fn get_type(&self) -> &PostType {
-        &self.typ
-    }
-
     pub fn get_expr(&self) -> Expr {
         match &self.value {
-            Val::Uinteger(i, s) => Expr {
+            Val::Uinteger(i, _) => Expr {
                 content: Box::new(ExprInner::Int(*i)),
                 loc: Location::default(),
                 typed: self.typ.clone(),
             },
-            Val::Integer(i, s) if *i >= 0 => Expr {
+            Val::Integer(i, _) if *i >= 0 => Expr {
                 content: Box::new(ExprInner::Int(*i as u64)),
                 loc: Location::default(),
                 typed: self.typ.clone(),
@@ -208,12 +204,9 @@ impl GlobalContext {
     }
 
     pub fn has_trait(&self, name: &PostType, t: &Trait) -> Option<&str> {
-        //        println!("{:?} {:?}", name, t);
         for traits in self.implemented_traits.get(name)?.iter() {
-            //            println!("{:?} -> {:?} <=> {:?}", name, traits, t);
             let out = traits.implements(t);
             if out.is_some() {
-                //                println!("yes");
                 return out;
             }
         }

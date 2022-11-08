@@ -45,12 +45,13 @@ struct DataStruct {
     vars: Vec<HashMap<String, usize>>,
     structs: HashMap<String, StructInfo>,
     strings_count: usize,
+    string_extend: String,
     strings_stored: HashMap<String, String>,
     pointer_size: usize,
 }
 
 impl DataStruct {
-    fn new(structs_raw: Vec<tr::DeclStruct>) -> Self {
+    fn new(structs_raw: Vec<tr::DeclStruct>, string_extend: String) -> Self {
         let mut structs = HashMap::new();
         for struct_raw in &structs_raw {
             //            println!("First add of {:?}", struct_raw.name.get_content());
@@ -64,6 +65,7 @@ impl DataStruct {
             vars: vec![HashMap::new()],
             structs,
             strings_count: 0,
+            string_extend,
             strings_stored: HashMap::new(),
             pointer_size: 8,
         };
@@ -132,7 +134,7 @@ impl DataStruct {
             Some(str) => return str.to_string(),
             None => (),
         };
-        let str2 = format!("rust_string{}", self.strings_count);
+        let str2 = format!("rust_string_{}_{}", self.string_extend, self.strings_count);
         self.strings_count += 1;
         self.strings_stored.insert(str, str2.clone());
         str2
@@ -418,6 +420,25 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             size: typ2.to_byte_size(),
             typed: top_expr.typed,
         },
+
+        tr::ExprInner::Return(opt) => llr::Expr {
+            content: Box::new(llr::ExprInner::Return(
+                opt.map(|e| rewrite_expr(e, names_info)),
+            )),
+            loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
+            typed: top_expr.typed,
+        },
+
+        tr::ExprInner::While(cond, bloc) => llr::Expr {
+            content: Box::new(llr::ExprInner::While(
+                rewrite_expr(cond, names_info),
+                rewrite_bloc(bloc, names_info),
+            )),
+            loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
+            typed: top_expr.typed,
+        },
     }
 }
 
@@ -434,20 +455,6 @@ fn rewrite_bloc(bloc: tr::Bloc, names_info: &mut DataStruct) -> llr::Bloc {
             tr::Instr::Expr(drop, expr) => {
                 let expr = rewrite_expr(expr, names_info);
                 content.push(llr::Instr::Expr(drop, expr))
-            }
-            tr::Instr::Return(opt_expr) => {
-                let opt_expr = opt_expr.map(|e| rewrite_expr(e, names_info));
-                content.push(llr::Instr::Return(opt_expr));
-                names_info.pop_layer();
-                return llr::Bloc {
-                    content,
-                    last_type: bloc.last_type,
-                };
-            }
-            tr::Instr::While(expr, bloc) => {
-                let expr = rewrite_expr(expr, names_info);
-                let bloc = rewrite_bloc(bloc, names_info);
-                content.push(llr::Instr::While(expr, bloc))
             }
         }
     }
@@ -477,9 +484,9 @@ fn rewrite_decl_fun(decl_fun: tr::DeclFun, names_info: &mut DataStruct) -> llr::
     }
 }
 
-pub fn rewrite_file(file: tr::File) -> llr::File {
+pub fn rewrite_file(file: tr::File, string_extend: String) -> llr::File {
     println!("Building DataStruct");
-    let mut data_struct = DataStruct::new(file.structs);
+    let mut data_struct = DataStruct::new(file.structs, string_extend);
     println!("DataStruct defined");
     let mut funs = Vec::new();
     for decl_fun in file.funs {

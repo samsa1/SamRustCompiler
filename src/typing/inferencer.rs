@@ -606,6 +606,10 @@ fn type_expr(
                 || op == BinOperator::Mod
                 || op == BinOperator::Mul
                 || op == BinOperator::Div
+                || op == BinOperator::Shl
+                || op == BinOperator::Shr
+                || op == BinOperator::BitAnd
+                || op == BinOperator::BitOr
             {
                 make_coherent(
                     types,
@@ -957,6 +961,30 @@ fn type_expr(
             ))
         }
 
+        ExprInner::MacroCall(name, mut exprs)
+            if name.get_content() == "print_usize" && exprs.len() == 1 =>
+        {
+            let expr = type_expr(ctxt, local_ctxt, exprs.pop().unwrap(), types, out_type)?.1;
+            let type_id = types.insert_type(Types::usize());
+            make_coherent(
+                types,
+                type_id,
+                expr.typed,
+                top_expr.loc,
+                UnificationMethod::Smallest,
+            )?;
+            let type_id = types.insert_unit();
+            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::MacroCall(name, vec![expr])),
+                    typed: type_id,
+                    loc: top_expr.loc,
+                },
+            ))
+        }
+
         ExprInner::MacroCall(_, _) => todo!(),
 
         ExprInner::Method(expr, method_name, exprs) => {
@@ -1234,6 +1262,67 @@ fn type_expr(
                 },
             ))
         }
+
+        ExprInner::Return(None) => {
+            let type_id = types.insert_unit();
+            make_coherent(
+                types,
+                type_id,
+                out_type,
+                Location::default(),
+                UnificationMethod::NoRef,
+            )?;
+            let type_id = types.insert_type(Types::unknown());
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::Return(None)),
+                    loc: top_expr.loc,
+                    typed: type_id,
+                },
+            ))
+        }
+
+        ExprInner::Return(Some(expr)) => {
+            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+            make_coherent(
+                types,
+                expr.typed,
+                out_type,
+                expr.loc,
+                UnificationMethod::StrictSnd,
+            )?;
+            let type_id = types.insert_type(Types::unknown());
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::Return(Some(expr))),
+                    loc: top_expr.loc,
+                    typed: type_id,
+                },
+            ))
+        }
+
+        ExprInner::While(expr, bloc) => {
+            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+            let type_id = types.insert_bool();
+            make_coherent(
+                types,
+                expr.typed,
+                type_id,
+                expr.loc,
+                UnificationMethod::NoRef,
+            )?;
+            let bloc = type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?.1;
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::While(expr, bloc)),
+                    loc: top_expr.loc,
+                    typed: types.insert_unit(),
+                },
+            ))
+        }
     };
     /*    println!("");
         println!("{:?}", types);
@@ -1279,42 +1368,6 @@ fn type_bloc(
                 let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                 InstrInner::Expr(drop, expr)
             }
-            InstrInner::Return(None) => {
-                let type_id = types.insert_unit();
-                make_coherent(
-                    types,
-                    type_id,
-                    out_type,
-                    Location::default(),
-                    UnificationMethod::NoRef,
-                )?;
-                InstrInner::Return(None)
-            }
-            InstrInner::Return(Some(expr)) => {
-                let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                make_coherent(
-                    types,
-                    expr.typed,
-                    out_type,
-                    expr.loc,
-                    UnificationMethod::StrictSnd,
-                )?;
-                InstrInner::Return(Some(expr))
-            }
-
-            InstrInner::While(expr, bloc) => {
-                let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                let type_id = types.insert_bool();
-                make_coherent(
-                    types,
-                    expr.typed,
-                    type_id,
-                    expr.loc,
-                    UnificationMethod::NoRef,
-                )?;
-                let bloc = type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?.1;
-                InstrInner::While(expr, bloc)
-            }
         };
         content.push(Instr {
             content: instr_content,
@@ -1343,7 +1396,6 @@ fn type_bloc(
                         bloc.loc,
                         UnificationMethod::StrictFst,
                     )?,
-                    InstrInner::Return(_) => types.insert_type(Types::unknown()),
                     _ => {
                         let type_id2 = types.insert_unit();
                         make_coherent(

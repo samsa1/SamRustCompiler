@@ -51,12 +51,24 @@ peg::parser! {
       rule int_type_anotation() -> (bool, Sizes)
         =  "_"? t:int_type_anotation_inner() { t }
 
-    rule number_no_anot() -> ((usize, usize), u64)
-        = p1:position!() n:$(['0'..='9']+) p2:position!() { ((p1, p2), n.parse().unwrap()) }
+      rule number_no_anot() -> ((usize, usize), u64)
+        = p1:position!() n:$(['0'..='9']+) p2:position!()
+            {
+                ((p1, p2), n.parse().unwrap())
+            }
 
+      rule raw_number() -> String =
+        n:($(['0'..='9']+) ++ "_")
+            {
+                let mut s = String::new();
+                for s2 in n {
+                    s.push_str(s2)
+                }
+                s
+            }
 
       rule number() -> ((usize, usize), u64, Option<(bool, Sizes)>)
-          = p1:position!() n:$(['0'..='9']+) typ_opt:int_type_anotation()? p2:position!() { ((p1, p2), n.parse().unwrap(), typ_opt) }
+          = p1:position!() n:raw_number() typ_opt:int_type_anotation()? p2:position!() { ((p1, p2), n.parse().unwrap(), typ_opt) }
 
       rule special_chars() -> Vec<char> = precedence! {
           "\n"   {vec!['\\', 'n']}
@@ -244,7 +256,7 @@ peg::parser! {
 
       rule name() -> Ident =
           start:position!() n:name_inner() end:position!() {
-              Ident::new_from(n, start, end)
+            Ident::new_from(n, start, end)
           }
 
       rule name_inner() -> String =
@@ -308,22 +320,13 @@ peg::parser! {
           start:position!() ";" { InstrInner::Expr(ComputedValue::Drop, Expr::unit()).to_instr(start, start + 1) }
           start:position!() "let" spaces() b:("mut" spaces())? n:name() space() t:type_bind()?  "=" e:expr_ws() ";" end:position!()
               { InstrInner::Binding(b != None, n, t, e).to_instr(start, end) }
-          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
-              { InstrInner::While(e, b).to_instr(start, end) }
-          start:position!() "return" space() ";" end:position!()
-              { InstrInner::Return(None).to_instr(start, end) }
-          start:position!() "return" spaces() e:expr() ";" end:position!()
-              { InstrInner::Return(Some(e)).to_instr(start, end) }
           e:expr() space() (quiet!{";"} / expected!("end of expr"))
               { Instr {
                     loc : e.loc,
                     content : InstrInner::Expr(ComputedValue::Drop, e)
                 }
               }
-          i:if() { Instr {
-            loc : i.loc,
-            content : InstrInner::Expr(ComputedValue::Keep, i) }
-          }
+          e:expr_wb() { Instr { loc : e.loc, content : InstrInner::Expr(ComputedValue::Keep, e)}}
       }
 
       rule if() -> Expr = precedence! {
@@ -384,14 +387,27 @@ peg::parser! {
       }
 
       rule opt_expr_list() -> Vec<Expr> = precedence! {
-          v:(expr_ws() ++ ",") { v }
+          v:(expr_ws() ++ ",") ("," space())? { v }
           n:space() { Vec::new() }
       }
 
       rule expr_decl() -> (Ident, Expr) =
           space() n:name() space() ":" space() e:expr() space() {(n, e)}
 
+
+      rule expr_wb() -> Expr = precedence! {
+          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
+            { to_expr(start, end, ExprInner::While(e, b)) }
+          i:if() { i }
+        }
+
       rule expr() -> Expr = precedence! {
+          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
+            { to_expr(start, end, ExprInner::While(e, b)) }
+          start:position!() "return" spaces() e:expr() end:position!()
+            { println!("return {:?}", e); to_expr(start, end, ExprInner::Return(Some(e))) }
+          l:position!() "ret" "urn" r:position!()
+            { to_expr(l, r, ExprInner::Return(None)) }
           n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
           i:if() { i }
@@ -427,6 +443,17 @@ peg::parser! {
               test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::GreaterEq, e1, e2)) }
           --
+          e1:(@) space() (quiet!{"|" !"|"}/ expected!("infix operator")) space() e2:@ {
+              to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitOr, e1, e2)) }
+          --
+          e1:(@) space() (quiet!{"&" !"&"}/ expected!("infix operator")) space() e2:@ {
+            to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitAnd, e1, e2)) }
+          --
+          e1:(@) space() (quiet!{">>"}/ expected!("infix operator")) space() e2:@ {
+              to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shr, e1, e2)) }
+          e1:(@) space() (quiet!{"<<"}/ expected!("infix operator")) space() e2:@ {
+              to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shl, e1, e2)) }
+          --
           e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@
               { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Add, e1, e2)) }
           e1:(@) space() (quiet!{"-"}/ expected!("infix operator")) space() e2:@
@@ -443,16 +470,12 @@ peg::parser! {
           start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
           start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Not, e)) }
           start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Neg, e)) }
+          --
           e:@ spaces() "as" spaces() typ:typ() { to_expr(e.loc.start(), e.loc.end(), ExprInner::Coercion(e, Some(typ))) }
           e:(quiet!{small_expr()} / expected!("value")) { e }
       }
 
       rule expr_no_bracket() -> Expr = precedence! {
-          e1:small_expr() space() "[" e2:expr_ws() "]" end:position!()
-              { to_expr(e1.loc.start(), end,
-                  ExprInner::Index(e1, e2)) }
-          n:name() space() "(" v:opt_expr_list() ")" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
           n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
           start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
@@ -485,6 +508,17 @@ peg::parser! {
               test_no_cmp(&e1); test_no_cmp(&e2);
               to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::GreaterEq, e1, e2)) }
           --
+          e1:(@) space() (quiet!{"|" !"|"}/ expected!("infix operator")) space() e2:@ {
+              to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitOr, e1, e2)) }
+          --
+          e1:(@) space() (quiet!{"&" !"&"}/ expected!("infix operator")) space() e2:@ {
+            to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::BitAnd, e1, e2)) }
+          --
+          e1:(@) space() (quiet!{">>"}/ expected!("infix operator")) space() e2:@ {
+              to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shr, e1, e2)) }
+          e1:(@) space() (quiet!{"<<"}/ expected!("infix operator")) space() e2:@ {
+              to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Shl, e1, e2)) }
+          --
           e1:(@) space() (quiet!{"+"}/ expected!("infix operator")) space() e2:@
               { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Add, e1, e2)) }
           e1:(@) space() (quiet!{"-"}/ expected!("infix operator")) space() e2:@
@@ -501,6 +535,8 @@ peg::parser! {
           start:position!() "*" space() e:@ { to_expr(start, e.loc.end(), ExprInner::Deref(e)) }
           start:position!() "!" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Not, e)) }
           start:position!() "-" space() e:@ { to_expr(start, e.loc.end(), ExprInner::UnaryOp(UnaOperator::Neg, e)) }
+          --
+          e:@ spaces() "as" spaces() typ:typ() { to_expr(e.loc.start(), e.loc.end(), ExprInner::Coercion(e, Some(typ))) }
           e:(quiet!{small_expr()} / expected!("value")) { e }
       }
 
@@ -515,7 +551,6 @@ peg::parser! {
 pub fn parse_file(name: String) -> File {
     println!("parsing {}", name);
     let contents = fs::read_to_string(&name).expect("Error reading file");
-
     match rust_parser::file(&contents) {
         Ok((dep, content)) => File {
             err_reporter: ErrorReporter::new(name.clone(), contents),

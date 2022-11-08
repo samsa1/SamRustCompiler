@@ -18,7 +18,9 @@ const DEFAULT_TYPES: [(&str, BuiltinType); 11] = [
     ("bool", BuiltinType::Bool),
 ];
 
-const DEFAULT_TRAITS_ARITH: [&str; 5] = ["Add", "Div", "Sub", "Mul", "Mod"];
+const DEFAULT_TRAITS_ARITH: [&str; 9] = [
+    "Add", "Div", "Sub", "Mul", "Mod", "BitAnd", "BitOr", "Shl", "Shr",
+];
 
 const DEFAULT_TRAITS_LOGIC: [&str; 2] = ["And", "Or"];
 

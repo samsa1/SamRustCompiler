@@ -1,2 +1,2 @@
-fn f() -> bool { return true; }
+fn f() -> bool { return true }
 fn main() { }

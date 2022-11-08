@@ -2,22 +2,6 @@ use std::str::FromStr;
 
 use crate::typing::errors::TypeError;
 
-pub enum BinOp {
-    Eq,
-    NotEq,
-    Lower,
-    LowerEq,
-    Greater,
-    GreaterEq,
-    Add,
-    Sub,
-    Mult,
-    Div,
-    Modulo,
-    And,
-    Or,
-}
-
 pub enum UnOp {
     Neg,
     Not,
@@ -251,6 +235,10 @@ pub enum BinOperator {
     Set,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    Shr,
+    Shl,
 }
 
 impl BinOperator {
@@ -261,6 +249,11 @@ impl BinOperator {
             Self::Div => ("Div", ""),
             Self::Mod => ("Mod", ""),
             Self::Mul => ("Mul", ""),
+
+            Self::Shl => ("Shl", ""),
+            Self::Shr => ("Shr", ""),
+            Self::BitAnd => ("BitAnd", ""),
+            Self::BitOr => ("BitOr", ""),
 
             Self::And => ("And", ""),
             Self::Or => ("Or", ""),
@@ -406,6 +399,8 @@ pub enum TypedBinop {
     Mod(bool, Sizes),
     And(Sizes),
     Or(Sizes),
+    Shl(Sizes),
+    Shr(Sizes),
     Eq(Sizes),
     Neq(Sizes),
     Lower(bool, Sizes),

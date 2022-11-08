@@ -187,6 +187,19 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
             content: Box::new(ExprInner::Coercion(rewrite_expr(expr, counter), typ)),
             ..top_expr
         },
+
+        ExprInner::Return(None) => top_expr,
+        ExprInner::Return(Some(expr)) => Expr {
+            content: Box::new(ExprInner::Return(Some(rewrite_expr(expr, counter)))),
+            ..top_expr
+        },
+        ExprInner::While(expr, bloc) => Expr {
+            content: Box::new(ExprInner::While(
+                rewrite_expr(expr, counter),
+                rewrite_bloc(bloc, counter),
+            )),
+            ..top_expr
+        },
     }
 }
 
@@ -197,16 +210,6 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
             InstrInner::Expr(drop, expr) => {
                 let expr = rewrite_expr(expr, counter);
                 InstrInner::Expr(drop, expr)
-            }
-            InstrInner::Return(None) => InstrInner::Return(None),
-            InstrInner::Return(Some(expr)) => {
-                let expr = rewrite_expr(expr, counter);
-                InstrInner::Return(Some(expr))
-            }
-            InstrInner::While(expr, bloc) => {
-                let expr = rewrite_expr(expr, counter);
-                let bloc = rewrite_bloc(bloc, counter);
-                InstrInner::While(expr, bloc)
             }
             InstrInner::Binding(mutable, name, typ, expr) => {
                 let expr = rewrite_expr(expr, counter);

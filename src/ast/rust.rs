@@ -260,7 +260,13 @@ impl TypeStorage {
                 let type_id = self.new_ref_unmarked(*type_id);
                 self.insert_type(Types::Ref(None, type_id))
             }
-            Types::Tuple(_) => todo!(),
+            Types::Tuple(exprs) => {
+                let mut exprs2 = Vec::new();
+                for type_id in exprs.clone().into_iter() {
+                    exprs2.push(self.new_ref_unmarked(type_id))
+                }
+                self.insert_type(Types::Tuple(exprs2))
+            }
             Types::Struct(name, args) => {
                 let mut args2 = Vec::new();
                 let name = name.to_string();
@@ -336,8 +342,6 @@ pub struct Instr<T = Option<PreType>> {
 pub enum InstrInner<T = Option<PreType>> {
     Expr(common::ComputedValue, Expr<T>),
     Binding(bool, common::Ident, T, Expr<T>),
-    While(Expr<T>, Bloc<T>),
-    Return(Option<Expr<T>>),
 }
 
 impl<T> InstrInner<T> {
@@ -385,6 +389,8 @@ impl<T> Expr<Option<T>> {
 
 #[derive(Debug, Clone)]
 pub enum ExprInner<T = Option<PreType>> {
+    While(Expr<T>, Bloc<T>),
+    Return(Option<Expr<T>>),
     If(Expr<T>, Bloc<T>, Bloc<T>),
     Bool(bool),
     Int(u64, Option<(bool, common::Sizes)>),
