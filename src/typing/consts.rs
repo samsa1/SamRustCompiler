@@ -35,7 +35,7 @@ pub fn add_deps(expr: &rr::Expr, name: &str, graph: &mut Graph) {
         | rr::ExprInner::UnaryOp(_, expr) => add_deps(expr, name, graph),
         rr::ExprInner::Bool(_) | rr::ExprInner::Int(_, _) | rr::ExprInner::String(_) => (),
 
-        rr::ExprInner::Bloc(b) => todo!(),
+        rr::ExprInner::Bloc(_) => todo!(),
         rr::ExprInner::Deref(_) => todo!(),
         rr::ExprInner::FunCall(_, _, _) => todo!(),
         rr::ExprInner::If(_, _, _) => todo!(),
@@ -43,10 +43,12 @@ pub fn add_deps(expr: &rr::Expr, name: &str, graph: &mut Graph) {
         rr::ExprInner::MacroCall(_, _) => panic!("ICE"),
         rr::ExprInner::Method(_, _, _) => todo!(),
         rr::ExprInner::Ref(_, _) => todo!(),
+        rr::ExprInner::Return(_) => todo!(),
         rr::ExprInner::Var(v) => match graph.add_edge(name, v.get_content()) {
             None => todo!(),
             Some(_) => (),
         },
+        rr::ExprInner::While(_, _) => todo!(),
     }
 }
 
@@ -152,6 +154,7 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
             }
         }
         tr::ExprInner::Ref(_, _) => todo!(),
+        tr::ExprInner::Return(_) => todo!(),
         tr::ExprInner::Set(_, _) => todo!(),
         tr::ExprInner::String(str) => Val::String(str),
         tr::ExprInner::Tuple(exprs) => Val::Tuple(
@@ -166,5 +169,6 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
             .unwrap()
             .get_value()
             .clone(),
+        tr::ExprInner::While(_, _) => todo!(),
     }
 }

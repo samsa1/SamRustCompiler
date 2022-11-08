@@ -46,7 +46,7 @@ fn contient(a: & BST, x: i32) -> bool {
   if x == a.value { return true; }
   if x < a.value && !is_null(& a.sub[0]) { return contient(& a.sub[0], x); }
   if !is_null(& a.sub[1]) { return contient(& a.sub[1], x); }
-  return false;
+  return false
 }
 
 fn print_bool(b: bool) {

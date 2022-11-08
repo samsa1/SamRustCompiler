@@ -787,6 +787,47 @@ pub fn type_checker(
                 typed_rust::ExprInner::Coercion(expr, typ_in, typ_out),
             )
         }
+
+        rust::ExprInner::While(condition, bloc) => {
+            let condition = type_checker(
+                ctxt,
+                condition,
+                loc_ctxt,
+                out,
+                Some(&typed_rust::PostType::bool()),
+                typing_info,
+            )?
+            .1;
+            if !are_compatible(&typed_rust::PostType::bool(), &condition.typed) {
+                todo!()
+            };
+            let bloc = type_bloc(bloc, ctxt, loc_ctxt, out, None, typing_info)?;
+            (
+                false,
+                typed_rust::PostType::unit(),
+                typed_rust::ExprInner::While(condition, bloc),
+            )
+        }
+        rust::ExprInner::Return(None) => {
+            let typ = translated_typ.unwrap_or(typed_rust::PostType::unit());
+            translated_typ = None;
+            match &out.content {
+                PostTypeInner::Tuple(l) if l.is_empty() => {
+                    (false, typ, typed_rust::ExprInner::Return(None))
+                }
+                _ => todo!(),
+            }
+        }
+        rust::ExprInner::Return(Some(expr)) => {
+            let typ = translated_typ.unwrap_or(typed_rust::PostType::unit());
+            translated_typ = None;
+            let expr = type_checker(ctxt, expr, loc_ctxt, out, Some(out), typing_info)?.1;
+            if are_compatible(out, &expr.typed) {
+                (false, typ, typed_rust::ExprInner::Return(Some(expr)))
+            } else {
+                todo!()
+            }
+        }
     };
     Ok((
         affectable,
@@ -853,38 +894,6 @@ pub fn type_bloc(
                 loc_ctxt.add_var(&ident, mutable, &expr.typed);
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
                 //                todo!();
-            }
-            rust::InstrInner::While(condition, bloc) => {
-                let condition = type_checker(
-                    ctxt,
-                    condition,
-                    loc_ctxt,
-                    output,
-                    Some(&typed_rust::PostType::bool()),
-                    typing_info,
-                )?
-                .1;
-                if !are_compatible(&typed_rust::PostType::bool(), &condition.typed) {
-                    todo!()
-                };
-                let bloc = type_bloc(bloc, ctxt, loc_ctxt, output, None, typing_info)?;
-                content.push(typed_rust::Instr::While(condition, bloc));
-            }
-            rust::InstrInner::Return(None) => match &output.content {
-                PostTypeInner::Tuple(l) if l.is_empty() => {
-                    content.push(typed_rust::Instr::Return(None));
-                    reachable = false;
-                }
-                _ => todo!(),
-            },
-            rust::InstrInner::Return(Some(expr)) => {
-                let expr = type_checker(ctxt, expr, loc_ctxt, output, Some(output), typing_info)?.1;
-                if are_compatible(output, &expr.typed) {
-                    content.push(typed_rust::Instr::Return(Some(expr)));
-                    reachable = false;
-                } else {
-                    todo!()
-                }
             }
         }
     }

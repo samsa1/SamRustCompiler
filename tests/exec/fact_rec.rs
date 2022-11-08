@@ -1,6 +1,6 @@
 fn fact_rec(n: i32) -> i32 {
   if n <= 1 { return 1; }
-  return n * fact_rec(n - 1);
+  return n * fact_rec(n - 1)
 }
 
 fn test(b: bool) {

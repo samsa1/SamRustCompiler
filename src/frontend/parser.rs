@@ -320,22 +320,13 @@ peg::parser! {
           start:position!() ";" { InstrInner::Expr(ComputedValue::Drop, Expr::unit()).to_instr(start, start + 1) }
           start:position!() "let" spaces() b:("mut" spaces())? n:name() space() t:type_bind()?  "=" e:expr_ws() ";" end:position!()
               { InstrInner::Binding(b != None, n, t, e).to_instr(start, end) }
-          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
-              { InstrInner::While(e, b).to_instr(start, end) }
-          start:position!() "return" space() ";" end:position!()
-              { InstrInner::Return(None).to_instr(start, end) }
-          start:position!() "return" spaces() e:expr() ";" end:position!()
-              { InstrInner::Return(Some(e)).to_instr(start, end) }
           e:expr() space() (quiet!{";"} / expected!("end of expr"))
               { Instr {
                     loc : e.loc,
                     content : InstrInner::Expr(ComputedValue::Drop, e)
                 }
               }
-          i:if() { Instr {
-            loc : i.loc,
-            content : InstrInner::Expr(ComputedValue::Keep, i) }
-          }
+          e:expr_wb() { Instr { loc : e.loc, content : InstrInner::Expr(ComputedValue::Keep, e)}}
       }
 
       rule if() -> Expr = precedence! {
@@ -403,7 +394,20 @@ peg::parser! {
       rule expr_decl() -> (Ident, Expr) =
           space() n:name() space() ":" space() e:expr() space() {(n, e)}
 
+
+      rule expr_wb() -> Expr = precedence! {
+          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
+            { to_expr(start, end, ExprInner::While(e, b)) }
+          i:if() { i }
+        }
+
       rule expr() -> Expr = precedence! {
+          start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
+            { to_expr(start, end, ExprInner::While(e, b)) }
+          start:position!() "return" spaces() e:expr() end:position!()
+            { println!("return {:?}", e); to_expr(start, end, ExprInner::Return(Some(e))) }
+          l:position!() "ret" "urn" r:position!()
+            { to_expr(l, r, ExprInner::Return(None)) }
           n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
           i:if() { i }

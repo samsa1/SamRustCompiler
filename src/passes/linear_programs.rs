@@ -21,6 +21,8 @@ fn is_ref(
         | ExprInner::Coercion(_, _, _)
         | ExprInner::BinOp(_, _, _)
         | ExprInner::UnaOp(_, _)
+        | ExprInner::Return(_)
+        | ExprInner::While(_, _)
         | ExprInner::Ref(_, _) => {
             top_expr = rewrite_expr(top_expr, context, counter);
             let name = counter.new_name();
@@ -172,6 +174,18 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             )),
             ..top_expr
         },
+
+        ExprInner::Return(None) => top_expr,
+        ExprInner::Return(Some(expr)) => Expr {
+            content: Box::new(ExprInner::Return(Some(rewrite_expr(
+                expr, context, counter,
+            )))),
+            ..top_expr
+        },
+        ExprInner::While(expr, bloc) => Expr {
+            content: Box::new(ExprInner::While(expr, rewrite_bloc(bloc, counter))),
+            ..top_expr
+        },
     }
 }
 
@@ -182,16 +196,6 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter) -> Bloc {
             Instr::Expr(drop, expr) => {
                 let expr = rewrite_expr(expr, &mut vec_out, counter);
                 vec_out.push(Instr::Expr(drop, expr))
-            }
-            Instr::Return(None) => vec_out.push(Instr::Return(None)),
-            Instr::Return(Some(expr)) => {
-                let expr = rewrite_expr(expr, &mut vec_out, counter);
-                vec_out.push(Instr::Return(Some(expr)))
-            }
-            Instr::While(expr, bloc) => {
-                //                let expr = rewrite_expr(expr, &mut vec_out, counter);
-                let bloc = rewrite_bloc(bloc, counter);
-                vec_out.push(Instr::While(expr, bloc));
             }
             Instr::Binding(mutable, name, expr) => {
                 let expr = rewrite_expr(expr, &mut vec_out, counter);

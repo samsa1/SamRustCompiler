@@ -12,15 +12,19 @@ fn f3() -> i32 {
     }
     4
 }
+fn f4() -> i32 {
+    4 + return (3 + return 4)
+}
 fn f(x: i32) -> i32 {
     if x == 0 { return 0; }
-    return 1 + { return x; 2 };
+    return 1 + { return x; 2 }
 }
 
 fn main() {
     if f1() == 1 { print!("yes\n"); }
     if f2() == 2 { print!("yes\n"); }
     if f3() == 3 { print!("yes\n"); }
+    if f4() == 4 { print!("yes\n"); }
     if f(0) == 0 { print!("f(0) = 0\n"); } else { print!("f(0) = ???\n"); }
     if f(1) == 1 { print!("f(1) = 1\n"); } else { print!("f(1) = ???\n"); }
     return;

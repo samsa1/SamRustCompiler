@@ -19,7 +19,7 @@ impl BST {
     if x == self.value { return true; }
     if x < self.value && !self.sub[0].is_null() { return self.sub[0].contient(x); }
     if !self.sub[1].is_null() { return self.sub[1].contient(x); }
-    return false;
+    return false
   }
 
   fn print(&self) {

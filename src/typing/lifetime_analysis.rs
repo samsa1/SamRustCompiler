@@ -75,6 +75,8 @@ fn check_scopes_expr(
         ExprInner::BinOp(_, _, _) => todo!(),
         ExprInner::UnaOp(_, _) => todo!(),
         ExprInner::Coercion(_, _, _) => todo!(),
+        ExprInner::Return(_) => todo!(),
+        ExprInner::While(_, _) => todo!(),
     }
 }
 

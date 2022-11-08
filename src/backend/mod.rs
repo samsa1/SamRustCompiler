@@ -77,6 +77,8 @@ fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offs
         | llr::ExprInner::Ref(_)
         | llr::ExprInner::Set(_, _, _)
         | llr::ExprInner::Tuple(_, _)
+        | llr::ExprInner::Return(_)
+        | llr::ExprInner::While(_, _)
         | llr::ExprInner::UnaOp(_, _) => panic!("ICE"),
         llr::ExprInner::Deref(expr) => {
             let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
@@ -249,7 +251,12 @@ fn compile_expr_val(
                 TypedBinop::Div(_, Sizes::S8) => todo!(),
                 TypedBinop::Div(_, Sizes::S16) => todo!(),
                 TypedBinop::Div(b, Sizes::S32) => {
-                    testl(reg!(ECX), reg!(ECX))
+                    leaq(
+                        reg::Operand::LabRelAddr(reg::Label::from_str(
+                            "division_by_zero_str".to_string(),
+                        )),
+                        R12,
+                    ) + testl(reg!(ECX), reg!(ECX))
                         + jz(reg::Label::panic())
                         + if b {
                             cltd() + idivl(reg!(ECX))
@@ -258,7 +265,12 @@ fn compile_expr_val(
                         }
                 }
                 TypedBinop::Div(b, Sizes::S64) | TypedBinop::Div(b, Sizes::SUsize) => {
-                    testq(reg!(RCX), reg!(RCX))
+                    leaq(
+                        reg::Operand::LabRelAddr(reg::Label::from_str(
+                            "division_by_zero_str".to_string(),
+                        )),
+                        R12,
+                    ) + testq(reg!(RCX), reg!(RCX))
                         + jz(reg::Label::panic())
                         + if b {
                             cqto() + idivq(reg!(RCX))
@@ -270,7 +282,12 @@ fn compile_expr_val(
                 TypedBinop::Mod(_, Sizes::S8) => todo!(),
                 TypedBinop::Mod(_, Sizes::S16) => todo!(),
                 TypedBinop::Mod(b, Sizes::S32) => {
-                    testl(reg!(ECX), reg!(ECX))
+                    leaq(
+                        reg::Operand::LabRelAddr(reg::Label::from_str(
+                            "division_by_zero_str".to_string(),
+                        )),
+                        R12,
+                    ) + testl(reg!(ECX), reg!(ECX))
                         + jz(reg::Label::panic())
                         + if b {
                             cltd() + idivl(reg!(ECX))
@@ -281,7 +298,12 @@ fn compile_expr_val(
                 }
 
                 TypedBinop::Mod(b, Sizes::S64) | TypedBinop::Mod(b, Sizes::SUsize) => {
-                    testq(reg!(RCX), reg!(RCX))
+                    leaq(
+                        reg::Operand::LabRelAddr(reg::Label::from_str(
+                            "division_by_zero_str".to_string(),
+                        )),
+                        R12,
+                    ) + testq(reg!(RCX), reg!(RCX))
                         + jz(reg::Label::panic())
                         + if b {
                             cqto() + idivq(reg!(RCX))
@@ -898,6 +920,58 @@ fn compile_expr_val(
                 )
             }
         }
+        llr::ExprInner::Return(None) => (
+            Location::Never,
+            xorq(reg!(RAX), reg!(RAX)) + movq(reg!(RBP), reg!(RSP)) + popq(RBP) + ret(),
+        ),
+        llr::ExprInner::Return(Some(expr)) => {
+            let size = expr.size as u64;
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            (
+                Location::Never,
+                expr + match loc {
+                    Location::Rax => match size {
+                        1 => movb(reg::Operand::Reg(AL), addr!(ctxt.get_return_offset(), RBP)),
+                        2 => movw(reg::Operand::Reg(AX), addr!(ctxt.get_return_offset(), RBP)),
+                        4 => movl(reg::Operand::Reg(EAX), addr!(ctxt.get_return_offset(), RBP)),
+                        8 => movq(reg::Operand::Reg(RAX), addr!(ctxt.get_return_offset(), RBP)),
+                        _ => panic!("ICE"),
+                    },
+                    Location::Never => todo!(),
+                    Location::StackWithPadding(_) => mov_struct(
+                        RSP,
+                        0,
+                        RBP,
+                        ctxt.get_return_offset(),
+                        size,
+                        (RAX, EAX, AX, AL),
+                    ),
+                } + movq(reg!(RBP), reg!(RSP))
+                    + popq(RBP)
+                    + ret(),
+            )
+        }
+
+        llr::ExprInner::While(expr, bloc) => {
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            assert!(!matches!(loc, Location::StackWithPadding(_)));
+            let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset);
+            let bloc = match loc2 {
+                Location::StackWithPadding(_) => todo!(),
+                Location::Never | Location::Rax => bloc,
+            };
+            let (in_label, out_label) = ctxt.gen_while_labels();
+            (
+                Location::Rax,
+                label(in_label.clone())
+                    + expr
+                    + testb(reg!(AL), reg!(AL))
+                    + jz(out_label.clone())
+                    + bloc
+                    + jmp(in_label)
+                    + label(out_label),
+            )
+        }
     }
 }
 
@@ -943,61 +1017,6 @@ fn compile_bloc(
                 };
                 asm = asm + compile_expr_val(ctxt, expr, stack_offset).1;
                 last_loc = Location::Rax;
-            }
-            llr::Instr::While(expr, bloc) => {
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
-                assert!(!matches!(loc, Location::StackWithPadding(_)));
-                let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset);
-                let bloc = match loc2 {
-                    Location::StackWithPadding(_) => todo!(),
-                    Location::Never | Location::Rax => bloc,
-                };
-                let (in_label, out_label) = ctxt.gen_while_labels();
-                asm = asm
-                    + label(in_label.clone())
-                    + expr
-                    + testb(reg!(AL), reg!(AL))
-                    + jz(out_label.clone())
-                    + bloc
-                    + jmp(in_label)
-                    + label(out_label);
-                last_loc = Location::Rax;
-            }
-            llr::Instr::Return(None) => {
-                last_loc = Location::Never;
-                asm = asm
-                    + xorq(reg!(RAX), reg!(RAX))
-                    + movq(reg!(RBP), reg!(RSP))
-                    + popq(RBP)
-                    + ret();
-            }
-            llr::Instr::Return(Some(expr)) => {
-                let size = expr.size as u64;
-                last_loc = Location::Never;
-                let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
-                asm = asm
-                    + expr
-                    + match loc {
-                        Location::Rax => match size {
-                            1 => movb(reg::Operand::Reg(AL), addr!(ctxt.get_return_offset(), RBP)),
-                            2 => movw(reg::Operand::Reg(AX), addr!(ctxt.get_return_offset(), RBP)),
-                            4 => movl(reg::Operand::Reg(EAX), addr!(ctxt.get_return_offset(), RBP)),
-                            8 => movq(reg::Operand::Reg(RAX), addr!(ctxt.get_return_offset(), RBP)),
-                            _ => panic!("ICE"),
-                        },
-                        Location::Never => todo!(),
-                        Location::StackWithPadding(_) => mov_struct(
-                            RSP,
-                            0,
-                            RBP,
-                            ctxt.get_return_offset(),
-                            size,
-                            (RAX, EAX, AX, AL),
-                        ),
-                    }
-                    + movq(reg!(RBP), reg!(RSP))
-                    + popq(RBP)
-                    + ret();
             }
             llr::Instr::Expr(ComputedValue::Drop, expr) => {
                 let size = expr.size;
@@ -1167,6 +1186,10 @@ A vector is a pointer to a tuple of 4 elements in the stack :
         + movq(addr!(RCX), reg!(RCX)) /* get pointer to 4-vector */
         + movq(addr!(8, RSP), reg!(RAX)) /* put index in Rax */
         + movq(addr!(8, RCX), reg!(RDX))
+        + leaq(
+            reg::Operand::LabRelAddr(reg::Label::from_str("OoB_error".to_string())),
+            R12,
+            )
         + cmpq(reg!(RDX), reg!(RAX))
         + jae(reg::Label::panic())
         + imulq(addr!(24, RCX), reg!(RAX)) /* multiply by size of elements */
@@ -1231,6 +1254,9 @@ and then arg
         + ret()
     + label(reg::Label::panic())
         + movq(reg!(R13), reg!(RSP))
+        + movq(reg!(R12), reg!(RDI))
+        + movq(immq(0), reg!(RAX))
+        + call(reg::Label::printf())
         + popq(R13)
         + popq(R12)
         + popq(RBP)
@@ -1273,6 +1299,11 @@ pub fn base(ctxt: &mut context::Context) -> file::File {
         + ret()
         + default_vec_function(&heap_address, &ctxt);
     let data_ss = data::dstring("my_string".to_string(), "%zd\\n".to_string())
+        + data::dstring(
+            "division_by_zero_str".to_string(),
+            "Division by zero\\n".to_string(),
+        )
+        + data::dstring("OoB_error".to_string(), "Index out of bound\\n".to_string())
         + data::dquad(heap_address, vec![0]);
 
     file::File {

@@ -28,8 +28,6 @@ pub struct Bloc {
 pub enum Instr {
     Expr(common::ComputedValue, Expr),
     Binding(usize, Expr),
-    While(Expr, Bloc),
-    Return(Option<Expr>),
 }
 
 #[derive()]
@@ -105,4 +103,6 @@ pub enum ExprInner {
     BinOp(common::TypedBinop, Expr, Expr),
     UnaOp(common::TypedUnaop, Expr),
     Coercion(Expr, common::BuiltinType, common::BuiltinType),
+    While(Expr, Bloc),
+    Return(Option<Expr>),
 }

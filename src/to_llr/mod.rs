@@ -420,6 +420,25 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             size: typ2.to_byte_size(),
             typed: top_expr.typed,
         },
+
+        tr::ExprInner::Return(opt) => llr::Expr {
+            content: Box::new(llr::ExprInner::Return(
+                opt.map(|e| rewrite_expr(e, names_info)),
+            )),
+            loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
+            typed: top_expr.typed,
+        },
+
+        tr::ExprInner::While(cond, bloc) => llr::Expr {
+            content: Box::new(llr::ExprInner::While(
+                rewrite_expr(cond, names_info),
+                rewrite_bloc(bloc, names_info),
+            )),
+            loc: top_expr.loc,
+            size: names_info.compute_size(&top_expr.typed),
+            typed: top_expr.typed,
+        },
     }
 }
 
@@ -436,20 +455,6 @@ fn rewrite_bloc(bloc: tr::Bloc, names_info: &mut DataStruct) -> llr::Bloc {
             tr::Instr::Expr(drop, expr) => {
                 let expr = rewrite_expr(expr, names_info);
                 content.push(llr::Instr::Expr(drop, expr))
-            }
-            tr::Instr::Return(opt_expr) => {
-                let opt_expr = opt_expr.map(|e| rewrite_expr(e, names_info));
-                content.push(llr::Instr::Return(opt_expr));
-                names_info.pop_layer();
-                return llr::Bloc {
-                    content,
-                    last_type: bloc.last_type,
-                };
-            }
-            tr::Instr::While(expr, bloc) => {
-                let expr = rewrite_expr(expr, names_info);
-                let bloc = rewrite_bloc(bloc, names_info);
-                content.push(llr::Instr::While(expr, bloc))
             }
         }
     }
