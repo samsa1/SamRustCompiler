@@ -1,1 +1,3 @@
-pub fn stdlib() -> Option<crate::frontend::Module> { None }
+pub fn stdlib() -> Option<crate::frontend::Module> {
+    None
+}

@@ -128,7 +128,6 @@ impl CanWrite for PreTypeInner {
                 file.write_all(b"PreTypeInner::Ident(")?;
                 id.write_in(file)?;
                 file.write_all(b")")
-
             }
             Self::IdentParametrized(id1, id2) => {
                 file.write_all(b"PreTypeInner::IdentParametrized(")?;
@@ -144,7 +143,7 @@ impl CanWrite for PreTypeInner {
                 id2.write_in(file)?;
                 file.write_all(b")")
             }
-            Self::Tuple(id,) => {
+            Self::Tuple(id) => {
                 file.write_all(b"PreTypeInner::Tuple(")?;
                 id.write_in(file)?;
                 file.write_all(b")")
@@ -171,7 +170,7 @@ impl CanWrite for BinOperator {
             Self::Mod => file.write_all(b"common::BinOperator::Mod"),
 
             Self::And => file.write_all(b"common::BinOperator::And"),
-            Self::Or  => file.write_all(b"common::BinOperator::Or"),
+            Self::Or => file.write_all(b"common::BinOperator::Or"),
 
             Self::Shl => file.write_all(b"common::BinOperator::Shl"),
             Self::Shr => file.write_all(b"common::BinOperator::Shr"),
@@ -180,7 +179,6 @@ impl CanWrite for BinOperator {
 
             Self::Eq => file.write_all(b"common::BinOperator::Eq"),
             Self::Ne => file.write_all(b"common::BinOperator::Ne"),
-
 
             Self::Greater => file.write_all(b"common::BinOperator::Greater"),
             Self::GreaterEq => file.write_all(b"common::BinOperator::GreaterEq"),
@@ -216,7 +214,7 @@ impl CanWrite for usize {
 impl CanWrite for Sizes {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
-            Self::S8  => file.write_all(b"common::Sizes::S8"),
+            Self::S8 => file.write_all(b"common::Sizes::S8"),
             Self::S16 => file.write_all(b"common::Sizes::S16"),
             Self::S32 => file.write_all(b"common::Sizes::S32"),
             Self::S64 => file.write_all(b"common::Sizes::S64"),
@@ -274,12 +272,12 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Deref(e) => {
                 file.write_all(b"ExprInner::Deref(")?;
                 e.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::FunCall(a1, a2, a3) => {
                 file.write_all(b"ExprInner::FunCall(")?;
                 a1.write_in(file)?;
@@ -288,7 +286,7 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
                 file.write_all(b", ")?;
                 a3.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::If(a1, a2, a3) => {
                 file.write_all(b"ExprInner::If(")?;
                 a1.write_in(file)?;
@@ -297,28 +295,28 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
                 file.write_all(b", ")?;
                 a3.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Index(a1, a2) => {
                 file.write_all(b"ExprInner::Index(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Int(a1, a2) => {
                 file.write_all(b"ExprInner::Int(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::MacroCall(a1, a2) => {
                 file.write_all(b"ExprInner::MacroCall(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Method(a1, a2, a3) => {
                 file.write_all(b"ExprInner::Method(")?;
                 a1.write_in(file)?;
@@ -327,60 +325,60 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
                 file.write_all(b", ")?;
                 a3.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Parenthesis(e) => {
                 file.write_all(b"ExprInner::Parenthesis(")?;
                 e.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Proj(a1, a2) => {
                 file.write_all(b"ExprInner::Proj(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Ref(a1, a2) => {
                 file.write_all(b"ExprInner::Ref(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Return(opt) => {
                 file.write_all(b"ExprInner::Return(")?;
                 opt.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::String(s) => {
                 file.write_all(b"ExprInner::String(\"")?;
                 file.write_all(b"an ommited string")?;
                 file.write_all(b"\".to_string())")
-            },
+            }
             Self::Tuple(v) => {
                 file.write_all(b"ExprInner::Tuple(")?;
                 v.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::UnaryOp(a1, a2) => {
                 file.write_all(b"ExprInner::UnaryOp(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::Var(v) => {
                 file.write_all(b"ExprInner::Var(")?;
                 v.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
             Self::While(a1, a2) => {
                 file.write_all(b"ExprInner::While(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
                 file.write_all(b")")
-            },
+            }
         }
     }
 }
