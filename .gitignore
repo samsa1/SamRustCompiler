@@ -16,3 +16,4 @@ Cargo.lock
 
 a.out
 out
+src/std_file.rs
