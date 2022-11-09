@@ -2,6 +2,7 @@ pub mod ast;
 mod backend;
 mod frontend;
 mod passes;
+mod std_file;
 mod to_llr;
 mod typing;
 
@@ -9,6 +10,7 @@ fn main() {
     let mut filenames = Vec::new();
     let mut parse_only = false;
     let mut type_only = false;
+    let mut generate_std = false;
 
     let mut args = std::env::args().skip(1);
     //    println!("{:?}", args);
@@ -20,6 +22,7 @@ fn main() {
             match t.as_str() {
                 "--parse-only" => parse_only = true,
                 "--type-only" => type_only = true,
+                "--generate-std" => generate_std = true,
                 _ => panic!("unkown option"),
             }
         } else {
@@ -27,6 +30,16 @@ fn main() {
         }
     }
     //    println!("{:?}", filenames);
+
+    if generate_std {
+        if filenames.len() != 0 {
+            panic!("no argument can be given with the --generate-std option");
+        }
+
+        let mut std = frontend::Module::new("std/mod.rs".to_string());
+        std.write_in_out("src/std_file.rs");
+        std::process::exit(0)
+    }
 
     if filenames.len() != 1 {
         panic!("must give exactly one file to compile")
@@ -60,7 +73,7 @@ fn main() {
         std::process::exit(0)
     }
 
-    let mut std = frontend::Module::new("std/mod.rs".to_string());
+    let mut std = std_file::stdlib().unwrap();
     let allocator = std.remove("allocator").unwrap().content;
     let allocator = passes::macros::rewrite_file(allocator);
     let allocator = passes::give_uniq_id::rewrite_file(allocator);

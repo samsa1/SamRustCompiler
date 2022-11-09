@@ -326,6 +326,14 @@ pub struct ErrorReporter {
 }
 
 impl ErrorReporter {
+    pub fn empty() -> Self {
+        Self {
+            lines: Vec::new(),
+            lines_index: Vec::new(),
+            file_name: String::new(),
+        }
+    }
+
     pub fn new(file_name: String, file: String) -> Self {
         let mut vec_str = Vec::new();
         let mut count = 0;
