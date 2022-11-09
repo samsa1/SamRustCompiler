@@ -22,8 +22,8 @@ pub enum Decl<DF = DeclFun> {
 }
 
 pub struct DeclConst<T = Option<PreType>> {
-    pub name: common::Ident,
     pub public: bool,
+    pub name: common::Ident,
     pub typ: PreType,
     pub expr: Expr<T>,
 }
@@ -156,7 +156,6 @@ impl Display for Types {
             Self::SameAs(_) => panic!("ICE"),
             Self::Deref(_) => panic!("ICE"),
             Self::Unknown => panic!("ICE"),
-            //            _ => todo!(),
         }
     }
 }
@@ -208,31 +207,6 @@ impl TypeStorage {
         assert!(self.map.insert(i, typ).is_none());
         i
     }
-
-    // /!\ Only a few cases are implemented because
-    // only a few case can be encountered at runtime /!\
-    /*pub fn forces_to(&mut self, id: usize, typ: Types) -> Result<usize, ()> {
-        match (self.map.get(&id), typ) {
-            (None, _) => panic!("ICE"),
-            (Some(Types::Unknown), typ) => {
-                *self.map.get_mut(&id).unwrap() = typ;
-                Ok(id)
-            }
-            (Some(Types::Bool), Types::Bool) => Ok(id),
-            (Some(_), Types::Bool) => Err(()),
-            (Some(Types::Int(b1, s1)), Types::Int(b2, s2)) => {
-                if (b1.is_none() || b1 == &b2) && (s1.is_none() || s1 == &s2) {
-                    *self.map.get_mut(&id).unwrap() = Types::Int(b2, s2);
-                    Ok(id)
-                } else {
-                    Err(())
-                }
-            }
-            (_, Types::Int(_, _)) => Err(()),
-
-            _ => todo!(),
-        }
-    }*/
 
     pub fn get(&self, id: usize) -> Option<&Types> {
         self.map.get(&id)

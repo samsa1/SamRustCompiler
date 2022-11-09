@@ -405,7 +405,7 @@ peg::parser! {
           start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
             { to_expr(start, end, ExprInner::While(e, b)) }
           start:position!() "return" spaces() e:expr() end:position!()
-            { println!("return {:?}", e); to_expr(start, end, ExprInner::Return(Some(e))) }
+            { to_expr(start, end, ExprInner::Return(Some(e))) }
           l:position!() "ret" "urn" r:position!()
             { to_expr(l, r, ExprInner::Return(None)) }
           n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()

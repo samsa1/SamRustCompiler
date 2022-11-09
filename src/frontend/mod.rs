@@ -1,6 +1,8 @@
 mod parser;
+use crate::ast::can_write::CanWrite;
 use crate::ast::rust::{File, Open};
 use std::collections::HashMap;
+use std::io::prelude::*;
 use std::path::PathBuf;
 
 pub struct Module {
@@ -9,6 +11,13 @@ pub struct Module {
 }
 
 impl Module {
+    pub fn build(content: File, submodules: HashMap<String, (bool, Module)>) -> Self {
+        Self {
+            content,
+            submodules,
+        }
+    }
+
     pub fn new(base_file_name: String) -> Self {
         let base_file_name = PathBuf::from(base_file_name);
         match base_file_name.extension() {
@@ -72,5 +81,42 @@ impl Module {
                 }
             }
         }
+    }
+
+    pub fn write_in_out(&self, name: &str) -> std::io::Result<()> {
+        let mut file = std::fs::File::create(name)?;
+        file.write_all(b"use std::collections::HashMap;\n")?;
+        file.write_all(b"use crate::ast::common;\n")?;
+        file.write_all(b"use crate::ast::rust::*;\n")?;
+        file.write_all(b"use crate::frontend::Module;\n\n")?;
+        file.write_all(b"pub fn stdlib() -> Option<Module> {Some(\n")?;
+        self.write_in(&mut file)?;
+        file.write_all(b")}\n")
+    }
+}
+
+impl CanWrite for Module {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"\n{let file = ")?;
+        self.content.write_in(file)?;
+        if self.submodules.is_empty() {
+            file.write_all(b";\nModule::build(file, HashMap::new())")?;
+        } else {
+            file.write_all(b";\nlet mut submodules = HashMap::new();")?;
+            for (name, (b, submod)) in self.submodules.iter() {
+                file.write_all(b"submodules.insert(\"")?;
+                file.write_all(name.as_bytes())?;
+                file.write_all(b"\".to_string(), (")?;
+                if *b {
+                    file.write_all(b"true, ")?;
+                } else {
+                    file.write_all(b"false, ")?;
+                }
+                submod.write_in(file)?;
+                file.write_all(b"));\n")?;
+            }
+            file.write_all(b"Module::build(file, submodules)")?;
+        }
+        file.write_all(b"\n}")
     }
 }

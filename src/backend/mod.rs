@@ -788,10 +788,10 @@ fn compile_expr_val(
                 Location::Never => expr,
                 Location::Rax => match size {
                     0 => expr,
-                    1 => (expr + movb(reg!(AL), addr!(offset_from_rbp, RBP))),
-                    2 => (expr + movw(reg!(AX), addr!(offset_from_rbp, RBP))),
-                    4 => (expr + movl(reg!(EAX), addr!(offset_from_rbp, RBP))),
-                    8 => (expr + movq(reg!(RAX), addr!(offset_from_rbp, RBP))),
+                    1 => expr + movb(reg!(AL), addr!(offset_from_rbp, RBP)),
+                    2 => expr + movw(reg!(AX), addr!(offset_from_rbp, RBP)),
+                    4 => expr + movl(reg!(EAX), addr!(offset_from_rbp, RBP)),
+                    8 => expr + movq(reg!(RAX), addr!(offset_from_rbp, RBP)),
                     _ => panic!("ICE"),
                 },
                 Location::StackWithPadding(pad) => {
