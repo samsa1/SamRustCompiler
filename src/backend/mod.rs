@@ -1273,7 +1273,7 @@ pub fn base(ctxt: &mut context::Context) -> file::File {
         + pushq(reg!(R12))
         + pushq(reg!(R13))
         + movq(reg!(RSP), reg!(R13))
-        + movq(immq(heap_size + 24), reg!(RDI)) // 8ko
+        + movq(immq(heap_size + 32), reg!(RDI)) // 8ko
         + call(reg::Label::malloc())
         + movq(reg!(RAX), reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())))
         + movq(immq(heap_size / 4), reg!(RCX))
