@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - name: Build
-      run: cargo build --verbose
+      run: make build
     - name: Check parsing
       run: ./test -1d target/debug/sam_rust_compiler
     - name: Check typing
