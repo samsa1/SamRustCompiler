@@ -105,7 +105,7 @@ impl PostType {
         }
     }
 
-    pub fn get_struct(&self) -> Option<(&str, &Vec<PostType>)> {
+    pub fn get_struct(&self) -> Option<(&common::PathUL<()>, &Vec<PostType>)> {
         match &self.content {
             PostTypeInner::Struct(name, args) => Some((name, args)),
             PostTypeInner::Ref(_, typ) => match &typ.content {
@@ -120,7 +120,7 @@ impl PostType {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
-    Struct(String, Vec<PostType>),
+    Struct(common::PathUL<()>, Vec<PostType>),
     //    Enum(String),
     Box(Box<PostType>),
     /*    IdentParametrized(String, Vec<PostType>),*/
@@ -176,14 +176,16 @@ pub enum ExprInner {
     Bool(bool),
     Int(u64),
     Var(common::Ident),
+    VarPath(common::Path<()>),
     /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(common::Ident, Vec<Expr>),
+    FunCallPath(common::Path<()>, Vec<Expr>),
     //    Constructor(common::Ident, Vec<Expr>),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
     Tuple(Vec<Expr>),
-    BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
+    BuildStruct(common::PathUL<()>, Vec<(common::Ident, Expr)>),
     Proj(Expr, common::Projector),
     Set(Expr, Expr),
     Print(String),

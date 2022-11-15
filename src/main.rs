@@ -1,9 +1,9 @@
 pub mod ast;
-mod backend;
+//mod backend;
 mod frontend;
 mod passes;
 mod std_file;
-mod to_llr;
+//mod to_llr;
 mod typing;
 
 fn main() {
@@ -47,25 +47,25 @@ fn main() {
 
     let in_name = filenames.pop().unwrap();
 
-    let parsed_file = frontend::Module::new(in_name.clone());
-    let parsed_file = parsed_file.content;
+    let code = frontend::Module::new(in_name.clone());
     if parse_only {
         std::process::exit(0)
     }
 
     println!("<- parsing");
 
-    let unfolded_macros = passes::macros::rewrite_file(parsed_file);
-    let distinct_names = passes::give_uniq_id::rewrite_file(unfolded_macros);
-    let moved_refs = passes::move_refs::rewrite_file(distinct_names);
+    let code = passes::macros::rewrite(code);
+    let code = passes::unfold_uses::rewrite(code);
+    let code = passes::give_uniq_id::rewrite(code);
+    let code = passes::move_refs::rewrite(code);
 
     println!("<- typing ");
 
-    let typed_file = typing::type_inferencer(moved_refs, true);
+    let typed_file = typing::type_inferencer(code, true);
 
     println!("<- check lifetime (TODO) ");
 
-    let checked_lifetime = typed_file;
+    let mut checked_lifetime = typed_file;
 
     //    println!("{:?}", checked_lifetime);
 
@@ -73,22 +73,25 @@ fn main() {
         std::process::exit(0)
     }
 
-    let mut std = std_file::stdlib().unwrap();
+    let std = std_file::stdlib().unwrap();
+    let std = passes::macros::rewrite(std);
+    let std = passes::unfold_uses::rewrite(std);
+    let std = passes::give_uniq_id::rewrite(std);
+    let std = passes::move_refs::rewrite(std);
+    let std = typing::type_inferencer(std, false);
+    let mut std = passes::linear_programs::rewrite(std);
     let allocator = std.remove("allocator").unwrap().content;
-    let allocator = passes::macros::rewrite_file(allocator);
-    let allocator = passes::give_uniq_id::rewrite_file(allocator);
-    let allocator = passes::move_refs::rewrite_file(allocator);
-    let allocator = typing::type_inferencer(allocator, false);
-    let allocator = passes::linear_programs::rewrite_file(allocator);
-    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
+//    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
 
     println!("<- linear programs pass");
 
-    let made_linear = passes::linear_programs::rewrite_file(checked_lifetime);
+    let std = passes::linear_programs::rewrite(checked_lifetime);
 
     println!("<- to llr");
 
-    let llr_form = to_llr::rewrite_file(made_linear, "file".to_string());
+    todo!();
+
+/*    let llr_form = to_llr::rewrite_file(checked_lifetime, "file".to_string());
 
     println!("<- to asm");
 
@@ -107,5 +110,5 @@ fn main() {
             println!("Failed during printing asm with internal error {:?}", err);
             std::process::exit(1)
         }
-    };
+    };*/
 }

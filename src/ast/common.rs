@@ -1,4 +1,5 @@
 use std::str::FromStr;
+use std::hash::{Hash, Hasher};
 
 use crate::typing::errors::TypeError;
 
@@ -9,28 +10,46 @@ pub enum UnOp {
     Deref,
 }
 
-#[derive(Debug, Clone)]
-pub enum NamePath<T> {
-    Name(Ident),
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum NamePath<T, I = Ident> {
+    Name(I),
     Specialisation(Vec<T>),
+}
+
+impl<T : Clone> NamePath<T, String> {
+    fn add_loc(&self) -> NamePath<T, Ident> {
+        match self {
+            NamePath::Name(s) => NamePath::Name(Ident::new(s, Location::default())),
+            NamePath::Specialisation(l) => NamePath::Specialisation(l.clone()),
+        }
+    }
+}
+
+impl<T : Clone> NamePath<T, Ident> {
+    fn clean(&self) -> NamePath<T, String> {
+        match self {
+            NamePath::Name(s) => NamePath::Name(s.get_content().to_string()),
+            NamePath::Specialisation(l) => NamePath::Specialisation(l.clone()),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 pub struct Path<T> {
-    name: Vec<NamePath<T>>,
+    name: Vec<NamePath<T, Ident>>,
     loc: Location,
 }
 
 impl<T> Path<T> {
-    pub fn new(name: Vec<NamePath<T>>, loc: Location) -> Self {
+    pub fn new(name: Vec<NamePath<T, Ident>>, loc: Location) -> Self {
         Self { name, loc }
     }
 
-    pub fn get_content(&self) -> &Vec<NamePath<T>> {
+    pub fn get_content(&self) -> &Vec<NamePath<T, Ident>> {
         &self.name
     }
 
-    pub fn content(self) -> Vec<NamePath<T>> {
+    pub fn content(self) -> Vec<NamePath<T, Ident>> {
         self.name
     }
 
@@ -40,12 +59,127 @@ impl<T> Path<T> {
 
     pub fn last(&self) -> Option<Ident> {
         let i = self.name.len();
+        match &self.name[i - 1] {
+            NamePath::Name(id) => Some(id.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn pop(&mut self) -> Option<NamePath<T, Ident>> {
+        self.name.pop()
+    }
+
+    pub fn push(&mut self, el : NamePath<T, Ident>) {
+        self.name.push(el)
+    }
+
+    pub fn from_vec(el : Vec<&str>) -> Self {
+        Self {
+            name : el.into_iter().map(|i| NamePath::Name(Ident::new(i, Location::default()))).collect(),
+            loc : Location::default(),
+        }
+    }
+
+    pub fn get_fst_id(&self) -> Option<&str> {
+        match self.name.get(0)? {
+            NamePath::Name(name) => Some(name.get_content()),
+            _ => None,
+        }
+    }
+
+    pub fn is_vec(&self) -> bool {
+        if self.name.len() != 3 {
+            return false
+        }
+        match &self.name[0] {
+            NamePath::Name(id) if id.get_content() == "std" => (),
+            _ => return false
+        }
+        match &self.name[1] {
+            NamePath::Name(id) if id.get_content() == "vec" => (),
+            _ => return false
+        }
+        match &self.name[2] {
+            NamePath::Name(id) if id.get_content() == "Vec" => (),
+            _ => return false
+        }
+        true
+    }
+
+    pub fn append(&mut self, mut other : Self) {
+        self.name.append(&mut other.name)
+    }
+}
+
+impl<T : Clone> Path<T> {
+    pub fn cleaned(&self) -> PathUL<T> {
+        PathUL {
+            name : self.name.iter().map(NamePath::clean).collect(),
+        }
+    }
+}
+
+impl<T : PartialEq> PartialEq for Path<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PathUL<T, I = String> {
+    name: Vec<NamePath<T, I>>,
+}
+
+impl<T, I> PathUL<T, I> {
+    pub fn new(name: Vec<NamePath<T, I>>) -> Self {
+        Self { name }
+    }
+
+    pub fn get_content(&self) -> &Vec<NamePath<T, I>> {
+        &self.name
+    }
+
+    pub fn content(self) -> Vec<NamePath<T, I>> {
+        self.name
+    }
+
+    pub fn pop(&mut self) -> Option<NamePath<T, I>> {
+        self.name.pop()
+    }
+
+    pub fn push(&mut self, el : NamePath<T, I>) {
+        self.name.push(el)
+    }
+}
+
+impl<T> PathUL<T, String> {
+    pub fn from_vec(el : Vec<&str>) -> Self {
+        Self {
+            name : el.into_iter().map(|i| NamePath::Name(i.to_string())).collect()
+        }
+    }
+}
+
+impl<T : Clone> PathUL<T, String> {
+    pub fn add_loc(&self) -> Path<T> {
+        Path {
+            name : self.name.iter().map(|n| n.add_loc()).collect(),
+            loc : Location::default(),
+        }
+    }
+
+}
+
+impl<T, I : Clone> PathUL<T, I> {
+    pub fn last(&self) -> Option<I> {
+        let i = self.name.len();
         match &self.name[i] {
             NamePath::Name(id) => Some(id.clone()),
             _ => None,
         }
     }
 }
+
 
 #[derive(Clone)]
 pub struct Ident {
@@ -80,7 +214,7 @@ impl Ident {
         self.loc
     }
 
-    pub fn to_path(&self) -> Path<super::rust::PreType> {
+    pub fn to_path(&self) -> Path<()> {
         Path {
             name: vec![NamePath::Name(self.clone())],
             loc: self.loc,
@@ -115,8 +249,8 @@ impl std::fmt::Debug for Ident {
     }
 }
 
-impl std::hash::Hash for Ident {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+impl Hash for Ident {
+    fn hash<H:Hasher>(&self, state: &mut H) {
         self.name.hash(state);
     }
 }
@@ -244,27 +378,27 @@ pub enum BinOperator {
 impl BinOperator {
     pub fn get_trait_name(self) -> (&'static str, &'static str) {
         match self {
-            Self::Add => ("Add", ""),
-            Self::Sub => ("Sub", ""),
-            Self::Div => ("Div", ""),
-            Self::Mod => ("Mod", ""),
-            Self::Mul => ("Mul", ""),
+            Self::Add => ("Add", "add"),
+            Self::Sub => ("Sub", "sub"),
+            Self::Div => ("Div", "div"),
+            Self::Mod => ("Mod", "mod"),
+            Self::Mul => ("Mul", "mul"),
 
-            Self::Shl => ("Shl", ""),
-            Self::Shr => ("Shr", ""),
-            Self::BitAnd => ("BitAnd", ""),
-            Self::BitOr => ("BitOr", ""),
+            Self::Shl => ("Shl", "shl"),
+            Self::Shr => ("Shr", "shr"),
+            Self::BitAnd => ("BitAnd", "bit_and"),
+            Self::BitOr => ("BitOr", "bit_or"),
 
-            Self::And => ("And", ""),
-            Self::Or => ("Or", ""),
+            Self::And => ("And", "and"),
+            Self::Or => ("Or", "or"),
 
-            Self::Eq => ("PartialEq", "_eq"),
-            Self::Ne => ("PartialEq", "_ne"),
+            Self::Eq => ("PartialEq", "eq"),
+            Self::Ne => ("PartialEq", "ne"),
 
-            Self::Greater => ("PartialOrd", "_gr"),
-            Self::GreaterEq => ("PartialOrd", "_ge"),
-            Self::Lower => ("PartialOrd", "_lo"),
-            Self::LowerEq => ("PartialOrd", "_le"),
+            Self::Greater => ("PartialOrd", "gr"),
+            Self::GreaterEq => ("PartialOrd", "ge"),
+            Self::Lower => ("PartialOrd", "lo"),
+            Self::LowerEq => ("PartialOrd", "le"),
 
             Self::Set => todo!(),
         }
@@ -280,8 +414,8 @@ pub enum UnaOperator {
 impl UnaOperator {
     pub fn get_trait_name(self) -> (&'static str, &'static str) {
         match self {
-            Self::Neg => ("Neg", ""),
-            Self::Not => ("Not", ""),
+            Self::Neg => ("Neg", "neg"),
+            Self::Not => ("Not", "not"),
         }
     }
 }
@@ -319,6 +453,7 @@ pub enum ComputedValue {
     Keep,
 }
 
+#[derive(Clone)]
 pub struct ErrorReporter {
     lines: Vec<String>,
     lines_index: Vec<usize>,

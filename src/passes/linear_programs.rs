@@ -17,6 +17,7 @@ fn is_ref(
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _)
+        | ExprInner::FunCallPath(_, _)
         | ExprInner::If(_, _, _)
         | ExprInner::Coercion(_, _, _)
         | ExprInner::BinOp(_, _, _)
@@ -39,7 +40,7 @@ fn is_ref(
             top_expr.content = Box::new(ExprInner::Var(id));
             top_expr
         }
-        ExprInner::Var(_) => top_expr,
+        ExprInner::Var(_) | ExprInner::VarPath(_) => top_expr,
         ExprInner::Proj(expr, proj) => Expr {
             content: Box::new(ExprInner::Proj(
                 is_ref(mutable, expr, context, counter),
@@ -99,7 +100,7 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
-        ExprInner::Int(_) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::String(_) => {
+        ExprInner::Int(_) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::VarPath(_) | ExprInner::String(_) => {
             top_expr
         }
 
@@ -130,6 +131,17 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
 
         ExprInner::FunCall(name, exprs) => Expr {
             content: Box::new(ExprInner::FunCall(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|e| is_ref(false, e, context, counter))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::FunCallPath(name, exprs) => Expr {
+            content: Box::new(ExprInner::FunCallPath(
                 name,
                 exprs
                     .into_iter()
@@ -216,9 +228,15 @@ fn rewrite_fun(mut fun_decl: DeclFun) -> DeclFun {
     }
 }
 
-pub fn rewrite_file(file: File) -> File {
+fn rewrite_file(file: File) -> File {
     File {
         funs: file.funs.into_iter().map(rewrite_fun).collect(),
         ..file
     }
+}
+
+pub fn rewrite(m : crate::frontend::Module<File>) -> crate::frontend::Module<File> {
+    let content = rewrite_file(m.content);
+    let submodules = m.submodules.into_iter().map(|(k, (b, m_inner))| (k, (b, rewrite(m_inner)))).collect();
+    crate::frontend::Module::build(content, submodules)
 }

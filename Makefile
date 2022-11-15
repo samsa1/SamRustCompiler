@@ -7,13 +7,13 @@ all: build
 	./test -3d target/debug/sam_rust_compiler
 
 clean:
-	echo "pub fn stdlib() -> Option<crate::frontend::Module> { None }"  > src/std_file.rs
+	echo "pub fn stdlib() -> Option<crate::frontend::Module<crate::ast::rust::File>> { None }"  > src/std_file.rs
 
 test: build
 	./test -3d target/debug/sam_rust_compiler
 
 build:
-	echo "pub fn stdlib() -> Option<crate::frontend::Module> { None }" > src/std_file.rs
+	echo "pub fn stdlib() -> Option<crate::frontend::Module<crate::ast::rust::File>> { None }" > src/std_file.rs
 	cargo build
 	echo "Compiling std"
 	./target/debug/sam_rust_compiler --generate-std

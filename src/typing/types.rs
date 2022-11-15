@@ -1,35 +1,44 @@
-use super::context::GlobalContext;
+use super::context::{ModuleInterface, GlobalContext};
+use crate::ast::common::{PathUL, NamePath, Sizes, BuiltinType};
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use std::collections::HashMap;
 
-pub fn compute_size(typ: &PreType, sizes: &GlobalContext) -> usize {
+pub fn compute_size(typ: &PreType, sizes: &ModuleInterface, path : &mut PathUL<(), String>) -> usize {
     match &typ.content {
         PreTypeInner::Fun(_args, _out) => todo!(),
-        PreTypeInner::Ident(id) => match sizes.get_size(id.get_content()) {
-            None => todo!(),
-            Some(size) => size,
-        },
-        PreTypeInner::IdentParametrized(id, args) => match id.get_content() {
-            "Vec" => {
-                if args.len() == 1 {
-                    8
-                } else {
-                    todo!()
-                }
+        PreTypeInner::Ident(id) => {
+            path.push(NamePath::Name(id.get_content().to_string()));
+            match sizes.get_size(path) {
+                None => {
+                    path.pop();
+                    match sizes.get_size(&PathUL::from_vec(vec![id.get_content()])) {
+                        None => todo!(),
+                        Some(s) => *s,
+                    }
+                },
+                Some(size) => {path.pop(); *size},
             }
-            "Box" => {
-                todo!()
-            }
-            _ => todo!(),
         },
+        PreTypeInner::IdentPath(path) => {
+            match sizes.get_size(&path.cleaned()) {
+                None => todo!(),
+                Some(size) => *size,
+            }
+        },
+        PreTypeInner::IdentParametrized(id, args) => todo!(),
+
+        PreTypeInner::IdentParametrizedPath(path, args) if args.len() == 1 && path.is_vec() => {
+            8
+        }
+        PreTypeInner::IdentParametrizedPath(path, args) => todo!(),
 
         PreTypeInner::Ref(_mutable, _typ) => todo!(),
 
         PreTypeInner::Tuple(elements) => {
             let mut total_size = 0;
             for el in elements.iter() {
-                total_size += compute_size(el, sizes);
+                total_size += compute_size(el, sizes, path);
             }
             total_size
         }
@@ -48,26 +57,40 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
                 content: PostTypeInner::Fun(vec![], args2, Box::new(out)),
             })
         }
-        PreTypeInner::Ident(id) => match sizes.get_typ(id.get_content()) {
-            None => todo!(),
-            Some(post_type) => Some(post_type.clone()),
+        PreTypeInner::Ident(id) => match id.get_content() {
+            "bool"=> Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Bool)}),
+            "i8"  => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(true,  Sizes::S8) )}),
+            "u8"  => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::S8) )}),
+            "i16" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(true,  Sizes::S16))}),
+            "u16" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::S16))}),
+            "i32" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(true,  Sizes::S32))}),
+            "u32" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::S32))}),
+            "i64" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(true,  Sizes::S64))}),
+            "u64" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::S64))}),
+            "isize" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(true,  Sizes::SUsize))}),
+            "usize" => Some(PostType { content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize))}),
+            _ => Some(PostType { content: PostTypeInner::Struct(sizes.get_path(id.get_content()), Vec::new()) }),
         },
-        PreTypeInner::IdentParametrized(id, mut args) => match id.get_content() {
-            "Vec" => {
-                if args.len() == 1 {
-                    let typ = translate_typ(args.pop().unwrap(), sizes)?;
-                    Some(PostType {
-                        content: PostTypeInner::Struct(String::from("Vec"), vec![typ]),
-                    })
-                } else {
+        PreTypeInner::IdentPath(path) => {
+            let path = path.cleaned();
+            match sizes.get_struct_path(&path) {
+                None => todo!(),
+                Some(_) => Some(PostType { content: PostTypeInner::Struct(path, Vec::new()) }),
+            }
+        },
+        
+        PreTypeInner::IdentParametrizedPath(path, args) => {
+            let args: Option<_> = args.into_iter().map(|typ| translate_typ(typ, sizes)).collect();
+            let path = path.cleaned();
+            match sizes.get_struct_path(&path) {
+                None => {
+                    println!("{:?}", path);
                     todo!()
-                }
+                },
+                Some(_) => Some(PostType { content: PostTypeInner::Struct(path, args?) }),
             }
-            "Box" => {
-                todo!()
-            }
-            _ => todo!(),
         },
+        PreTypeInner::IdentParametrized(id, mut args) => {println!("{:?}", id); todo!()},
 
         PreTypeInner::Ref(mutable, typ) => Some(translate_typ(*typ, sizes)?.to_ref(mutable)),
 

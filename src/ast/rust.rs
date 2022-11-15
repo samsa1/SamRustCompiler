@@ -1,4 +1,4 @@
-use super::common;
+use super::common::{self, PathUL};
 use std::collections::HashMap;
 use std::fmt::Display;
 
@@ -11,7 +11,7 @@ pub struct File {
 
 pub enum Open {
     Mod(bool, common::Ident, Option<common::Ident>),
-    Use(common::Path<PreType>, Option<common::Ident>),
+    Use(common::Path<()>, Option<common::Ident>),
 }
 
 pub enum Decl<DF = DeclFun> {
@@ -65,7 +65,7 @@ pub enum Types {
     Int(Option<bool>, Option<common::Sizes>),
     Enum(String),
     Fun(Vec<usize>, usize),
-    Struct(String, Vec<usize>),
+    Struct(PathUL<()>, Vec<usize>),
     Ref(Option<bool>, usize),
     Deref(usize),
     SameAs(usize),
@@ -75,7 +75,7 @@ pub enum Types {
 
 impl Types {
     pub fn string() -> Self {
-        Self::Struct("String".to_string(), Vec::new())
+        Self::Struct(common::PathUL::new(vec![common::NamePath::Name("String".to_string())]), Vec::new())
     }
 
     pub const fn int() -> Self {
@@ -95,7 +95,7 @@ impl Types {
     }
 
     pub fn struct_from_str(name: &str) -> Self {
-        Self::Struct(name.to_string(), Vec::new())
+        Self::Struct(common::PathUL::new(vec![common::NamePath::Name(name.to_string())]), Vec::new())
     }
 
     pub fn tuple(vec_types: Vec<usize>) -> Self {
@@ -106,14 +106,16 @@ impl Types {
         Self::Ref(Some(mutable), type_id)
     }
 
-    pub fn boxed(type_id: usize) -> Self {
-        Self::Struct("Box".to_string(), vec![type_id])
-    }
+/*     pub fn boxed(type_id: usize) -> Self {
+        Self::Struct(common::Path::new(vec![common::NamePath::Name(common::Ident::new("Box", common::Location::default()))], common::Location::default()), vec![type_id])
+    }*/
 
     pub fn unref(&self) -> Option<(bool, usize)> {
         match self {
             Self::Ref(mutable, type_id) => Some((mutable.unwrap_or(true), *type_id)),
-            Self::Struct(name, args) if name == "Box" && args.len() == 1 => Some((false, args[0])),
+/*             Self::Struct(name, args) if args.len() == 1 && name.get_content()[0] == common::NamePath::Name(common::Ident::new("Box", common::Location::default())) => {
+                Some((false, args[0]))
+            },*/
             _ => None,
         }
     }
@@ -135,7 +137,7 @@ impl Display for Types {
                 write!(f, "{}", b.to_str())
             }
             Self::Struct(name, _) => {
-                write!(f, "{}", name)
+                write!(f, "{:?}", name)
             }
             Self::Ref(_, _) => {
                 write!(f, "&_")
@@ -243,7 +245,7 @@ impl TypeStorage {
             }
             Types::Struct(name, args) => {
                 let mut args2 = Vec::new();
-                let name = name.to_string();
+                let name = name.clone();
                 for type_id in args.clone().into_iter() {
                     args2.push(self.new_ref_unmarked(type_id))
                 }
@@ -269,7 +271,9 @@ impl PreType {
 #[derive(Clone, Debug, PartialEq)]
 pub enum PreTypeInner {
     Ident(common::Ident),
+    IdentPath(common::Path<()>),
     IdentParametrized(common::Ident, Vec<PreType>),
+    IdentParametrizedPath(common::Path<()>, Vec<PreType>),
     Ref(bool, Box<PreType>),
     Tuple(Vec<PreType>),
     Fun(Vec<PreType>, Box<PreType>),
@@ -368,9 +372,11 @@ pub enum ExprInner<T = Option<PreType>> {
     If(Expr<T>, Bloc<T>, Bloc<T>),
     Bool(bool),
     Int(u64, Option<(bool, common::Sizes)>),
+    VarPath(common::Path<()>),
     Var(common::Ident),
     Method(Expr<T>, common::Ident, Vec<Expr<T>>),
     FunCall(Vec<T>, common::Ident, Vec<Expr<T>>),
+    FunCallPath(Vec<T>, common::Path<()>, Vec<Expr<T>>),
     MacroCall(common::Ident, Vec<Expr<T>>),
     BinaryOp(common::BinOperator, Expr<T>, Expr<T>),
     UnaryOp(common::UnaOperator, Expr<T>),
@@ -379,6 +385,7 @@ pub enum ExprInner<T = Option<PreType>> {
     Deref(Expr<T>),
     Tuple(Vec<Expr<T>>),
     BuildStruct(common::Ident, Vec<(common::Ident, Expr<T>)>),
+    BuildStructPath(common::Path<()>, Vec<(common::Ident, Expr<T>)>),
     Proj(Expr<T>, common::Projector),
     String(String),
     Array(Vec<Expr<T>>),
