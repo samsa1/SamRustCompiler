@@ -227,7 +227,7 @@ fn compile_expr_val(
                 2 => movw(addr!(RSP), reg!(CX)) + addq(immq(2), reg!(RSP)),
                 4 => movl(addr!(RSP), reg!(ECX)) + addq(immq(4), reg!(RSP)),
                 8 => popq(RCX),
-                _ => todo!(),
+                _ => panic!("ICE"),
             };
             let op = match op {
                 TypedBinop::Add(Sizes::S8) => addb(reg!(CL), reg!(AL)),
@@ -245,8 +245,16 @@ fn compile_expr_val(
                 }
 
                 TypedBinop::Mul(true, Sizes::S8) => todo!(),
+                TypedBinop::Mul(true, Sizes::S16) => todo!(),
                 TypedBinop::Mul(true, Sizes::S32) => imull(reg!(ECX), reg!(EAX)),
                 TypedBinop::Mul(true, Sizes::S64) | TypedBinop::Mul(true, Sizes::SUsize) => {
+                    imulq(reg!(RCX), reg!(RAX))
+                }
+
+                TypedBinop::Mul(false, Sizes::S8) => todo!(),
+                TypedBinop::Mul(false, Sizes::S16) => todo!(),
+                TypedBinop::Mul(false, Sizes::S32) => imull(reg!(ECX), reg!(EAX)),
+                TypedBinop::Mul(false, Sizes::S64) | TypedBinop::Mul(false, Sizes::SUsize) => {
                     imulq(reg!(RCX), reg!(RAX))
                 }
 
@@ -380,11 +388,6 @@ fn compile_expr_val(
                 | TypedBinop::Greater(_, Sizes::SUsize)
                 | TypedBinop::GreaterEq(_, Sizes::SUsize) => {
                     cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AL))
-                }
-
-                op => {
-                    println!("{:?}", op);
-                    todo!()
                 }
             };
             (Location::Rax, expr2 + expr1 + mov + op)
@@ -543,7 +546,6 @@ fn compile_expr_val(
             )
         }
         llr::ExprInner::FunCall(name, args) => {
-            //            println!("{} {:?}", name, args);
             let label = ctxt.fun_label(&name);
             let mut total_size = 0;
             for arg in &args {
@@ -555,10 +557,8 @@ fn compile_expr_val(
                 immq(missing as i64 + expr.size as i64 + total_size as i64),
                 reg::Operand::Reg(RSP),
             );
-            //            println!("{} {} {} {} {}", stack_offset, offset, missing, total_size, expr.size);
             let mut current_offset = stack_offset + missing + expr.size as u64;
             let stack_offset = stack_offset + missing + total_size + expr.size as u64;
-            //            println!("{} {}", current_offset, stack_offset);
             for arg in args {
                 let size = arg.size;
                 current_offset += size as u64;
@@ -583,7 +583,6 @@ fn compile_expr_val(
                         ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                     }
                 };
-                //                println!("{current_offset} {size}");
                 asm = asm + arg + asm2;
             }
             assert_eq!(current_offset, stack_offset);
@@ -601,10 +600,8 @@ fn compile_expr_val(
                 immq(missing as i64 + expr.size as i64 + total_size as i64),
                 reg::Operand::Reg(RSP),
             );
-            //            println!("{} {} {} {} {}", stack_offset, offset, missing, total_size, expr.size);
             let mut current_offset = stack_offset + missing + expr.size as u64;
             let stack_offset = stack_offset + missing + total_size + expr.size as u64;
-            //            println!("{} {}", current_offset, stack_offset);
             for arg in args {
                 let size = arg.size;
                 current_offset += size as u64;
@@ -629,7 +626,6 @@ fn compile_expr_val(
                         ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
                     }
                 };
-                //                println!("{current_offset} {size}");
                 asm = asm + arg + asm2;
             }
             assert_eq!(current_offset, stack_offset);
@@ -702,16 +698,13 @@ fn compile_expr_val(
             };
             (
                 loc,
-                expr
-                + testb(reg::Operand::Reg(AL), reg::Operand::Reg(AL))
-                + jz(else_label.clone())
-                + bloc1
-//                + todo!()
-                + jmp(end_label.clone())
-                + label(else_label)
-                + bloc2
-//                + todo!()
-                + label(end_label),
+                expr + testb(reg::Operand::Reg(AL), reg::Operand::Reg(AL))
+                    + jz(else_label.clone())
+                    + bloc1
+                    + jmp(end_label.clone())
+                    + label(else_label)
+                    + bloc2
+                    + label(end_label),
             )
         }
         llr::ExprInner::Int(i, size) => (
@@ -959,7 +952,7 @@ fn compile_expr_val(
             assert!(!matches!(loc, Location::StackWithPadding(_)));
             let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset);
             let bloc = match loc2 {
-                Location::StackWithPadding(_) => todo!(),
+                Location::StackWithPadding(_) => panic!("ICE"),
                 Location::Never | Location::Rax => bloc,
             };
             let (in_label, out_label) = ctxt.gen_while_labels();
@@ -989,9 +982,6 @@ fn compile_bloc(
             stack_offset = ctxt.insert(*id, expr.size, stack_offset)
         }
     }
-    /*    while stack_offset % 16 != 0 {
-        stack_offset += 1
-    } */
 
     let mut asm = subq(
         immq((stack_offset - initial_stack_offset) as i64),

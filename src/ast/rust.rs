@@ -112,16 +112,9 @@ impl Types {
         Self::Ref(Some(mutable), type_id)
     }
 
-    /*     pub fn boxed(type_id: usize) -> Self {
-        Self::Struct(common::Path::new(vec![common::NamePath::Name(common::Ident::new("Box", common::Location::default()))], common::Location::default()), vec![type_id])
-    }*/
-
     pub fn unref(&self) -> Option<(bool, usize)> {
         match self {
             Self::Ref(mutable, type_id) => Some((mutable.unwrap_or(true), *type_id)),
-            /*             Self::Struct(name, args) if args.len() == 1 && name.get_content()[0] == common::NamePath::Name(common::Ident::new("Box", common::Location::default())) => {
-                Some((false, args[0]))
-            },*/
             _ => None,
         }
     }
@@ -220,7 +213,7 @@ impl TypeStorage {
         self.map.get(&id)
     }
 
-    // Use carefully
+    /// Use carefully
     pub fn set(&mut self, id: usize, typ: Types) {
         assert!(self.map.contains_key(&id));
         self.map.insert(id, typ);
@@ -232,8 +225,15 @@ impl TypeStorage {
                 type_id
             }
             Types::SameAs(type_id) => self.new_ref_unmarked(*type_id),
-            Types::Array(_, _) => todo!(),
-            Types::Deref(_) => todo!(),
+            Types::Array(type_id, size) => {
+                let size = *size;
+                let type_id = self.new_ref_unmarked(*type_id);
+                self.insert_type(Types::Array(type_id, size))
+            }
+            Types::Deref(type_id) => {
+                let type_id = self.new_ref_unmarked(*type_id);
+                self.insert_type(Types::Deref(type_id))
+            }
             Types::Ref(Some(false), type_id) => {
                 let type_id = self.new_ref_unmarked(*type_id);
                 self.insert_type(Types::Ref(Some(false), type_id))

@@ -244,8 +244,16 @@ impl CanWrite for Sizes {
 impl CanWrite for Projector {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
-            Self::Name(_) => todo!(),
-            Self::Int(_) => todo!(),
+            Self::Name(id) => {
+                file.write_all(b"Projector::Name(")?;
+                id.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::Int(id) => {
+                file.write_all(b"Projector::Int(")?;
+                id.write_in(file)?;
+                file.write_all(b")")
+            }
         }
     }
 }

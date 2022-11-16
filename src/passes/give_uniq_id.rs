@@ -106,9 +106,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             }
         }
 
-        ExprInner::MacroCall(_name, _exprs) => {
-            todo!()
-        }
+        ExprInner::MacroCall(name, _) => panic!("ICE {name:?}"),
 
         ExprInner::Index(expr1, expr2) => {
             let expr1 = rewrite_expr(expr1, counter);

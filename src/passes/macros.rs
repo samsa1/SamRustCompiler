@@ -112,7 +112,6 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
                 content: Box::new(ExprInner::MacroCall(name, exprs)),
                 ..top_expr
             }
-            //            todo!()
         }
 
         ExprInner::Index(expr1, expr2) => {

@@ -279,10 +279,6 @@ impl PartialEq for Ident {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
-
-    /*    fn ne(&self, other : &Self) -> bool {
-        self.name != other.name
-    }*/
 }
 
 impl std::fmt::Debug for Ident {
@@ -350,7 +346,9 @@ impl Sizes {
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub enum BuiltinType {
-    Int(bool /* signed */, Sizes),
+    /// IsSigned, Size Integer
+    Int(bool, Sizes),
+    /// Bool
     Bool,
 }
 

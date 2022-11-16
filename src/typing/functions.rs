@@ -103,7 +103,7 @@ pub fn add_fun_types(
                 };
             }
             rr::Decl::Impl(impl_decl) => {
-                for mut fun_decl in &impl_decl.content {
+                for fun_decl in &impl_decl.content {
                     let args: Option<Vec<tr::PostType>> = match fun_decl.self_arg {
                         None => fun_decl
                             .args
@@ -256,6 +256,6 @@ pub fn handle(
     modint: ModuleInterface,
     path: PathUL<()>,
 ) -> (ModuleInterface, Module<tr::File>) {
-    let mut modint = add_fun_types(&module, modint, path.clone());
+    let modint = add_fun_types(&module, modint, path.clone());
     translate_funs(module, modint, path)
 }

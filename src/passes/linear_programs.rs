@@ -9,11 +9,9 @@ fn is_ref(
 ) -> Expr {
     match *top_expr.content {
         ExprInner::Set(_, _)
-//        | ExprInner::Constructor(_, _)
         | ExprInner::Tuple(_)
         | ExprInner::Print(_)
         | ExprInner::PrintPtr(_)
-//        | ExprInner::Vec(_)
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _)
@@ -52,7 +50,6 @@ fn is_ref(
         ExprInner::Bool(_) => top_expr,
         ExprInner::Deref(_) => top_expr,
         ExprInner::String(_) => top_expr,
-
     }
 }
 
@@ -66,7 +63,6 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
-        //        ExprInner::Constructor(_, _) => todo!(),
         ExprInner::Tuple(exprs) => Expr {
             content: Box::new(ExprInner::Tuple(
                 exprs

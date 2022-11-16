@@ -9,8 +9,6 @@ pub struct Context {
     nb_while_labels: usize,
     vars: Vec<HashMap<usize, i64>>,
     return_offset: i64,
-    //   nb_str: usize,
-    //    strings: HashMap<String, Label>,
 }
 
 impl Context {

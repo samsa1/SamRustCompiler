@@ -11,11 +11,9 @@ fn is_ref(
 ) -> Expr {
     match *top_expr.content {
         ExprInner::Set(_, _)
-//        | ExprInner::Constructor(_, _)
         | ExprInner::Tuple(_)
         | ExprInner::Print(_)
         | ExprInner::PrintPtr(_)
-//        | ExprInner::Vec(_)
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::FunCall(_, _)
@@ -53,9 +51,11 @@ fn is_ref(
             content: Box::new(ExprInner::VarPath(path.rewrite_base(name1, name2))),
             ..top_expr
         },
-        ExprInner::Bool(_) | ExprInner::Deref(_) | ExprInner::Int(_)
-         | ExprInner::String(_) | ExprInner::Var(_) => top_expr,
-
+        ExprInner::Bool(_)
+        | ExprInner::Deref(_)
+        | ExprInner::Int(_)
+        | ExprInner::String(_)
+        | ExprInner::Var(_) => top_expr,
     }
 }
 
@@ -75,7 +75,6 @@ fn rewrite_expr(
             ..top_expr
         },
 
-        //        ExprInner::Constructor(_, _) => todo!(),
         ExprInner::Tuple(exprs) => Expr {
             content: Box::new(ExprInner::Tuple(
                 exprs
@@ -250,7 +249,7 @@ fn rewrite_fun(mut fun_decl: DeclFun, name1: &str, name2: &str) -> DeclFun {
     }
 }
 
-fn rewrite_struct(struct_decl: DeclStruct, name1: &str, name2: &str) -> DeclStruct {
+fn rewrite_struct(_: DeclStruct, _: &str, _: &str) -> DeclStruct {
     todo!()
 }
 

@@ -17,19 +17,6 @@ impl<F> Module<F> {
             submodules,
         }
     }
-
-    pub fn remove(&mut self, name: &str) -> Option<Self> {
-        match self.submodules.get(name) {
-            None => None,
-            Some((b, _)) => {
-                if *b {
-                    Some(self.submodules.remove(name).unwrap().1)
-                } else {
-                    None
-                }
-            }
-        }
-    }
 }
 
 impl Module<File> {

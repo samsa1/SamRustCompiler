@@ -1,5 +1,4 @@
 use super::common::{self, PathUL};
-use std::collections::HashMap;
 
 #[derive(Debug)]
 pub struct File {
@@ -94,7 +93,8 @@ pub enum ExprInner {
     BuildStruct(usize /* size */, Vec<(usize, Expr)>),
     Proj(Expr, usize),
     Set(usize, Expr, Expr),
-    Print(PathUL<()>), /* name of the constant containing the string /!\ */
+    /// Path represent the name of the constant containing the string
+    Print(PathUL<()>),
     Constant(PathUL<()>),
     BinOp(common::TypedBinop, Expr, Expr),
     UnaOp(common::TypedUnaop, Expr),

@@ -31,7 +31,8 @@ pub struct DeclFun {
 pub struct DeclStruct {
     pub name: common::Ident,
     pub args: HashMap<String, PostType>,
-    pub size: usize, /* size in bytes */
+    /// Size in bytes
+    pub size: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -43,21 +44,18 @@ impl PostType {
     pub fn unit() -> Self {
         Self {
             content: PostTypeInner::Tuple(Vec::new()),
-            //            size : 0,
         }
     }
 
     pub const fn diverge() -> Self {
         Self {
             content: PostTypeInner::Diverge,
-            //            size : 0,
         }
     }
 
     pub const fn bool() -> Self {
         Self {
             content: PostTypeInner::BuiltIn(common::BuiltinType::Bool),
-            //            size : 1,
         }
     }
 
@@ -76,7 +74,6 @@ impl PostType {
     pub fn to_ref(self, mutable: bool) -> Self {
         Self {
             content: PostTypeInner::Ref(mutable, Box::new(self)),
-            //            size : 8,
         }
     }
 
@@ -131,13 +128,11 @@ impl PostType {
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
     Struct(common::PathUL<()>, Vec<PostType>),
-    //    Enum(String),
     Box(Box<PostType>),
-    /*    IdentParametrized(String, Vec<PostType>),*/
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     FreeType(String),
-    // Free types, args types, out type
+    /// Free types, args types, out type
     Fun(Vec<String>, Vec<PostType>, Box<PostType>),
     Diverge,
     String,
@@ -146,8 +141,6 @@ pub enum PostTypeInner {
 #[derive(Debug)]
 pub struct Bloc {
     pub content: Vec<Instr>,
-    //    pub expr : Option<Expr>,
-    //    pub values : HashMap<String, PostType>,
     pub last_type: PostType,
 }
 
@@ -187,10 +180,8 @@ pub enum ExprInner {
     Int(u64),
     Var(common::Ident),
     VarPath(common::PathUL<()>),
-    /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(common::Ident, Vec<Expr>),
     FunCallPath(common::PathUL<()>, Vec<Expr>),
-    //    Constructor(common::Ident, Vec<Expr>),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
@@ -201,7 +192,6 @@ pub enum ExprInner {
     Print(String),
     PrintPtr(Expr),
     String(String),
-    //    Vec(Vec<Expr>),
     BinOp(common::TypedBinop, Expr, Expr),
     UnaOp(common::TypedUnaop, Expr),
     Coercion(Expr, common::BuiltinType, common::BuiltinType),

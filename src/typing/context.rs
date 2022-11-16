@@ -8,7 +8,6 @@ use std::hash::Hash;
 #[derive(Debug, PartialEq, Eq, Hash, Clone)]
 struct TraitInner {
     content: Trait,
-    //    fun: PathUL<()>,
 }
 
 impl TraitInner {
@@ -145,7 +144,8 @@ impl Const {
                 loc: Location::default(),
                 typed: self.typ.clone(),
             },
-            _ => todo!(),
+            Val::Struct(_, _) => todo!(),
+            Val::Tuple(_) => todo!(),
         }
     }
 }
@@ -159,15 +159,13 @@ impl std::fmt::Debug for ModuleInterface {
     }
 }
 
-//#[derive(Debug)]
 pub struct ModuleInterface {
     pub structs: HashMap<String, StructInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, PathUL<()>>>,
     functions: HashMap<String, (bool, PostType)>,
     pub submodules: HashMap<String, (bool, ModuleInterface)>,
-    /*     known_types: HashMap<String, PostType>,*/
-    pub sizes: HashMap<String, usize>,
+    sizes: HashMap<String, usize>,
     constants: HashMap<String, (bool, Const)>,
 }
 
@@ -374,10 +372,6 @@ impl ModuleInterface {
         self.get_fun_inner(path.get_content(), 0)
     }
 
-    // pub fn get_top_fun(&self, name : &str) -> Option<&(bool, PostType)> {
-    //     self.functions.get(name)
-    // }
-
     fn get_const_inner(
         &self,
         path: &Vec<NamePath<(), String>>,
@@ -420,27 +414,6 @@ impl ModuleInterface {
                 NamePath::Name(name) => match self.submodules.get(name) {
                     None => None,
                     Some((_, sb)) => sb.get_methods_inner(path, pos + 1),
-                },
-                _ => None,
-            }
-        }
-    }
-
-    fn get_methods_mut_inner(
-        &mut self,
-        path: &Vec<NamePath<(), Ident>>,
-        pos: usize,
-    ) -> Option<&mut HashMap<String, PathUL<()>>> {
-        if pos == path.len() - 1 {
-            match &path[pos] {
-                NamePath::Name(name) => self.methods.get_mut(name.get_content()),
-                NamePath::Specialisation(_) => None,
-            }
-        } else {
-            match &path[pos] {
-                NamePath::Name(name) => match self.submodules.get_mut(name.get_content()) {
-                    None => None,
-                    Some((_, sb)) => sb.get_methods_mut_inner(path, pos + 1),
                 },
                 _ => None,
             }
@@ -639,12 +612,6 @@ impl ModuleInterface {
 pub struct GlobalContext {
     path: PathUL<()>,
     modules: ModuleInterface,
-    /* structs: HashMap<String, StructInfo>,
-    implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
-    methods: HashMap<String, HashMap<String, String>>,
-    known_types: HashMap<String, PostType>,
-    sizes: HashMap<String, usize>,
-    constants: HashMap<String, Const>,*/
 }
 
 impl GlobalContext {
@@ -658,7 +625,7 @@ impl GlobalContext {
 
     pub fn has_trait(&self, typ: &PostType, t: &Trait) -> Option<PathUL<()>> {
         match &typ.content {
-            PostTypeInner::Struct(path, args) => {
+            PostTypeInner::Struct(path, _) => {
                 let typ = match &path.get_content()[path.get_content().len() - 1] {
                     NamePath::Name(s) => PostType {
                         content: PostTypeInner::Struct(
@@ -795,10 +762,6 @@ impl GlobalContext {
             .map(|(_, f)| f)
     }
 
-    pub fn get_module(&self, path: &PathUL<()>) -> Option<&ModuleInterface> {
-        self.modules.get_module(path).map(|(_, mi)| mi)
-    }
-
     pub fn add_const(
         &mut self,
         name: String,
@@ -806,7 +769,7 @@ impl GlobalContext {
         typ: PostType,
         value: super::consts::Val,
     ) -> Option<Const> {
-        let constant = Const { typ, value };
+        let constant = Const::new(typ, value);
         self.modules
             .get_mut_module(&self.path)?
             .1

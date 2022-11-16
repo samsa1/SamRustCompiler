@@ -17,7 +17,7 @@ pub fn type_inferencer(
     needs_main: bool,
     path: PathUL<()>,
 ) -> (context::ModuleInterface, Module<typed_rust::File>) {
-    let (mut module_interface, structs) = structs::type_structs(&mut file);
+    let mut module_interface = structs::type_structs(&mut file);
     module_interface = consts::handle(&mut file, module_interface);
     module_interface = implementation::handle(&mut file, module_interface, &mut path.clone());
     let mut path2 = path.add_loc();

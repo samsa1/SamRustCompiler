@@ -1,6 +1,7 @@
 use super::context::GlobalContext;
 use super::context::ModuleInterface;
 use super::structs::Graph;
+use crate::ast::common::ErrorReporter;
 use crate::ast::common::{
     BinOperator, BuiltinType, NamePath, PathUL, Projector, Sizes, TypedBinop,
 };
@@ -54,9 +55,11 @@ pub fn add_deps(expr: &rr::Expr, path: &PathUL<()>, graph: &mut Graph) {
             let mut path2 = path.clone();
             path2.pop();
             path2.push(NamePath::Name(v.get_content().to_string()));
-            graph.add_edge(path, &path2);
+            graph.add_edge(path, &path2).unwrap();
         }
-        rr::ExprInner::VarPath(v) => todo!(),
+        rr::ExprInner::VarPath(path2) => {
+            graph.add_edge(path, &path2.cleaned()).unwrap();
+        }
         rr::ExprInner::While(_, _) => todo!(),
     }
 }
@@ -174,7 +177,7 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
                 .collect(),
         ),
         tr::ExprInner::UnaOp(_, _) => todo!(),
-        tr::ExprInner::Var(v) => todo!(), /*ctxt
+        tr::ExprInner::Var(_) => todo!(), /*ctxt
         .get_const_val(v.get_content())
         .unwrap()
         .get_value()
@@ -184,55 +187,10 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
     }
 }
 
-/*
-fn handle_constants(
-    consts: Vec<rust::DeclConst>,
-    ctxt: &mut GlobalContext,
-    err_reporter: &ErrorReporter,
-) {
-    let mut graph = structs::Graph::new();
-    for const_decl in consts.iter() {
-        graph.add_node(const_decl.name.get_content().to_string());
-    }
-    for const_decl in consts.iter() {
-        consts::add_deps(&const_decl.expr, const_decl.name.get_content(), &mut graph);
-    }
-    let consts = match topological_sort(consts, &graph) {
-        Ok(c) => c,
-        Err((id, mut consts)) => {
-            let constant = consts.swap_remove(id);
-            let err = TypeError::self_referencing_constant(constant.name);
-            err_reporter.report(vec![err])
-        }
-    };
-    for const_decl in consts.into_iter() {
-        let expected_typ = match translate_typ(const_decl.typ, ctxt) {
-            None => todo!(),
-            Some(t) => t,
-        };
-        let (typing_info, expr) = match inferencer::type_const(const_decl.expr, ctxt, &expected_typ)
-        {
-            Ok(e) => e,
-            Err(errs) => err_reporter.report(errs),
-        };
-        let expr = match expr::type_const(expr, ctxt, &expected_typ, &typing_info) {
-            Ok(e) => e,
-            Err(errs) => err_reporter.report(errs),
-        };
-        let value = consts::compute_const(expr, ctxt);
-        ctxt.add_const(
-            const_decl.name.get_content().to_string(),
-            expected_typ,
-            value,
-        );
-    }
-}
-*/
-
-fn handle_file(
-    file: &mut rr::File,
+fn handle_file<'a>(
+    file: &'a mut rr::File,
     path: &PathUL<()>,
-    consts: &mut Vec<(PathUL<()>, rr::DeclConst)>,
+    consts: &mut Vec<(PathUL<()>, rr::DeclConst, &'a ErrorReporter)>,
 ) {
     let mut local_structs = Vec::new();
     local_structs.append(&mut file.content);
@@ -241,17 +199,17 @@ fn handle_file(
             rr::Decl::Const(decl_const) => {
                 let mut path = path.clone();
                 path.push(NamePath::Name(decl_const.name.get_content().to_string()));
-                consts.push((path.clone(), decl_const))
+                consts.push((path.clone(), decl_const, &file.err_reporter))
             }
             _ => file.content.push(decl),
         }
     }
 }
 
-pub fn handle_rec(
-    module: &mut Module<rr::File>,
+pub fn handle_rec<'a>(
+    module: &'a mut Module<rr::File>,
     path: PathUL<()>,
-    consts: &mut Vec<(PathUL<()>, rr::DeclConst)>,
+    consts: &mut Vec<(PathUL<()>, rr::DeclConst, &'a ErrorReporter)>,
 ) {
     handle_file(&mut module.content, &path, consts);
     for (name, (_, submod)) in module.submodules.iter_mut() {
@@ -273,11 +231,11 @@ pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> Mod
     }
 
     let mut graph = super::structs::Graph::new();
-    for (path, _) in constants.iter() {
+    for (path, _, _) in constants.iter() {
         graph.add_node(path.clone())
     }
 
-    for (path, const_decl) in constants.iter() {
+    for (path, const_decl, _) in constants.iter() {
         add_deps(&const_decl.expr, path, &mut graph);
     }
 
@@ -286,12 +244,11 @@ pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> Mod
         Err((id, mut consts)) => {
             let constant = consts.swap_remove(id);
             let err = super::errors::TypeError::self_referencing_constant(constant.1.name);
-            println!("Need to write error message 3");
-            std::process::exit(1)
+            constant.2.report(vec![err])
         }
     };
 
-    for (mut path, const_decl) in constants.into_iter() {
+    for (mut path, const_decl, err_reporter) in constants.into_iter() {
         path.pop();
         let mut ctxt = GlobalContext::new(path, modint);
         let expected_typ = match super::types::translate_typ(const_decl.typ, &ctxt) {
@@ -301,17 +258,11 @@ pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> Mod
         let (typing_info, expr) =
             match super::inferencer::type_const(const_decl.expr, &ctxt, &expected_typ) {
                 Ok(e) => e,
-                Err(errs) => {
-                    println!("Need to write error message 1");
-                    std::process::exit(1)
-                }
+                Err(errs) => err_reporter.report(errs),
             };
         let expr = match super::expr::type_const(expr, &ctxt, &expected_typ, &typing_info) {
             Ok(e) => e,
-            Err(errs) => {
-                println!("Need to write error message 2");
-                std::process::exit(1)
-            }
+            Err(errs) => err_reporter.report(errs),
         };
         let value = compute_const(expr, &ctxt);
         ctxt.add_const(

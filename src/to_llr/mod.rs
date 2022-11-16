@@ -1,12 +1,9 @@
-use write_x86_64::data;
-
 use crate::ast::common::*;
 use crate::ast::low_level_repr as llr;
 use crate::ast::typed_rust as tr;
 use crate::frontend::Module;
 use crate::typing::context::ModuleInterface;
 use std::collections::HashMap;
-use std::hash::Hash;
 
 #[derive(Debug, Clone)]
 struct StructInfo {
@@ -55,14 +52,6 @@ struct DataStruct {
     pointer_size: usize,
 }
 
-// for struct_raw in &structs_raw {
-//     //            println!("First add of {:?}", struct_raw.name.get_content());
-//     structs.insert(
-//         struct_raw.name.get_content().to_string(),
-//         StructInfo::new(struct_raw.size),
-//     );
-// }
-
 fn build_structs_1(
     modint: &ModuleInterface,
     structs: &mut HashMap<PathUL<()>, StructInfo>,
@@ -70,12 +59,8 @@ fn build_structs_1(
 ) {
     for (name, struct_info) in &modint.structs {
         path.push(NamePath::Name(name.to_string()));
-        println!("{:?} {:?} {:?}", path, name, modint.sizes);
         assert!(structs
-            .insert(
-                path.clone(),
-                StructInfo::new(*modint.sizes.get(name).unwrap())
-            )
+            .insert(path.clone(), StructInfo::new(struct_info.get_size()))
             .is_none());
         path.pop();
     }
@@ -96,13 +81,13 @@ fn build_structs_2(
     for (name, struct_info) in modint.structs {
         let mut offset = 0;
         let mut binding = HashMap::new();
+        let size = struct_info.get_size();
         for (argname, (_, typ)) in struct_info.args() {
             let size = data_struct.compute_size(&typ);
             binding.insert(argname, (offset, size));
-            //                println!("Computing size of {:?}", typ.content);
             offset += size;
         }
-        assert_eq!(offset, *modint.sizes.get(&name).unwrap());
+        assert_eq!(offset, size);
         path.push(NamePath::Name(name.clone()));
         assert!(structs
             .insert(path.clone(), StructInfo::new_full(binding, offset))
@@ -206,7 +191,6 @@ impl DataStruct {
             tr::PostTypeInner::BuiltIn(BuiltinType::Bool) => 1,
             tr::PostTypeInner::BuiltIn(BuiltinType::Int(_, s)) => s.to_byte_size(),
             tr::PostTypeInner::Diverge => 0,
-            //            tr::PostTypeInner::Enum(_) => todo!(),
             tr::PostTypeInner::FreeType(_) => todo!(),
             tr::PostTypeInner::Struct(name, _) if name.is_vec() => self.pointer_size,
             tr::PostTypeInner::Struct(name, _) => self.structs.get(name).unwrap().get_size(),
@@ -251,7 +235,6 @@ impl DataStruct {
 }
 
 fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
-    //    println!("Working of {top_expr:?} of type {:?}", top_expr.typed);
     match *top_expr.content {
         tr::ExprInner::Bloc(bloc) => llr::Expr {
             content: Box::new(llr::ExprInner::Bloc(rewrite_bloc(bloc, names_info))),
@@ -343,7 +326,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                             args
                         }
                     }
-                    _ => todo!(),
+                    _ => panic!("ICE Specialisation are not handled here"),
                 }
             };
             let expr_inner = llr::ExprInner::FunCall(id, args2_bis);
@@ -554,11 +537,7 @@ fn rewrite_bloc(bloc: tr::Bloc, names_info: &mut DataStruct) -> llr::Bloc {
     }
 }
 
-fn rewrite_decl_fun(
-    decl_fun: tr::DeclFun,
-    path: &PathUL<()>,
-    names_info: &mut DataStruct,
-) -> llr::DeclFun {
+fn rewrite_decl_fun(decl_fun: tr::DeclFun, names_info: &mut DataStruct) -> llr::DeclFun {
     let args = decl_fun
         .args
         .into_iter()
@@ -577,28 +556,22 @@ fn rewrite_decl_fun(
     }
 }
 
-fn rewrite_file(file: tr::File, path: &PathUL<()>, data_struct: &mut DataStruct) -> llr::File {
+fn rewrite_file(file: tr::File, data_struct: &mut DataStruct) -> llr::File {
     let mut funs = Vec::new();
     for decl_fun in file.funs {
         data_struct.reset();
-        let decl_fun = rewrite_decl_fun(decl_fun, path, data_struct);
+        let decl_fun = rewrite_decl_fun(decl_fun, data_struct);
         funs.push(decl_fun)
     }
 
     llr::File { funs }
 }
 
-fn rewrite_rec(
-    module: Module<tr::File>,
-    path: &mut PathUL<()>,
-    data_struct: &mut DataStruct,
-) -> Module<llr::File> {
-    let content = rewrite_file(module.content, path, data_struct);
+fn rewrite_rec(module: Module<tr::File>, data_struct: &mut DataStruct) -> Module<llr::File> {
+    let content = rewrite_file(module.content, data_struct);
     let mut submodules = HashMap::new();
     for (name, (b, module)) in module.submodules.into_iter() {
-        path.push(NamePath::Name(name.clone()));
-        submodules.insert(name, (b, rewrite_rec(module, path, data_struct)));
-        path.pop();
+        submodules.insert(name, (b, rewrite_rec(module, data_struct)));
     }
     Module::build(content, submodules)
 }
@@ -609,6 +582,6 @@ pub fn rewrite(
     string_extend: String,
 ) -> (Module<llr::File>, HashMap<String, String>) {
     let mut data_struct = DataStruct::new(modint, string_extend);
-    let out = rewrite_rec(module, &mut PathUL::new(Vec::new()), &mut data_struct);
+    let out = rewrite_rec(module, &mut data_struct);
     (out, data_struct.export_strings())
 }

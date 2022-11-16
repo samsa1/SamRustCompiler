@@ -15,7 +15,7 @@ fn main() {
     let mut generate_std = false;
 
     let mut args = std::env::args().skip(1);
-    //    println!("{:?}", args);
+
     #[allow(clippy::while_let_on_iterator)]
     while let Some(t) = args.next() {
         if t.is_empty() {
@@ -31,7 +31,6 @@ fn main() {
             filenames.push(t)
         }
     }
-    //    println!("{:?}", filenames);
 
     if generate_std {
         if filenames.len() != 0 {
@@ -47,35 +46,35 @@ fn main() {
         panic!("must give exactly one file to compile")
     }
 
+    // Parsing files
     let in_name = filenames.pop().unwrap();
-
     let code = frontend::Module::new(in_name.clone());
     if parse_only {
         std::process::exit(0)
     }
 
-    println!("<- parsing");
-
+    // Various preprocessing
     let code = passes::macros::rewrite(code);
     let code = passes::unfold_uses::rewrite(code, &mut ast::common::Path::from_vec(vec!["crate"]));
     let code = passes::give_uniq_id::rewrite(code);
     let code = passes::move_refs::rewrite(code);
 
-    println!("<- typing ");
-
+    // Typing of code
     let (code_modint, typed_file) =
         typing::type_inferencer(code, true, ast::common::PathUL::from_vec(vec!["crate"]));
 
     println!("<- check lifetime (TODO) ");
 
-    let mut checked_lifetime = typed_file;
-
-    //    println!("{:?}", checked_lifetime);
+    let checked_lifetime = typed_file;
 
     if type_only {
         std::process::exit(0)
     }
 
+    // Make code linear
+    let code = passes::linear_programs::rewrite(checked_lifetime);
+
+    // Compiling std
     let std = std_file::stdlib().unwrap();
     let std = passes::macros::rewrite(std);
     let std = passes::unfold_uses::rewrite(std, &mut ast::common::Path::from_vec(vec!["crate"]));
@@ -85,12 +84,8 @@ fn main() {
         typing::type_inferencer(std, false, ast::common::PathUL::from_vec(vec!["crate"]));
     let std = passes::linear_programs::rewrite(std);
     let std = passes::change_crate_name::rewrite(std, "crate", "std");
-    //let allocator = std.remove("allocator").unwrap().content;
-    //    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
 
-    println!("<- linear programs pass");
-
-    let code = passes::linear_programs::rewrite(checked_lifetime);
+    // Fusionning the code and the std in a single huge module
     let mut submodules = HashMap::new();
     submodules.insert("crate".to_string(), (true, code));
     submodules.insert("std".to_string(), (true, std));
@@ -102,20 +97,19 @@ fn main() {
     modint.insert("std".to_string(), true, std_modint);
     modint.insert("crate".to_string(), true, code_modint);
 
-    println!("<- to llr");
-
+    // Transform the typed modules to a single llr File
     let (llr_form, strings) = to_llr::rewrite(code, modint, "file".to_string());
     let llr_form = passes::concat_all::rewrite(llr_form);
-    println!("<- to asm");
 
+    // Compile to asm
     let mut ctxt = backend::get_ctxt();
     let base = backend::base(&mut ctxt);
     let asm = backend::to_asm(llr_form, strings, &mut ctxt);
     let asm = backend::bind(vec![base, asm]);
 
+    // Printing asm
     let mut out_name = std::path::PathBuf::from(in_name);
     out_name.set_extension("s");
-
     match asm.print_in(out_name.to_str().unwrap()) {
         Ok(()) => (),
         Err(err) => {

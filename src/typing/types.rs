@@ -34,10 +34,10 @@ pub fn compute_size(
             None => todo!(),
             Some(size) => *size,
         },
-        PreTypeInner::IdentParametrized(id, args) => todo!(),
+        PreTypeInner::IdentParametrized(_, _) => todo!(),
 
         PreTypeInner::IdentParametrizedPath(path, args) if args.len() == 1 && path.is_vec() => 8,
-        PreTypeInner::IdentParametrizedPath(path, args) => todo!(),
+        PreTypeInner::IdentParametrizedPath(_, _) => todo!(),
 
         PreTypeInner::Ref(_mutable, _typ) => todo!(),
 
@@ -133,7 +133,7 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
                 }),
             }
         }
-        PreTypeInner::IdentParametrized(id, mut args) => {
+        PreTypeInner::IdentParametrized(id, _) => {
             println!("{:?}", id);
             todo!()
         }
@@ -221,7 +221,6 @@ pub fn biggest_compatible(typ1: &PostType, typ2: &PostType) -> Option<PostType> 
             }
             Some(PostType {
                 content: PostTypeInner::Tuple(vec_out),
-                //                size : typ1.size,
             })
         }
         (PostTypeInner::Struct(s1, args1), PostTypeInner::Struct(s2, args2))
@@ -259,7 +258,6 @@ pub fn substitute(typ: PostType, hash_map: &HashMap<String, PostType>) -> PostTy
         PostTypeInner::Box(typ) => PostTypeInner::Box(Box::new(substitute(*typ, hash_map))),
         PostTypeInner::BuiltIn(built_in) => PostTypeInner::BuiltIn(built_in),
         PostTypeInner::Diverge => PostTypeInner::Diverge,
-        //        PostTypeInner::Enum(name) => PostTypeInner::Enum(name),
         PostTypeInner::FreeType(t) => return hash_map.get(&t).unwrap().clone(),
         PostTypeInner::Fun(_, _, _) => todo!(),
         PostTypeInner::Ref(mutable, typ) => {

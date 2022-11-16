@@ -225,9 +225,7 @@ pub fn add_structs_graph(
     }
 }
 
-pub fn type_structs(
-    modules: &mut Module<rust::File>,
-) -> (ModuleInterface, Vec<typed_rust::DeclStruct>) {
+pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
     let mut graph = Graph::new();
     let mut structs = Vec::new();
     let mut sizes = ModuleInterface::new(modules);
@@ -248,11 +246,6 @@ pub fn type_structs(
 
         if raw_type.is_bool() {
             for (logic_trait, logic_fun) in DEFAULT_TRAITS_LOGIC {
-                // let fun_name = vec![
-                //     NamePath::Name(name.to_string()),
-                //     NamePath::Name(logic_trait.to_string()),
-                //     ];
-                // let fun_name = PathUL::new(fun_name);
                 sizes.impl_trait(&typ, Trait::Parametrized(logic_trait.to_string(), None));
                 sub_modules.impl_fun(
                     logic_fun.to_string(),
@@ -266,11 +259,6 @@ pub fn type_structs(
                     },
                 );
             }
-            // let fun_name = vec![
-            //     NamePath::Name(name.to_string()),
-            //     NamePath::Name("Not".to_string()),
-            //     ];
-            // let fun_name = PathUL::new(fun_name);
             sizes.impl_trait(&typ, Trait::Name("Not".to_string()));
             sub_modules.impl_fun(
                 "not".to_string(),
@@ -287,11 +275,6 @@ pub fn type_structs(
 
         if raw_type.is_int() {
             for (arith_trait, arith_fun) in DEFAULT_TRAITS_ARITH {
-                // let fun_name = vec![
-                //     NamePath::Name(name.to_string()),
-                //     NamePath::Name(arith_trait.to_string()),
-                //     ];
-                // let fun_name = PathUL::new(fun_name);
                 sizes.impl_trait(&typ, Trait::Parametrized(arith_trait.to_string(), None));
                 sub_modules.impl_fun(
                     arith_fun.to_string(),
@@ -305,11 +288,6 @@ pub fn type_structs(
                     },
                 );
             }
-            // let fun_name = vec![
-            //     NamePath::Name(name.to_string()),
-            //     NamePath::Name("Not".to_string()),
-            //     ];
-            // let fun_name = PathUL::new(fun_name);
             sizes.impl_trait(&typ, Trait::Parametrized("PartialOrd".to_string(), None));
             for tail in ["le", "lo", "gr", "ge"] {
                 sub_modules.impl_fun(
@@ -324,11 +302,6 @@ pub fn type_structs(
                     },
                 );
             }
-            // let fun_name = vec![
-            //     NamePath::Name(name.to_string()),
-            //     NamePath::Name("Neg".to_string()),
-            //     ];
-            // let fun_name = PathUL::new(fun_name);
             sizes.impl_trait(&typ, Trait::Name("Neg".to_string()));
             sub_modules.impl_fun(
                 "neg".to_string(),
@@ -342,26 +315,8 @@ pub fn type_structs(
                 },
             );
         };
-
-        // let fun_name = vec![
-        //     NamePath::Name(name.to_string()),
-        //     NamePath::Name("Copy".to_string()),
-        //     ];
-        // let fun_name = PathUL::new(fun_name);
         sizes.impl_trait(&typ, Trait::Name("Copy".to_string()));
-
-        // let fun_name = vec![
-        //     NamePath::Name(name.to_string()),
-        //     NamePath::Name("Clone".to_string()),
-        //     ];
-        // let fun_name = PathUL::new(fun_name);
         sizes.impl_trait(&typ, Trait::Name("Clone".to_string()));
-
-        // let fun_name = vec![
-        //     NamePath::Name(name.to_string()),
-        //     NamePath::Name("PartialEq".to_string()),
-        //     ];
-        // let fun_name = PathUL::new(fun_name);
         sizes.impl_trait(&typ, Trait::Parametrized("PartialEq".to_string(), None));
         for tail in ["eq", "ne"] {
             sub_modules.impl_fun(
@@ -390,11 +345,9 @@ pub fn type_structs(
         Ok(s) => s,
         Err((_id, _structs)) => {
             println!("Do error message");
-            //            println!("{} has infinite size", structs[id].name.get_content());
             std::process::exit(1)
         }
     };
-    let mut structs2 = Vec::new();
 
     sizes.insert_struct(
         PathUL::from_vec(vec!["std", "vec", "Vec"]),
@@ -442,15 +395,10 @@ pub fn type_structs(
                 }
             }
         }
-        structs2.push(typed_rust::DeclStruct {
-            size: *sizes.get_size(&struct_decl.0).unwrap(),
-            name: struct_decl.1.name,
-            args: args.clone(),
-        });
         sizes
             .insert_struct(struct_decl.0, size, struct_decl.1.public, args)
             .unwrap();
     }
 
-    (sizes, structs2)
+    sizes
 }

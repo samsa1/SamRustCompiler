@@ -5,7 +5,6 @@ use crate::ast::common::*;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 use crate::ast::{rust, typed_rust};
 use std::collections::HashMap;
-use std::str::FromStr;
 
 fn compatible_types(
     type1: &Option<typed_rust::PostType>,
@@ -555,46 +554,7 @@ pub fn type_checker(
             }
         }
 
-        /*rust::ExprInner::MacroCall(name, vec) if name.get_content() == "vec" => {
-            let mut vec2 = Vec::new();
-            let el_expected_type: Option<&typed_rust::PostType> = match expected_typ {
-                None => None,
-                Some(typ) => match &typ.content {
-                    PostTypeInner::Struct(id, args)
-                        if id == "Vec" && args.len() == 1 =>
-                    {
-                        Some(&args[0])
-                    }
-                    _ => todo!(),
-                },
-            };
-            let mut typ = el_expected_type.cloned();
-            for expr in vec.into_iter() {
-                let expr = type_checker(ctxt, expr, loc_ctxt, out, el_expected_type, typing_info).1;
-                match &typ {
-                    None => typ = Some(expr.typed.clone()),
-                    Some(typ2) => {
-                        if let Some(typ2) = biggest_compatible(typ2, &expr.typed) {
-                            typ = Some(typ2);
-                            vec2.push(expr)
-                        } else {
-                            todo!()
-                        }
-                    }
-                }
-            }
-            (
-                false,
-                typed_rust::PostType {
-                    content: PostTypeInner::Struct(
-                        String::from("Vec"),
-                        vec![typ.unwrap()],
-                    ),
-                },
-                typed_rust::ExprInner::Vec(vec2),
-            )
-        }*/
-        rust::ExprInner::MacroCall(_name, _vec) => {
+        rust::ExprInner::MacroCall(_, _) => {
             panic!("should not happen")
         }
 
@@ -959,7 +919,6 @@ pub fn type_bloc(
                     ComputedValue::Drop
                 };
                 content.push(typed_rust::Instr::Expr(b, expr));
-                //                todo!();
             }
             rust::InstrInner::Binding(mutable, ident, type_id, expr) => {
                 let typ = match build_type(typing_info, type_id) {
@@ -972,7 +931,6 @@ pub fn type_bloc(
                 };
                 loc_ctxt.add_var(&ident, mutable, &expr.typed);
                 content.push(typed_rust::Instr::Binding(mutable, ident, expr));
-                //                todo!();
             }
         }
     }

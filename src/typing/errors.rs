@@ -170,15 +170,6 @@ impl TypeError {
         }
     }
 
-    /*    pub fn unknown_error(loc: Location) -> Self {
-            todo!();
-            Self {
-                loc,
-                info: TypeErrorInfo::Unknown,
-            }
-        }
-    */
-
     pub fn not_compatible(loc: Location, got: Types, expected: Types) -> Self {
         Self {
             loc,

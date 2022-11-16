@@ -386,7 +386,6 @@ fn add_type(
             types.insert_type(Types::Int(Some(*signed), Some(*size)))
         }
         PostTypeInner::Diverge => todo!(),
-        //        PostTypeInner::Enum(_) => todo!(),
         PostTypeInner::Fun(free, type_vec, out_type) => {
             let mut free_types2 = free_types.clone();
             for name in free.iter() {
@@ -557,14 +556,6 @@ fn type_expr(
                     UnificationMethod::NoRef,
                 )?;
                 let type_id = expr1.typed;
-                /*                let type_id2 = types.insert_type(Types::Int(None, None));
-                make_coherent(
-                    types,
-                    type_id,
-                    type_id2,
-                    top_expr.loc,
-                    UnificationMethod::NoRef,
-                )?;*/
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
@@ -1088,9 +1079,7 @@ fn type_expr(
                                 false,
                                 Expr {
                                     content: Box::new(ExprInner::FunCallPath(
-                                        params, method,
-                                        //                                        Ident::new(method, method_name.get_loc()),
-                                        exprs_out,
+                                        params, method, exprs_out,
                                     )),
                                     loc: top_expr.loc,
                                     typed: type_id,
@@ -1301,7 +1290,7 @@ fn type_expr(
                         ))
                     }
                     (None, None) => Err(vec![TypeError::unknown_var(var_name)]),
-                    (Some(typ), Some(constant)) => todo!(),
+                    (Some(_), Some(_)) => todo!(),
                 }
             }
         }
@@ -1331,7 +1320,7 @@ fn type_expr(
                     ))
                 }
                 (None, None) => Err(vec![TypeError::unknown_path(var_path)]),
-                (Some(typ), Some(constant)) => todo!(),
+                (Some(_), Some(_)) => todo!(),
             }
         }
 
