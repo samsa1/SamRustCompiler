@@ -50,14 +50,13 @@ impl LocalContext {
     }
 }
 
-fn translate_path(path: Path<()>, map: &HashMap<String, Path<()>>) -> Path<()> {
+fn translate_path(mut path: Path<()>, map: &HashMap<String, Path<()>>) -> Path<()> {
     assert_ne!(path.get_content().len(), 0);
     match map.get(path.get_fst_id().unwrap()) {
         None => path,
         Some(path2) => {
             let mut path2 = path2.clone();
-            path2.pop();
-            path2.append(path);
+            path2.append_from(1, path);
             path2
         }
     }
@@ -136,6 +135,7 @@ fn rewrite_expr(
                 .into_iter()
                 .map(|(id, expr)| (id, rewrite_expr(expr, local_ctxt, map)))
                 .collect();
+            println!("{:?} {:?}", name, translate_id(&name, map, local_ctxt));
             match translate_id(&name, map, local_ctxt) {
                 None => ExprInner::BuildStruct(name, args),
                 Some(path) => ExprInner::BuildStructPath(path, args),
@@ -168,6 +168,7 @@ fn rewrite_expr(
                 .into_iter()
                 .map(|expr| rewrite_expr(expr, local_ctxt, map))
                 .collect();
+            println!("{:?} {:?}", path, translate_path(path.clone(), map));
             ExprInner::FunCallPath(free, translate_path(path, map), exprs)
         }
         ExprInner::If(expr, bloc1, bloc2) => ExprInner::If(
@@ -279,7 +280,9 @@ fn rewrite_decl(decl: Decl, map: &mut HashMap<String, Path<()>>, path: &Path<()>
             let out = map.remove("Self");
             let mut path = path.clone();
             path.push(NamePath::Name(decl_impl.name.clone()));
-            assert!(map.insert("Self".to_string(), path).is_none());
+            assert!(map
+                .insert("Self".to_string(), translate_path(path, map))
+                .is_none());
             let mut content = Vec::new();
             for decl_fun in decl_impl.content {
                 let mut local_ctxt = LocalContext::from_args(&decl_fun.args);

@@ -112,6 +112,11 @@ impl<T> Path<T> {
     pub fn append(&mut self, mut other: Self) {
         self.name.append(&mut other.name)
     }
+    pub fn append_from(&mut self, n: usize, other: Self) {
+        for id in other.name.into_iter().skip(n) {
+            self.name.push(id)
+        }
+    }
 }
 
 impl<T: Clone> Path<T> {

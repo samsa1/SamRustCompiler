@@ -4,13 +4,21 @@ struct BST {
     value: i32,
     sub: Vec<BST> // de taille 0 ou 2
   }
-  
-fn null() -> BST {
-    let r = BST { value: 42, sub: vec![] };
-    r
-}
 
 impl BST {
+  fn null() -> Self {
+    let r = Self {
+      value : 42,
+      sub : vec![]
+    };
+    r
+  }
+
+  fn leaf(v: i32) -> Self {
+    let r = Self { value: v, sub: vec![Self::null(), Self::null()] };
+    r
+  }
+
   fn is_null(&self) -> bool {
     self.sub.len() == 0
   }
@@ -34,12 +42,12 @@ impl BST {
     if x == self.value { return; }
     if x < self.value {
       if self.sub[0].is_null()
-        { self.sub[0] = leaf(x); }
+        { self.sub[0] = Self::leaf(x); }
       else
         { self.sub[0].insert(x); }
     } else {
       if self.sub[1].is_null()
-        { self.sub[1] = leaf(x); }
+        { self.sub[1] = Self::leaf(x); }
       else
         { self.sub[1].insert(x); }
     }
@@ -54,10 +62,7 @@ impl BST {
 // fn left_mut(a: &mut BST) -> &mut BST { &mut a.sub[0] }
 // fn right_mut(a: &mut BST) -> &mut BST { &mut a.sub[1] }
 
-fn leaf(v: i32) -> BST {
-    let r = BST { value: v, sub: vec![null(), null()] };
-    r
-}
+
   
 fn print_bool(b: bool) {
     if b { print!("true\n") } else { print!("false\n") }
@@ -70,7 +75,7 @@ fn print_int(x: i32) {
 }
 
 fn main() {
-    let mut d = leaf(1);
+    let mut d = Self::leaf(1);
     d.insert(17);
     d.insert(-5);
     d.insert(8);
