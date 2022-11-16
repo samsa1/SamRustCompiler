@@ -150,7 +150,16 @@ impl Const {
     }
 }
 
-#[derive(Debug)]
+impl std::fmt::Debug for ModuleInterface {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ModuleInterface")
+            .field("submodules", &self.submodules)
+            .field("sizes", &self.sizes)
+            .finish()
+    }
+}
+
+//#[derive(Debug)]
 pub struct ModuleInterface {
     pub structs: HashMap<String, StructInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
@@ -166,7 +175,7 @@ impl ModuleInterface {
     pub fn new_inner(module: &Module<crate::ast::rust::File>) -> Self {
         let mut submodules = HashMap::new();
         for (name, (b, module)) in module.submodules.iter() {
-            let new = Self::new(module);
+            let new = Self::new_inner(module);
             assert!(submodules.insert(name.to_string(), (*b, new)).is_none());
         }
         Self {
@@ -336,6 +345,7 @@ impl ModuleInterface {
         path: &Vec<NamePath<(), Ident>>,
         pos: usize,
     ) -> Option<(bool, &PostType)> {
+        println!("{} {:?} {:?}", pos, path, self.submodules);
         if pos == path.len() - 1 {
             match &path[pos] {
                 NamePath::Name(name) => {
@@ -346,7 +356,10 @@ impl ModuleInterface {
         } else {
             match &path[pos] {
                 NamePath::Name(name) => match self.submodules.get(name.get_content()) {
-                    None => None,
+                    None => {
+                        println!("no submodule {name:?}");
+                        None
+                    }
                     Some((b1, sb)) => sb
                         .get_fun_inner(path, pos + 1)
                         .map(|(b2, i)| (b2 && *b1, i)),
@@ -357,6 +370,7 @@ impl ModuleInterface {
     }
 
     pub fn get_fun(&self, path: &Path<()>) -> Option<(bool, &PostType)> {
+        println!("{:?}", self);
         self.get_fun_inner(path.get_content(), 0)
     }
 

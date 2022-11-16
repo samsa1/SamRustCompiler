@@ -66,8 +66,14 @@ impl Module<File> {
                     let file_name = match (path1.exists(), path2.exists()) {
                         (true, false) => path1,
                         (false, true) => path2,
-                        (true, true) => panic!("Ambiguity"),
-                        (false, false) => panic!("No file"),
+                        (true, true) => {
+                            println!("Two possible modules {:?} {:?}", path1, path2);
+                            std::process::exit(1)
+                        }
+                        (false, false) => {
+                            println!("Missing module {:?}", path1);
+                            std::process::exit(1)
+                        }
                     };
                     let submod = Self::new_inner(file_name, false);
                     let name = match name2 {

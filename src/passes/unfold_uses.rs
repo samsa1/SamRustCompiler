@@ -183,7 +183,7 @@ fn rewrite_expr(
         ExprInner::MacroCall(id, args) if id.get_content() == "print" => {
             ExprInner::MacroCall(id, args)
         }
-        ExprInner::MacroCall(_, _) => panic!("ICE"),
+        ExprInner::MacroCall(id, _) => panic!("ICE {:?}", id),
         ExprInner::Method(expr, name, exprs) => ExprInner::Method(
             rewrite_expr(expr, local_ctxt, map),
             name,

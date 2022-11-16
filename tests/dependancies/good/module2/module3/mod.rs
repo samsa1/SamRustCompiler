@@ -4,5 +4,5 @@ pub fn exec() {
 }
 
 pub fn exec_top() {
-    print!("module 3 for far away\n")
+    print!("module 3 from far away\n")
 }
