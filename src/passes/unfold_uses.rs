@@ -303,7 +303,7 @@ fn rewrite_decl(decl: Decl, map: &mut HashMap<String, Path<()>>, path: &Path<()>
 
             match out {
                 Some(t) => assert!(map.insert("Self".to_string(), t).is_none()),
-                None => (),
+                None => assert!(map.remove("Self").is_some()),
             };
             Decl::Impl(DeclImpl {
                 name: decl_impl.name,
@@ -354,7 +354,16 @@ fn rewrite_file(file: File, path: &Path<()>) -> File {
         }
     }
     println!("{:?}", map);
-
+    for decl in file.content.iter() {
+        match decl {
+            Decl::Struct(decl_struct) => {
+                let mut path = path.clone();
+                path.push(NamePath::Name(decl_struct.name.clone()));
+                map.insert(decl_struct.name.get_content().to_string(), path);
+            }
+            _ => (),
+        }
+    }
     let content = file
         .content
         .into_iter()

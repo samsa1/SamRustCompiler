@@ -69,8 +69,13 @@ impl Graph {
 
 fn test_is_not(parent: &PathUL<(), String>, typ: &rust::PreType) {
     match &typ.content {
-        rust::PreTypeInner::IdentParametrizedPath(_, _) | rust::PreTypeInner::IdentPath(_) => {
-            todo!()
+        rust::PreTypeInner::IdentParametrizedPath(id, _) | rust::PreTypeInner::IdentPath(id) => {
+            if &id.cleaned() == parent {
+                println!("Structure {id:?} depends on itself and thus is empty type");
+                std::process::exit(1)
+            } else {
+                ()
+            }
         }
         rust::PreTypeInner::IdentParametrized(id, _) | rust::PreTypeInner::Ident(id)
             if parent.get_content().len() == 1 =>

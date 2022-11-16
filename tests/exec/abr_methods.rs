@@ -75,7 +75,7 @@ fn print_int(x: i32) {
 }
 
 fn main() {
-    let mut d = Self::leaf(1);
+    let mut d = BST::leaf(1);
     d.insert(17);
     d.insert(-5);
     d.insert(8);
