@@ -245,31 +245,21 @@ pub fn type_checker(
 
         rust::ExprInner::Var(var_name) => match loc_ctxt.get_typ(&var_name) {
             Some((mutable, typ)) => (*mutable, typ.clone(), typed_rust::ExprInner::Var(var_name)),
-            None => match (
-                ctxt.get_top_fun(var_name.get_content()),
-                ctxt.get_top_const_val(var_name.get_content()),
-            ) {
-                (None, None) => panic!(
-                    "ICE : undefined variable {} at {:?} should be cought by inferencer",
-                    var_name.get_content(),
-                    expr.loc
-                ),
-                (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::Var(var_name)),
-                (None, Some(constant)) => {
-                    let expr = constant.get_expr();
-                    (false, expr.typed, *expr.content)
-                }
-                (Some(_), Some(_)) => todo!(),
-            },
+            None => panic!("ICE"),
         },
 
         rust::ExprInner::VarPath(var_name) => {
-            match (ctxt.get_fun(&var_name), ctxt.get_const_val(&var_name)) {
+            let cleaned_path = var_name.cleaned();
+            match (ctxt.get_fun(&var_name), ctxt.get_const_val(&cleaned_path)) {
                 (None, None) => panic!(
                     "ICE : undefined variable {:?} at {:?} should be cought by inferencer",
                     var_name, expr.loc
                 ),
-                (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::VarPath(var_name)),
+                (Some(typ), None) => (
+                    false,
+                    typ.clone(),
+                    typed_rust::ExprInner::VarPath(cleaned_path),
+                ),
                 (None, Some(constant)) => {
                     let expr = constant.get_expr();
                     (false, expr.typed, *expr.content)
@@ -321,7 +311,7 @@ pub fn type_checker(
                         return_type.clone(),
                         typed_rust::ExprInner::Deref(typed_rust::Expr {
                             content: Box::new(typed_rust::ExprInner::FunCallPath(
-                                index_function.add_loc(),
+                                index_function,
                                 vec![e1, e2],
                             )),
                             loc: expr.loc,
@@ -363,8 +353,8 @@ pub fn type_checker(
         rust::ExprInner::BinaryOp(binop, e1, e2) => {
             let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info)?.1;
             let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info)?.1;
-            let fun_name = get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed, e1.loc)?;
-            let fun_name = fun_name.add_loc();
+            let fun_name_cleaned = get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed, e1.loc)?;
+            let fun_name = fun_name_cleaned.add_loc();
             if let Some(fun_typ) = ctxt.get_fun(&fun_name) {
                 match to_typed_binop(binop, &e1.typed.content) {
                     IsTypeBinop::Land => {
@@ -415,7 +405,7 @@ pub fn type_checker(
                     IsTypeBinop::NotBuiltIn => (
                         false,
                         fun_typ.fun_out_typ().unwrap().clone(),
-                        typed_rust::ExprInner::FunCallPath(fun_name, vec![e1, e2]),
+                        typed_rust::ExprInner::FunCallPath(fun_name_cleaned, vec![e1, e2]),
                     ),
                 }
             } else {
@@ -425,8 +415,8 @@ pub fn type_checker(
 
         rust::ExprInner::UnaryOp(unaop, e1) => {
             let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info)?.1;
-            let fun_name = get_unaop_fun_name(ctxt, unaop, &e1.typed, e1.loc)?;
-            let fun_name = fun_name.add_loc();
+            let fun_name_cleaned = get_unaop_fun_name(ctxt, unaop, &e1.typed, e1.loc)?;
+            let fun_name = fun_name_cleaned.add_loc();
             if let Some(fun_typ) = ctxt.get_fun(&fun_name) {
                 match to_typed_unaop(unaop, &e1.typed.content) {
                     Some(una) => (
@@ -437,7 +427,7 @@ pub fn type_checker(
                     None => (
                         false,
                         fun_typ.fun_out_typ().unwrap().clone(),
-                        typed_rust::ExprInner::FunCallPath(fun_name, vec![e1]),
+                        typed_rust::ExprInner::FunCallPath(fun_name_cleaned, vec![e1]),
                     ),
                 }
             } else {
@@ -448,10 +438,7 @@ pub fn type_checker(
         rust::ExprInner::FunCall(specialisation, var_name, args) => {
             let typ = match loc_ctxt.get_typ(&var_name) {
                 Some((_, typ)) => typ.clone(),
-                None => match ctxt.get_top_fun(var_name.get_content()) {
-                    Some(typ) => typ.clone(),
-                    None => todo!(),
-                },
+                None => panic!("ICE"),
             };
             if let PostTypeInner::Fun(freetypes, args_typ, output) = typ.content {
                 if args.len() != args_typ.len() {
@@ -513,7 +500,7 @@ pub fn type_checker(
                 (
                     false,
                     output,
-                    typed_rust::ExprInner::FunCallPath(path, args2),
+                    typed_rust::ExprInner::FunCallPath(path.cleaned(), args2),
                 )
             } else {
                 panic!("not allowed")

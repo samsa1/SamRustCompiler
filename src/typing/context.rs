@@ -43,6 +43,7 @@ impl Trait {
 #[derive(Clone, Debug)]
 pub struct StructInfo {
     is_pub: bool,
+    size: usize,
     hashmap: HashMap<String, (bool, PostType)>,
 }
 
@@ -66,12 +67,16 @@ impl StructInfo {
         None
     }
 
-    pub fn new(is_pub: bool, args: HashMap<String, PostType>) -> Self {
+    pub fn new(size: usize, is_pub: bool, args: HashMap<String, PostType>) -> Self {
         let mut hashmap = HashMap::new();
         for (name, typ) in args.into_iter() {
             hashmap.insert(name, (false, typ));
         }
-        Self { is_pub, hashmap }
+        Self {
+            size,
+            is_pub,
+            hashmap,
+        }
     }
 
     pub fn get_field_typ(&self, name: &str) -> Option<&PostType> {
@@ -80,6 +85,14 @@ impl StructInfo {
 
     pub fn get_pub(&self) -> bool {
         self.is_pub
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.size
+    }
+
+    pub fn args(self) -> HashMap<String, (bool, PostType)> {
+        self.hashmap
     }
 }
 
@@ -139,13 +152,13 @@ impl Const {
 
 #[derive(Debug)]
 pub struct ModuleInterface {
-    structs: HashMap<String, StructInfo>,
+    pub structs: HashMap<String, StructInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, PathUL<()>>>,
     functions: HashMap<String, (bool, PostType)>,
-    submodules: HashMap<String, (bool, ModuleInterface)>,
+    pub submodules: HashMap<String, (bool, ModuleInterface)>,
     /*     known_types: HashMap<String, PostType>,*/
-    sizes: HashMap<String, usize>,
+    pub sizes: HashMap<String, usize>,
     constants: HashMap<String, (bool, Const)>,
 }
 
@@ -248,6 +261,27 @@ impl ModuleInterface {
         }
     }
 
+    fn extract_inner(self, id: &str) -> Self {
+        let mut submodules = HashMap::new();
+        for (name, (b, module)) in self.submodules.into_iter() {
+            submodules.insert(name, (b, module.extract_inner(id)));
+        }
+
+        Self {
+            structs: self.structs,
+            implemented_traits: HashMap::new(),
+            methods: HashMap::new(),
+            functions: HashMap::new(),
+            submodules,
+            sizes: self.sizes,
+            constants: HashMap::new(),
+        }
+    }
+
+    pub fn extract(mut self, id: &str) -> Self {
+        self.submodules.remove("crate").unwrap().1.extract_inner(id)
+    }
+
     fn get_struct_inner(
         &self,
         path: &Vec<NamePath<(), String>>,
@@ -332,19 +366,17 @@ impl ModuleInterface {
 
     fn get_const_inner(
         &self,
-        path: &Vec<NamePath<(), Ident>>,
+        path: &Vec<NamePath<(), String>>,
         pos: usize,
     ) -> Option<(bool, &Const)> {
         if pos == path.len() - 1 {
             match &path[pos] {
-                NamePath::Name(name) => {
-                    self.constants.get(name.get_content()).map(|(b, c)| (*b, c))
-                }
+                NamePath::Name(name) => self.constants.get(name).map(|(b, c)| (*b, c)),
                 NamePath::Specialisation(_) => None,
             }
         } else {
             match &path[pos] {
-                NamePath::Name(name) => match self.submodules.get(name.get_content()) {
+                NamePath::Name(name) => match self.submodules.get(name) {
                     None => None,
                     Some((b1, sb)) => sb
                         .get_const_inner(path, pos + 1)
@@ -355,7 +387,7 @@ impl ModuleInterface {
         }
     }
 
-    pub fn get_const(&self, path: &Path<()>) -> Option<(bool, &Const)> {
+    pub fn get_const(&self, path: &PathUL<()>) -> Option<(bool, &Const)> {
         self.get_const_inner(path.get_content(), 0)
     }
 
@@ -535,10 +567,11 @@ impl ModuleInterface {
     pub fn insert_struct(
         &mut self,
         path: PathUL<(), String>,
+        size: usize,
         is_pub: bool,
         args: HashMap<String, PostType>,
     ) -> Option<StructInfo> {
-        self.insert_struct_inner(path.get_content(), 0, StructInfo::new(is_pub, args))
+        self.insert_struct_inner(path.get_content(), 0, StructInfo::new(size, is_pub, args))
     }
 
     pub fn impl_trait(&mut self, typ: &PostType, t: Trait) -> bool {
@@ -732,7 +765,7 @@ impl GlobalContext {
             .map(|(_, f)| f)
     }
 
-    pub fn get_const_val(&self, path: &Path<()>) -> Option<&Const> {
+    pub fn get_const_val(&self, path: &PathUL<()>) -> Option<&Const> {
         match self.modules.get_const(path) {
             Some((_, c)) => Some(c),
             _ => None,

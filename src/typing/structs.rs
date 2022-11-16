@@ -393,10 +393,12 @@ pub fn type_structs(
 
     sizes.insert_struct(
         PathUL::from_vec(vec!["std", "vec", "Vec"]),
+        8,
         true,
         HashMap::new(),
     );
 
+    let mut size_vec = Vec::new();
     for struct_decl in structs.iter_mut() {
         let mut size = 0;
         let name = struct_decl.0.pop().unwrap();
@@ -404,12 +406,19 @@ pub fn type_structs(
             size += compute_size(typ, &sizes, &mut struct_decl.0);
         }
         struct_decl.0.push(name);
+        size_vec.push(size);
         assert!(sizes.insert_size(struct_decl.0.clone(), size).is_none());
     }
 
-    for struct_decl in structs.into_iter() {
+    assert_eq!(size_vec.len(), structs.len());
+    for (struct_decl, size) in structs.into_iter().zip(size_vec.into_iter()) {
         assert!(sizes
-            .insert_struct(struct_decl.0.clone(), struct_decl.1.public, HashMap::new(),)
+            .insert_struct(
+                struct_decl.0.clone(),
+                size,
+                struct_decl.1.public,
+                HashMap::new(),
+            )
             .is_none());
         let mut args = HashMap::new();
         for (name, typ) in struct_decl.1.args.into_iter() {
@@ -434,7 +443,7 @@ pub fn type_structs(
             args: args.clone(),
         });
         sizes
-            .insert_struct(struct_decl.0, struct_decl.1.public, args)
+            .insert_struct(struct_decl.0, size, struct_decl.1.public, args)
             .unwrap();
     }
 

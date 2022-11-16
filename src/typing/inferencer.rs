@@ -767,8 +767,10 @@ fn type_expr(
                                 Ok((
                                     false,
                                     Expr {
-                                        content: Box::new(ExprInner::FunCall(
-                                            vec_types, name, exprs_out,
+                                        content: Box::new(ExprInner::FunCallPath(
+                                            vec_types,
+                                            ctxt.get_path(name.get_content()).add_loc(),
+                                            exprs_out,
                                         )),
                                         loc: top_expr.loc,
                                         typed: type_id,
@@ -1290,7 +1292,9 @@ fn type_expr(
                         Ok((
                             false,
                             Expr {
-                                content: Box::new(ExprInner::Var(var_name)),
+                                content: Box::new(ExprInner::VarPath(
+                                    ctxt.get_path(var_name.get_content()).add_loc(),
+                                )),
                                 loc: top_expr.loc,
                                 typed: type_id,
                             },
@@ -1303,7 +1307,10 @@ fn type_expr(
         }
 
         ExprInner::VarPath(var_path) => {
-            match (ctxt.get_fun(&var_path), ctxt.get_const_val(&var_path)) {
+            match (
+                ctxt.get_fun(&var_path),
+                ctxt.get_const_val(&var_path.cleaned()),
+            ) {
                 (Some(typ), None) | (None, Some(Const { typ, .. })) => {
                     let type_id = types.insert_type(Types::unknown());
                     forces_to(

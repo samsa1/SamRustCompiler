@@ -16,11 +16,11 @@ pub fn type_inferencer(
     mut file: Module<rust::File>,
     needs_main: bool,
     path: PathUL<()>,
-) -> Module<typed_rust::File> {
+) -> (context::ModuleInterface, Module<typed_rust::File>) {
     let (mut module_interface, structs) = structs::type_structs(&mut file);
     module_interface = consts::handle(&mut file, module_interface);
     module_interface = implementation::handle(&mut file, module_interface, &mut path.clone());
-    let (_, file) = functions::handle(
+    let (module_interface, file) = functions::handle(
         file,
         module_interface,
         PathUL::new(vec![NamePath::Name("crate".to_string())]),
@@ -36,7 +36,7 @@ pub fn type_inferencer(
     //     std::process::exit(1)
     // }
 
-    file
+    (module_interface, file)
 }
 
 /*     let mut funs = Vec::new();

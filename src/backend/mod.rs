@@ -1,4 +1,6 @@
-use crate::ast::common::{BuiltinType, ComputedValue, Sizes, TypedBinop, TypedUnaop};
+use std::collections::HashMap;
+
+use crate::ast::common::{BuiltinType, ComputedValue, PathUL, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;
 use crate::ast::typed_rust::PostType;
 
@@ -730,7 +732,7 @@ fn compile_expr_val(
             (
                 Location::Rax,
                 leaq(
-                    reg::Operand::LabRelAddr(reg::Label::from_str(label_name)),
+                    reg::Operand::LabRelAddr(ctxt.string_label(&label_name)),
                     RDI,
                 ) + movq(immq(0), reg!(RAX))
                     + subq(immq(missing), reg!(RSP))
@@ -1059,7 +1061,7 @@ fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
     let size = fun_decl.output;
     ctxt.init(fun_decl.args);
     let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0);
-    let mut asm = label(ctxt.fun_label(fun_decl.name.get_content()))
+    let mut asm = label(ctxt.fun_label(&fun_decl.name))
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
         + bloc;
@@ -1090,23 +1092,19 @@ fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
     asm + movq(reg!(RBP), reg!(RSP)) + popq(RBP) + ret()
 }
 
-pub fn to_asm(file: llr::File, ctxt: &mut context::Context) -> file::File {
+pub fn to_asm(
+    file: llr::File,
+    strings: HashMap<String, String>,
+    ctxt: &mut context::Context,
+) -> file::File {
     let mut text_ss = Text::Concat(Vec::new());
-    let mut funs = Vec::new();
     for fun_decl in file.funs {
-        if fun_decl.name.get_content() == "main" {
-            text_ss = text_ss + compile_fun(fun_decl, ctxt)
-        } else {
-            funs.push(fun_decl)
-        }
-    }
-    for fun_decl in funs {
         text_ss = text_ss + compile_fun(fun_decl, ctxt)
     }
 
     text_ss = text_ss;
 
-    let data_ss = data::Data::from_strings(file.strings);
+    let data_ss = data::Data::from_strings(strings);
 
     file::File {
         globl: None,
@@ -1118,7 +1116,7 @@ pub fn to_asm(file: llr::File, ctxt: &mut context::Context) -> file::File {
 fn default_vec_function(heap_address: &str, ctxt: &context::Context) -> Text {
     let custom_alloc = true;
 
-    label(ctxt.fun_label("print_ptr"))
+    label(ctxt.fun_label(&PathUL::from_vec(vec!["print_ptr"])))
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
         + movq(addr!(16, RBP), reg!(RSI))
@@ -1135,7 +1133,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
 - Capacity
 - Size_of_elements
 */
-    + label(ctxt.fun_label("std::vec::Vec::new"))
+    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "new"])))
         + pushq(reg!(RBP)) /* bit align for malloc */
         + movq(immq(32), reg!(RDI)) /* Allocate chunk for 4 numbers */
         + if custom_alloc {
@@ -1144,7 +1142,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
             + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
             + pushq(reg!(RAX))
             + pushq(reg!(RDI))
-            + call(ctxt.fun_label("malloc"))
+            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "malloc"])))
             + addq(immq(16), reg!(RSP))
             + popq(RAX)
             + addq(immq(8), reg!(RSP))
@@ -1161,7 +1159,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
             + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
             + pushq(reg!(RAX))
             + pushq(reg!(RDI))
-            + call(ctxt.fun_label("malloc"))
+            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "malloc"])))
             + addq(immq(16), reg!(RSP))
             + popq(RAX)
             + addq(immq(8), reg!(RSP))
@@ -1175,13 +1173,13 @@ A vector is a pointer to a tuple of 4 elements in the stack :
         + movq(reg!(RAX), addr!(16, RBP))
         + popq(RBP) /* returns */
         + ret()
-    + label(ctxt.fun_label("std::vec::Vec::len"))
+    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "len"])))
         + movq(addr!(8, RSP), reg!(RAX)) /* get pointer to vec */
         + movq(addr!(RAX), reg!(RAX))    /* get pointer to 4-vector */
         + movq(addr!(8, RAX), reg!(RAX)) /* put length in Rax */
         + movq(reg!(RAX), addr!(16, RSP)) /* Store the result in stack */
         + ret()
-    + label(ctxt.fun_label("std::vec::Vec::get"))
+    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "get"])))
         + movq(addr!(16, RSP), reg!(RCX)) /* get pointer to vec */
         + movq(addr!(RCX), reg!(RCX)) /* get pointer to 4-vector */
         + movq(addr!(8, RSP), reg!(RAX)) /* put index in Rax */
@@ -1201,7 +1199,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
 Called with pointer to pointer to quadri vector as second argument
 and then arg
 */
-    + label(ctxt.fun_label("std::vec::Vec::push"))
+    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "push"])))
         + pushq(reg!(RBP))
         + movq(addr!(16, RSP), reg!(RBP)) /* get pointer to vec */
         + movq(addr!(RBP), reg!(RBP)) /* get pointer to 4-vector */
@@ -1221,7 +1219,7 @@ and then arg
             + subq(immq(32), reg!(RDI))
             + pushq(reg!(RDI))
             + pushq(reg!(RSI))
-            + call(ctxt.fun_label("realloc"))
+            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "realloc"])))
             + addq(immq(24), reg!(RSP))
             + popq(RAX)
             + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
@@ -1286,10 +1284,10 @@ pub fn base(ctxt: &mut context::Context) -> file::File {
         + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), RAX)
         + pushq(reg!(RAX))
         + pushq(reg!(RAX))
-        + call(ctxt.fun_label("init"))
+        + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "init"])))
         + addq(immq(16), reg!(RSP))
 
-        + call(ctxt.fun_label("main"))
+        + call(ctxt.fun_label(&PathUL::from_vec(vec!["crate", "main"])))
         + movq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), reg!(RDI))
         + call(reg::Label::free())
         + popq(R13)

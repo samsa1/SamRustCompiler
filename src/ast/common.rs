@@ -168,6 +168,35 @@ impl<T> PathUL<T, String> {
                 .collect(),
         }
     }
+
+    pub fn is_vec(&self) -> bool {
+        if self.name.len() != 3 {
+            return false;
+        }
+        match &self.name[0] {
+            NamePath::Name(id) if id == "std" => (),
+            _ => return false,
+        }
+        match &self.name[1] {
+            NamePath::Name(id) if id == "vec" => (),
+            _ => return false,
+        }
+        match &self.name[2] {
+            NamePath::Name(id) if id == "Vec" => (),
+            _ => return false,
+        }
+        true
+    }
+
+    pub fn rewrite_base(mut self, name1: &str, name2: &str) -> Self {
+        match &self.name[0] {
+            NamePath::Name(name) if name == name1 => {
+                self.name[0] = NamePath::Name(name2.to_string());
+                self
+            }
+            _ => self,
+        }
+    }
 }
 
 impl<T: Clone> PathUL<T, String> {

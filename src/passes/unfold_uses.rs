@@ -56,6 +56,7 @@ fn translate_path(path: Path<()>, map: &HashMap<String, Path<()>>) -> Path<()> {
         None => path,
         Some(path2) => {
             let mut path2 = path2.clone();
+            path2.pop();
             path2.append(path);
             path2
         }
@@ -314,26 +315,42 @@ fn rewrite_decl(decl: Decl, map: &mut HashMap<String, Path<()>>, path: &Path<()>
     }
 }
 
-pub fn rewrite_file(file: File, path: &Path<()>) -> File {
+fn contains(map: &HashMap<String, Path<()>>, path: &Path<()>) -> bool {
+    match path.get_content().get(0) {
+        Some(NamePath::Name(s)) => map.contains_key(s.get_content()),
+        _ => panic!("ICE"),
+    }
+}
+
+fn rewrite_file(file: File, path: &Path<()>) -> File {
     let mut map = HashMap::new();
     map.insert("Vec".to_string(), Path::from_vec(vec!["std", "vec", "Vec"]));
 
     for open_decl in file.dep.into_iter() {
         match open_decl {
             Open::Mod(_, module, None) => {
-                map.insert(module.get_content().to_string(), module.to_path());
+                let mut path = path.clone();
+                let name = module.get_content().to_string();
+                path.push(NamePath::Name(module));
+                map.insert(name, path);
             }
             Open::Mod(_, module, Some(given_name)) => {
-                map.insert(given_name.get_content().to_string(), module.to_path());
+                let mut path = path.clone();
+                path.push(NamePath::Name(module));
+                map.insert(given_name.get_content().to_string(), path);
             }
-            Open::Use(path, None) => {
-                map.insert(path.last().unwrap().get_content().to_string(), path.clone());
+            Open::Use(mut path, None) => {
+                while contains(&map, &path) {
+                    path = translate_path(path, &map)
+                }
+                map.insert(path.last().unwrap().get_content().to_string(), path);
             }
             Open::Use(path, Some(given_name)) => {
-                map.insert(given_name.get_content().to_string(), path.clone());
+                map.insert(given_name.get_content().to_string(), path);
             }
         }
     }
+    println!("{:?}", map);
 
     let content = file
         .content

@@ -8,6 +8,16 @@ pub struct File {
     pub structs: Vec<DeclStruct>,
 }
 
+impl File {
+    pub fn empty() -> Self {
+        Self {
+            name: String::new(),
+            funs: Vec::new(),
+            structs: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DeclFun {
     pub name: common::PathUL<()>,
@@ -176,10 +186,10 @@ pub enum ExprInner {
     Bool(bool),
     Int(u64),
     Var(common::Ident),
-    VarPath(common::Path<()>),
+    VarPath(common::PathUL<()>),
     /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(common::Ident, Vec<Expr>),
-    FunCallPath(common::Path<()>, Vec<Expr>),
+    FunCallPath(common::PathUL<()>, Vec<Expr>),
     //    Constructor(common::Ident, Vec<Expr>),
     Bloc(Bloc),
     Ref(bool, Expr),
