@@ -28,11 +28,14 @@ fn get_index_function(
         PostTypeInner::Ref(_, typ) => match &typ.content {
             PostTypeInner::Struct(id, param)
                 if id.get_content().len() == 3
-                    && id.get_content()[0] == NamePath::Name("std".to_string()) 
-                    && id.get_content()[1] == NamePath::Name("vec".to_string()) 
-                    && id.get_content()[2] == NamePath::Name("Vec".to_string()) => 
+                    && id.get_content()[0] == NamePath::Name("std".to_string())
+                    && id.get_content()[1] == NamePath::Name("vec".to_string())
+                    && id.get_content()[2] == NamePath::Name("Vec".to_string()) =>
             {
-                Some((PathUL::from_vec(vec!["std", "vec", "Vec", "get"]), param[0].clone()))
+                Some((
+                    PathUL::from_vec(vec!["std", "vec", "Vec", "get"]),
+                    param[0].clone(),
+                ))
             }
             _ => None,
         },
@@ -218,7 +221,6 @@ pub fn type_checker(
     expected_typ: Option<&typed_rust::PostType>,
     typing_info: &rust::TypeStorage,
 ) -> Result<(bool, typed_rust::Expr), Vec<TypeError>> {
-    //    println!("working on {expr:?}");
     let mut translated_typ = build_type(typing_info, expr.typed);
     let (affectable, found_type, content) = match *expr.content {
         rust::ExprInner::Bool(b) => (
@@ -241,44 +243,40 @@ pub fn type_checker(
             }
         }
 
-        rust::ExprInner::Var(var_name) => {
-            match loc_ctxt.get_typ(&var_name) {
-                Some((mutable, typ)) => (*mutable, typ.clone(), typed_rust::ExprInner::Var(var_name)),
-                None => match (
-                    ctxt.get_top_fun(var_name.get_content()),
-                    ctxt.get_top_const_val(var_name.get_content()),
-                ) {
-                    (None, None) => panic!(
-                        "ICE : undefined variable {} at {:?} should be cought by inferencer",
-                        var_name.get_content(),
-                        expr.loc
-                    ),
-                    (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::Var(var_name)),
-                    (None, Some(constant)) => {
-                        let expr = constant.get_expr();
-                        (false, expr.typed, *expr.content)
-                    }
-                    (Some(_), Some(_)) => todo!(),
-                },
-            }
+        rust::ExprInner::Var(var_name) => match loc_ctxt.get_typ(&var_name) {
+            Some((mutable, typ)) => (*mutable, typ.clone(), typed_rust::ExprInner::Var(var_name)),
+            None => match (
+                ctxt.get_top_fun(var_name.get_content()),
+                ctxt.get_top_const_val(var_name.get_content()),
+            ) {
+                (None, None) => panic!(
+                    "ICE : undefined variable {} at {:?} should be cought by inferencer",
+                    var_name.get_content(),
+                    expr.loc
+                ),
+                (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::Var(var_name)),
+                (None, Some(constant)) => {
+                    let expr = constant.get_expr();
+                    (false, expr.typed, *expr.content)
+                }
+                (Some(_), Some(_)) => todo!(),
+            },
         },
 
-        rust::ExprInner::VarPath(var_name) => match (
-                ctxt.get_fun(&var_name),
-                ctxt.get_const_val(&var_name),
-            ) {
-            (None, None) => panic!(
-                "ICE : undefined variable {:?} at {:?} should be cought by inferencer",
-                var_name,
-                expr.loc
-            ),
-            (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::VarPath(var_name)),
-            (None, Some(constant)) => {
-                let expr = constant.get_expr();
-                (false, expr.typed, *expr.content)
+        rust::ExprInner::VarPath(var_name) => {
+            match (ctxt.get_fun(&var_name), ctxt.get_const_val(&var_name)) {
+                (None, None) => panic!(
+                    "ICE : undefined variable {:?} at {:?} should be cought by inferencer",
+                    var_name, expr.loc
+                ),
+                (Some(typ), None) => (false, typ.clone(), typed_rust::ExprInner::VarPath(var_name)),
+                (None, Some(constant)) => {
+                    let expr = constant.get_expr();
+                    (false, expr.typed, *expr.content)
+                }
+                (Some(_), Some(_)) => todo!(),
             }
-            (Some(_), Some(_)) => todo!(),
-        },
+        }
 
         rust::ExprInner::Ref(b, expr) => {
             let expected_typ = match expected_typ {
@@ -409,21 +407,15 @@ pub fn type_checker(
                             typed_rust::ExprInner::If(e1, bloc_true, bloc_e2),
                         )
                     }
-                    IsTypeBinop::BuiltIn(bin) => {
-                        println!("{binop:?} {e1:?} {e2:?}");
-                        (
-                            false,
-                            fun_typ.fun_out_typ().unwrap().clone(),
-                            typed_rust::ExprInner::BinOp(bin, e1, e2),
-                        )
-                    }
+                    IsTypeBinop::BuiltIn(bin) => (
+                        false,
+                        fun_typ.fun_out_typ().unwrap().clone(),
+                        typed_rust::ExprInner::BinOp(bin, e1, e2),
+                    ),
                     IsTypeBinop::NotBuiltIn => (
                         false,
                         fun_typ.fun_out_typ().unwrap().clone(),
-                        typed_rust::ExprInner::FunCallPath(
-                            fun_name,
-                            vec![e1, e2],
-                        ),
+                        typed_rust::ExprInner::FunCallPath(fun_name, vec![e1, e2]),
                     ),
                 }
             } else {
@@ -445,10 +437,7 @@ pub fn type_checker(
                     None => (
                         false,
                         fun_typ.fun_out_typ().unwrap().clone(),
-                        typed_rust::ExprInner::FunCallPath(
-                            fun_name,
-                            vec![e1],
-                        ),
+                        typed_rust::ExprInner::FunCallPath(fun_name, vec![e1]),
                     ),
                 }
             } else {
@@ -695,9 +684,15 @@ pub fn type_checker(
                     None => (
                         false,
                         typed_rust::PostType {
-                            content : typed_rust::PostTypeInner::Struct(ctxt.get_path(name.get_content()), vec![])
+                            content: typed_rust::PostTypeInner::Struct(
+                                ctxt.get_path(name.get_content()),
+                                vec![],
+                            ),
                         },
-                        typed_rust::ExprInner::BuildStruct(ctxt.get_path(name.get_content()), args2),
+                        typed_rust::ExprInner::BuildStruct(
+                            ctxt.get_path(name.get_content()),
+                            args2,
+                        ),
                     ),
                 }
             } else {
@@ -727,7 +722,10 @@ pub fn type_checker(
                     None => (
                         false,
                         typed_rust::PostType {
-                            content : typed_rust::PostTypeInner::Struct(cleaned_path.clone(), vec![])
+                            content: typed_rust::PostTypeInner::Struct(
+                                cleaned_path.clone(),
+                                vec![],
+                            ),
                         },
                         typed_rust::ExprInner::BuildStruct(cleaned_path, args2),
                     ),
@@ -830,20 +828,22 @@ pub fn type_checker(
                     }
                 },
                 PostTypeInner::Ref(affectable, typ) => match &typ.content {
-                    PostTypeInner::Struct(s, vec) if vec.is_empty() => match ctxt.get_struct_path(s) {
-                        None => panic!("should not happend"),
-                        Some(struct_info) => {
-                            if let Some(typ) = struct_info.get_field_typ(name.get_content()) {
-                                (
-                                    *affectable,
-                                    typ.clone(),
-                                    typed_rust::ExprInner::Proj(expr, Projector::Name(name)),
-                                )
-                            } else {
-                                todo!()
+                    PostTypeInner::Struct(s, vec) if vec.is_empty() => {
+                        match ctxt.get_struct_path(s) {
+                            None => panic!("should not happend"),
+                            Some(struct_info) => {
+                                if let Some(typ) = struct_info.get_field_typ(name.get_content()) {
+                                    (
+                                        *affectable,
+                                        typ.clone(),
+                                        typed_rust::ExprInner::Proj(expr, Projector::Name(name)),
+                                    )
+                                } else {
+                                    todo!()
+                                }
                             }
                         }
-                    },
+                    }
                     _ => todo!(),
                 },
                 _ => todo!(),

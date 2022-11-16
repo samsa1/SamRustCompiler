@@ -12,21 +12,29 @@ mod lifetime_analysis;
 mod structs;
 pub mod types;
 
-pub fn type_inferencer(mut file: Module::<rust::File>, needs_main: bool) -> Module<typed_rust::File> {
+pub fn type_inferencer(
+    mut file: Module<rust::File>,
+    needs_main: bool,
+    path: PathUL<()>,
+) -> Module<typed_rust::File> {
     let (mut module_interface, structs) = structs::type_structs(&mut file);
     module_interface = consts::handle(&mut file, module_interface);
-    implementation::handle(&mut file, &mut module_interface);
-    let (_, file) = functions::handle(file, module_interface, PathUL::new(vec![NamePath::Name("crate".to_string())]));
+    module_interface = implementation::handle(&mut file, module_interface, &mut path.clone());
+    let (_, file) = functions::handle(
+        file,
+        module_interface,
+        PathUL::new(vec![NamePath::Name("crate".to_string())]),
+    );
 
-    let mut has_main = false;
-    for fun in file.content.funs.iter() {
-        has_main |= fun.name.get_content() == "main"
-    }
+    // let mut has_main = false;
+    // for fun in file.content.funs.iter() {
+    //     has_main |= fun.name.get_content() == "main"
+    // }
 
-    if needs_main && !has_main {
-        println!("No main");
-        std::process::exit(1)
-    }
+    // if needs_main && !has_main {
+    //     println!("No main");
+    //     std::process::exit(1)
+    // }
 
     file
 }

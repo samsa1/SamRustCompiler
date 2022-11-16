@@ -30,7 +30,6 @@ impl<F> Module<F> {
             }
         }
     }
-
 }
 
 impl Module<File> {
@@ -96,7 +95,6 @@ impl Module<File> {
         self.write_in(&mut file)?;
         file.write_all(b")}\n")
     }
-
 }
 
 impl CanWrite for Module<File> {

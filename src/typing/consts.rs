@@ -1,10 +1,12 @@
 use super::context::GlobalContext;
+use super::context::ModuleInterface;
 use super::structs::Graph;
-use crate::ast::common::{BinOperator, BuiltinType, Projector, Sizes, TypedBinop, PathUL, NamePath};
+use crate::ast::common::{
+    BinOperator, BuiltinType, NamePath, PathUL, Projector, Sizes, TypedBinop,
+};
 use crate::ast::rust as rr;
 use crate::ast::typed_rust as tr;
 use crate::frontend::Module;
-use super::context::ModuleInterface;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -53,7 +55,7 @@ pub fn add_deps(expr: &rr::Expr, path: &PathUL<()>, graph: &mut Graph) {
             path2.pop();
             path2.push(NamePath::Name(v.get_content().to_string()));
             graph.add_edge(path, &path2);
-        },
+        }
         rr::ExprInner::VarPath(v) => todo!(),
         rr::ExprInner::While(_, _) => todo!(),
     }
@@ -173,15 +175,11 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
         ),
         tr::ExprInner::UnaOp(_, _) => todo!(),
         tr::ExprInner::Var(v) => todo!(), /*ctxt
-            .get_const_val(v.get_content())
-            .unwrap()
-            .get_value()
-            .clone(),*/
-        tr::ExprInner::VarPath(v) => ctxt
-            .get_const_val(&v)
-            .unwrap()
-            .get_value()
-            .clone(),
+        .get_const_val(v.get_content())
+        .unwrap()
+        .get_value()
+        .clone(),*/
+        tr::ExprInner::VarPath(v) => ctxt.get_const_val(&v).unwrap().get_value().clone(),
         tr::ExprInner::While(_, _) => todo!(),
     }
 }
@@ -231,7 +229,11 @@ fn handle_constants(
 }
 */
 
-fn handle_file(file : &mut rr::File, path : &PathUL<()>, consts : &mut Vec<(PathUL<()>, rr::DeclConst)>) {
+fn handle_file(
+    file: &mut rr::File,
+    path: &PathUL<()>,
+    consts: &mut Vec<(PathUL<()>, rr::DeclConst)>,
+) {
     let mut local_structs = Vec::new();
     local_structs.append(&mut file.content);
     for decl in local_structs.into_iter() {
@@ -240,14 +242,17 @@ fn handle_file(file : &mut rr::File, path : &PathUL<()>, consts : &mut Vec<(Path
                 let mut path = path.clone();
                 path.push(NamePath::Name(decl_const.name.get_content().to_string()));
                 consts.push((path.clone(), decl_const))
-            },
+            }
             _ => file.content.push(decl),
         }
     }
-
 }
 
-pub fn handle_rec(module : &mut Module<rr::File>, path : PathUL<()>, consts : &mut Vec<(PathUL<()>, rr::DeclConst)>) {
+pub fn handle_rec(
+    module: &mut Module<rr::File>,
+    path: PathUL<()>,
+    consts: &mut Vec<(PathUL<()>, rr::DeclConst)>,
+) {
     handle_file(&mut module.content, &path, consts);
     for (name, (_, submod)) in module.submodules.iter_mut() {
         let mut path = path.clone();
@@ -256,12 +261,15 @@ pub fn handle_rec(module : &mut Module<rr::File>, path : PathUL<()>, consts : &m
     }
 }
 
-
-pub fn handle(module : &mut Module<rr::File>, mut modint : ModuleInterface) -> ModuleInterface {
+pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> ModuleInterface {
     let mut constants = Vec::new();
-    handle_rec(module, PathUL::new(vec![NamePath::Name("crate".to_string())]), &mut constants);
+    handle_rec(
+        module,
+        PathUL::new(vec![NamePath::Name("crate".to_string())]),
+        &mut constants,
+    );
     if constants.len() == 0 {
-        return modint
+        return modint;
     }
 
     let mut graph = super::structs::Graph::new();
@@ -278,8 +286,8 @@ pub fn handle(module : &mut Module<rr::File>, mut modint : ModuleInterface) -> M
         Err((id, mut consts)) => {
             let constant = consts.swap_remove(id);
             let err = super::errors::TypeError::self_referencing_constant(constant.1.name);
-            todo!();
-//            err_reporter.report(vec![err])
+            println!("Need to write error message 3");
+            std::process::exit(1)
         }
     };
 
@@ -290,14 +298,20 @@ pub fn handle(module : &mut Module<rr::File>, mut modint : ModuleInterface) -> M
             None => todo!(),
             Some(t) => t,
         };
-        let (typing_info, expr) = match super::inferencer::type_const(const_decl.expr, &ctxt, &expected_typ)
-        {
-            Ok(e) => e,
-            Err(errs) => todo!(),//err_reporter.report(errs),
-        };
+        let (typing_info, expr) =
+            match super::inferencer::type_const(const_decl.expr, &ctxt, &expected_typ) {
+                Ok(e) => e,
+                Err(errs) => {
+                    println!("Need to write error message 1");
+                    std::process::exit(1)
+                }
+            };
         let expr = match super::expr::type_const(expr, &ctxt, &expected_typ, &typing_info) {
             Ok(e) => e,
-            Err(errs) => todo!(), //err_reporter.report(errs),
+            Err(errs) => {
+                println!("Need to write error message 2");
+                std::process::exit(1)
+            }
         };
         let value = compute_const(expr, &ctxt);
         ctxt.add_const(

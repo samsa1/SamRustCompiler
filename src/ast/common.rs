@@ -1,5 +1,5 @@
-use std::str::FromStr;
 use std::hash::{Hash, Hasher};
+use std::str::FromStr;
 
 use crate::typing::errors::TypeError;
 
@@ -16,7 +16,7 @@ pub enum NamePath<T, I = Ident> {
     Specialisation(Vec<T>),
 }
 
-impl<T : Clone> NamePath<T, String> {
+impl<T: Clone> NamePath<T, String> {
     fn add_loc(&self) -> NamePath<T, Ident> {
         match self {
             NamePath::Name(s) => NamePath::Name(Ident::new(s, Location::default())),
@@ -25,7 +25,7 @@ impl<T : Clone> NamePath<T, String> {
     }
 }
 
-impl<T : Clone> NamePath<T, Ident> {
+impl<T: Clone> NamePath<T, Ident> {
     fn clean(&self) -> NamePath<T, String> {
         match self {
             NamePath::Name(s) => NamePath::Name(s.get_content().to_string()),
@@ -69,14 +69,17 @@ impl<T> Path<T> {
         self.name.pop()
     }
 
-    pub fn push(&mut self, el : NamePath<T, Ident>) {
+    pub fn push(&mut self, el: NamePath<T, Ident>) {
         self.name.push(el)
     }
 
-    pub fn from_vec(el : Vec<&str>) -> Self {
+    pub fn from_vec(el: Vec<&str>) -> Self {
         Self {
-            name : el.into_iter().map(|i| NamePath::Name(Ident::new(i, Location::default()))).collect(),
-            loc : Location::default(),
+            name: el
+                .into_iter()
+                .map(|i| NamePath::Name(Ident::new(i, Location::default())))
+                .collect(),
+            loc: Location::default(),
         }
     }
 
@@ -89,37 +92,37 @@ impl<T> Path<T> {
 
     pub fn is_vec(&self) -> bool {
         if self.name.len() != 3 {
-            return false
+            return false;
         }
         match &self.name[0] {
             NamePath::Name(id) if id.get_content() == "std" => (),
-            _ => return false
+            _ => return false,
         }
         match &self.name[1] {
             NamePath::Name(id) if id.get_content() == "vec" => (),
-            _ => return false
+            _ => return false,
         }
         match &self.name[2] {
             NamePath::Name(id) if id.get_content() == "Vec" => (),
-            _ => return false
+            _ => return false,
         }
         true
     }
 
-    pub fn append(&mut self, mut other : Self) {
+    pub fn append(&mut self, mut other: Self) {
         self.name.append(&mut other.name)
     }
 }
 
-impl<T : Clone> Path<T> {
+impl<T: Clone> Path<T> {
     pub fn cleaned(&self) -> PathUL<T> {
         PathUL {
-            name : self.name.iter().map(NamePath::clean).collect(),
+            name: self.name.iter().map(NamePath::clean).collect(),
         }
     }
 }
 
-impl<T : PartialEq> PartialEq for Path<T> {
+impl<T: PartialEq> PartialEq for Path<T> {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
     }
@@ -147,30 +150,36 @@ impl<T, I> PathUL<T, I> {
         self.name.pop()
     }
 
-    pub fn push(&mut self, el : NamePath<T, I>) {
+    pub fn push(&mut self, el: NamePath<T, I>) {
         self.name.push(el)
+    }
+
+    pub fn append(&mut self, mut other: Self) {
+        self.name.append(&mut other.name)
     }
 }
 
 impl<T> PathUL<T, String> {
-    pub fn from_vec(el : Vec<&str>) -> Self {
+    pub fn from_vec(el: Vec<&str>) -> Self {
         Self {
-            name : el.into_iter().map(|i| NamePath::Name(i.to_string())).collect()
+            name: el
+                .into_iter()
+                .map(|i| NamePath::Name(i.to_string()))
+                .collect(),
         }
     }
 }
 
-impl<T : Clone> PathUL<T, String> {
+impl<T: Clone> PathUL<T, String> {
     pub fn add_loc(&self) -> Path<T> {
         Path {
-            name : self.name.iter().map(|n| n.add_loc()).collect(),
-            loc : Location::default(),
+            name: self.name.iter().map(|n| n.add_loc()).collect(),
+            loc: Location::default(),
         }
     }
-
 }
 
-impl<T, I : Clone> PathUL<T, I> {
+impl<T, I: Clone> PathUL<T, I> {
     pub fn last(&self) -> Option<I> {
         let i = self.name.len();
         match &self.name[i] {
@@ -179,7 +188,6 @@ impl<T, I : Clone> PathUL<T, I> {
         }
     }
 }
-
 
 #[derive(Clone)]
 pub struct Ident {
@@ -250,7 +258,7 @@ impl std::fmt::Debug for Ident {
 }
 
 impl Hash for Ident {
-    fn hash<H:Hasher>(&self, state: &mut H) {
+    fn hash<H: Hasher>(&self, state: &mut H) {
         self.name.hash(state);
     }
 }

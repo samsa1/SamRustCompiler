@@ -75,7 +75,10 @@ pub enum Types {
 
 impl Types {
     pub fn string() -> Self {
-        Self::Struct(common::PathUL::new(vec![common::NamePath::Name("String".to_string())]), Vec::new())
+        Self::Struct(
+            common::PathUL::new(vec![common::NamePath::Name("String".to_string())]),
+            Vec::new(),
+        )
     }
 
     pub const fn int() -> Self {
@@ -95,7 +98,10 @@ impl Types {
     }
 
     pub fn struct_from_str(name: &str) -> Self {
-        Self::Struct(common::PathUL::new(vec![common::NamePath::Name(name.to_string())]), Vec::new())
+        Self::Struct(
+            common::PathUL::new(vec![common::NamePath::Name(name.to_string())]),
+            Vec::new(),
+        )
     }
 
     pub fn tuple(vec_types: Vec<usize>) -> Self {
@@ -106,14 +112,14 @@ impl Types {
         Self::Ref(Some(mutable), type_id)
     }
 
-/*     pub fn boxed(type_id: usize) -> Self {
+    /*     pub fn boxed(type_id: usize) -> Self {
         Self::Struct(common::Path::new(vec![common::NamePath::Name(common::Ident::new("Box", common::Location::default()))], common::Location::default()), vec![type_id])
     }*/
 
     pub fn unref(&self) -> Option<(bool, usize)> {
         match self {
             Self::Ref(mutable, type_id) => Some((mutable.unwrap_or(true), *type_id)),
-/*             Self::Struct(name, args) if args.len() == 1 && name.get_content()[0] == common::NamePath::Name(common::Ident::new("Box", common::Location::default())) => {
+            /*             Self::Struct(name, args) if args.len() == 1 && name.get_content()[0] == common::NamePath::Name(common::Ident::new("Box", common::Location::default())) => {
                 Some((false, args[0]))
             },*/
             _ => None,

@@ -1,3 +1,5 @@
+use crate::ast::common::Path;
+
 pub mod ast;
 //mod backend;
 mod frontend;
@@ -55,13 +57,14 @@ fn main() {
     println!("<- parsing");
 
     let code = passes::macros::rewrite(code);
-    let code = passes::unfold_uses::rewrite(code);
+    let code = passes::unfold_uses::rewrite(code, &mut ast::common::Path::from_vec(vec!["crate"]));
     let code = passes::give_uniq_id::rewrite(code);
     let code = passes::move_refs::rewrite(code);
 
     println!("<- typing ");
 
-    let typed_file = typing::type_inferencer(code, true);
+    let typed_file =
+        typing::type_inferencer(code, true, ast::common::PathUL::from_vec(vec!["crate"]));
 
     println!("<- check lifetime (TODO) ");
 
@@ -75,13 +78,13 @@ fn main() {
 
     let std = std_file::stdlib().unwrap();
     let std = passes::macros::rewrite(std);
-    let std = passes::unfold_uses::rewrite(std);
+    let std = passes::unfold_uses::rewrite(std, &mut ast::common::Path::from_vec(vec!["crate"]));
     let std = passes::give_uniq_id::rewrite(std);
     let std = passes::move_refs::rewrite(std);
-    let std = typing::type_inferencer(std, false);
+    let std = typing::type_inferencer(std, false, ast::common::PathUL::from_vec(vec!["crate"]));
     let mut std = passes::linear_programs::rewrite(std);
     let allocator = std.remove("allocator").unwrap().content;
-//    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
+    //    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
 
     println!("<- linear programs pass");
 
@@ -91,7 +94,7 @@ fn main() {
 
     todo!();
 
-/*    let llr_form = to_llr::rewrite_file(checked_lifetime, "file".to_string());
+    /*    let llr_form = to_llr::rewrite_file(checked_lifetime, "file".to_string());
 
     println!("<- to asm");
 

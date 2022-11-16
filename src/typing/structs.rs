@@ -1,4 +1,4 @@
-use super::context::{Trait, ModuleInterface, GlobalContext};
+use super::context::{GlobalContext, ModuleInterface, Trait};
 use super::types::{compute_size, translate_typ};
 use crate::ast::rust::{Decl, DeclStruct};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
@@ -21,8 +21,15 @@ const DEFAULT_TYPES: [(&str, BuiltinType); 11] = [
 ];
 
 const DEFAULT_TRAITS_ARITH: [(&str, &str); 9] = [
-    ("Add", "add"), ("Div", "div"), ("Sub", "sub"), ("Mul", "mul"), ("Mod", "mod"),
-    ("BitAnd", "bit_and"), ("BitOr", "bit_or"), ("Shl", "shl"), ("Shr", "shr"),
+    ("Add", "add"),
+    ("Div", "div"),
+    ("Sub", "sub"),
+    ("Mul", "mul"),
+    ("Mod", "mod"),
+    ("BitAnd", "bit_and"),
+    ("BitOr", "bit_or"),
+    ("Shl", "shl"),
+    ("Shr", "shr"),
 ];
 
 const DEFAULT_TRAITS_LOGIC: [(&str, &str); 2] = [("And", "and"), ("Or", "or")];
@@ -62,16 +69,19 @@ impl Graph {
 
 fn test_is_not(parent: &PathUL<(), String>, typ: &rust::PreType) {
     match &typ.content {
-        rust::PreTypeInner::IdentParametrizedPath(_, _) | rust::PreTypeInner::IdentPath(_) => todo!(),
+        rust::PreTypeInner::IdentParametrizedPath(_, _) | rust::PreTypeInner::IdentPath(_) => {
+            todo!()
+        }
         rust::PreTypeInner::IdentParametrized(id, _) | rust::PreTypeInner::Ident(id)
-            if parent.get_content().len() == 1 => {
+            if parent.get_content().len() == 1 =>
+        {
             match parent.get_content().last().unwrap() {
                 NamePath::Name(id2) if id.get_content() == id2 => {
                     println!("Structure {id2} depends on itself and thus is empty type");
-                    std::process::exit(1)    
-                },
+                    std::process::exit(1)
+                }
                 NamePath::Name(_) => (),
-                _ => panic!("ICE"), 
+                _ => panic!("ICE"),
             }
         }
         rust::PreTypeInner::Ident(_) => (),
@@ -106,19 +116,21 @@ fn explore_dependensies(
                 }
             }
         }
-        rust::PreTypeInner::IdentPath(path) => {
-            match graph.add_edge(parent, &path.cleaned()) {
-                None => todo!(),
-                Some(_) => (),
-            }
-        }
+        rust::PreTypeInner::IdentPath(path) => match graph.add_edge(parent, &path.cleaned()) {
+            None => todo!(),
+            Some(_) => (),
+        },
         rust::PreTypeInner::IdentParametrized(_, _) => todo!(),
         rust::PreTypeInner::IdentParametrizedPath(path, param)
-            if path.is_vec() && param.len() == 1 => (),
+            if path.is_vec() && param.len() == 1 =>
+        {
+            ()
+        }
         rust::PreTypeInner::IdentParametrizedPath(_, _) => todo!(),
         rust::PreTypeInner::Ref(_, sub_type) => {
             test_is_not(parent, sub_type);
-            todo!()
+            println!("Need to write error message 4");
+            std::process::exit(1)
         }
         rust::PreTypeInner::Tuple(v) => {
             for typ in v.iter() {
@@ -182,7 +194,12 @@ pub fn topological_sort<T>(structs: Vec<T>, graph: &Graph) -> Result<Vec<T>, (us
     Ok(structs)
 }
 
-pub fn add_structs_graph(module : &mut Module<rust::File>, graph : &mut Graph, path : &mut PathUL<(), String>, structs : &mut Vec<(PathUL<(), String>, DeclStruct)>) {
+pub fn add_structs_graph(
+    module: &mut Module<rust::File>,
+    graph: &mut Graph,
+    path: &mut PathUL<(), String>,
+    structs: &mut Vec<(PathUL<(), String>, DeclStruct)>,
+) {
     let mut local_structs = Vec::new();
     local_structs.append(&mut module.content.content);
     for decl in local_structs.into_iter() {
@@ -192,7 +209,7 @@ pub fn add_structs_graph(module : &mut Module<rust::File>, graph : &mut Graph, p
                 path2.push(NamePath::Name(ds.name.get_content().to_string()));
                 structs.push((path2.clone(), ds));
                 graph.add_node(path2);
-            },
+            }
             decl => module.content.content.push(decl),
         }
     }
@@ -209,7 +226,12 @@ pub fn type_structs(
     let mut graph = Graph::new();
     let mut structs = Vec::new();
     let mut sizes = ModuleInterface::new(modules);
-    add_structs_graph(modules, &mut graph, &mut PathUL::new(vec![NamePath::Name("crate".to_string())]), &mut structs);
+    add_structs_graph(
+        modules,
+        &mut graph,
+        &mut PathUL::new(vec![NamePath::Name("crate".to_string())]),
+        &mut structs,
+    );
 
     let mut set = HashSet::new();
     for (name, raw_type) in DEFAULT_TYPES {
@@ -226,10 +248,7 @@ pub fn type_structs(
                 //     NamePath::Name(logic_trait.to_string()),
                 //     ];
                 // let fun_name = PathUL::new(fun_name);
-                sizes.impl_trait(
-                    &typ,
-                    Trait::Parametrized(logic_trait.to_string(), None),
-                );
+                sizes.impl_trait(&typ, Trait::Parametrized(logic_trait.to_string(), None));
                 sub_modules.impl_fun(
                     logic_fun.to_string(),
                     true,
@@ -268,10 +287,7 @@ pub fn type_structs(
                 //     NamePath::Name(arith_trait.to_string()),
                 //     ];
                 // let fun_name = PathUL::new(fun_name);
-                sizes.impl_trait(
-                    &typ,
-                    Trait::Parametrized(arith_trait.to_string(), None),
-                );
+                sizes.impl_trait(&typ, Trait::Parametrized(arith_trait.to_string(), None));
                 sub_modules.impl_fun(
                     arith_fun.to_string(),
                     true,
@@ -289,10 +305,7 @@ pub fn type_structs(
             //     NamePath::Name("Not".to_string()),
             //     ];
             // let fun_name = PathUL::new(fun_name);
-            sizes.impl_trait(
-                &typ,
-                Trait::Parametrized("PartialOrd".to_string(), None),
-            );
+            sizes.impl_trait(&typ, Trait::Parametrized("PartialOrd".to_string(), None));
             for tail in ["le", "lo", "gr", "ge"] {
                 sub_modules.impl_fun(
                     tail.to_string(),
@@ -344,10 +357,7 @@ pub fn type_structs(
         //     NamePath::Name("PartialEq".to_string()),
         //     ];
         // let fun_name = PathUL::new(fun_name);
-        sizes.impl_trait(
-            &typ,
-            Trait::Parametrized("PartialEq".to_string(), None),
-        );
+        sizes.impl_trait(&typ, Trait::Parametrized("PartialEq".to_string(), None));
         for tail in ["eq", "ne"] {
             sub_modules.impl_fun(
                 tail.to_string(),
@@ -375,41 +385,32 @@ pub fn type_structs(
         Ok(s) => s,
         Err((_id, _structs)) => {
             println!("Do error message");
-//            println!("{} has infinite size", structs[id].name.get_content());
+            //            println!("{} has infinite size", structs[id].name.get_content());
             std::process::exit(1)
         }
     };
     let mut structs2 = Vec::new();
 
-    println!("insert vec structure");
-    sizes.insert_struct(PathUL::from_vec(vec!["std", "vec", "Vec"]), true, HashMap::new());
+    sizes.insert_struct(
+        PathUL::from_vec(vec!["std", "vec", "Vec"]),
+        true,
+        HashMap::new(),
+    );
 
     for struct_decl in structs.iter_mut() {
         let mut size = 0;
+        let name = struct_decl.0.pop().unwrap();
         for (_, typ) in struct_decl.1.args.iter() {
             size += compute_size(typ, &sizes, &mut struct_decl.0);
         }
-/*        assert!(sizes
-            .insert(
-                struct_decl.name.get_content().to_string(),
-                typed_rust::PostType {
-                    content: typed_rust::PostTypeInner::Struct(
-                        struct_decl.name.get_content().to_string(),
-                        vec![]
-                    ),
-                }
-            )
-            .is_none());*/
-        assert!(sizes
-            .insert_size(struct_decl.0.clone(), size).is_none());
+        struct_decl.0.push(name);
+        assert!(sizes.insert_size(struct_decl.0.clone(), size).is_none());
     }
 
     for struct_decl in structs.into_iter() {
-        assert!(sizes.insert_struct(
-            struct_decl.0.clone(),
-            struct_decl.1.public,
-            HashMap::new(),
-        ).is_none());
+        assert!(sizes
+            .insert_struct(struct_decl.0.clone(), struct_decl.1.public, HashMap::new(),)
+            .is_none());
         let mut args = HashMap::new();
         for (name, typ) in struct_decl.1.args.into_iter() {
             let mut path = struct_decl.0.clone();
@@ -427,17 +428,14 @@ pub fn type_structs(
                 }
             }
         }
-        println!("{:?}", struct_decl.0);
         structs2.push(typed_rust::DeclStruct {
             size: *sizes.get_size(&struct_decl.0).unwrap(),
             name: struct_decl.1.name,
             args: args.clone(),
         });
-        sizes.insert_struct(
-            struct_decl.0,
-            struct_decl.1.public,
-            args,
-        ).unwrap();
+        sizes
+            .insert_struct(struct_decl.0, struct_decl.1.public, args)
+            .unwrap();
     }
 
     (sizes, structs2)

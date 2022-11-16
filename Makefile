@@ -8,6 +8,7 @@ all: build
 
 clean:
 	echo "pub fn stdlib() -> Option<crate::frontend::Module<crate::ast::rust::File>> { None }"  > src/std_file.rs
+	cargo fmt
 
 test: build
 	./test -3d target/debug/sam_rust_compiler

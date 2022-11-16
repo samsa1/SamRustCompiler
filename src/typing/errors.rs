@@ -1,5 +1,5 @@
 use super::context::Trait;
-use crate::ast::common::{ErrorReporter, Ident, Location, Sizes, Path, PathUL};
+use crate::ast::common::{ErrorReporter, Ident, Location, Path, PathUL, Sizes};
 use crate::ast::rust::Types;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 
@@ -214,7 +214,7 @@ impl TypeError {
         }
     }
 
-    pub fn unknown_struct(loc : Location, id: PathUL<()>) -> Self {
+    pub fn unknown_struct(loc: Location, id: PathUL<()>) -> Self {
         Self {
             loc,
             info: TypeErrorInfo::UndeclaredStruct(id),
@@ -307,7 +307,9 @@ impl TypeError {
 
     pub fn report_error(&self, err_reporter: &ErrorReporter) {
         if self.loc.start() == usize::MAX {
-            println!("Unknown line")
+            println!("Unknown line");
+            println!("{:?}", self);
+            std::process::exit(1)
         } else {
             println!(
                 "{}error[E{:0>4}]{}: {}",

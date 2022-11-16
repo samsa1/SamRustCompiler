@@ -2,7 +2,8 @@ use super::context::{Const, GlobalContext};
 use super::errors::TypeError;
 use super::types::translate_typ;
 use crate::ast::common::{
-    BinOperator, BuiltinType, ComputedValue, Ident, PathUL, Location, Projector, UnaOperator, NamePath,
+    BinOperator, BuiltinType, ComputedValue, Ident, Location, NamePath, PathUL, Projector,
+    UnaOperator,
 };
 use crate::ast::rust::*;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
@@ -145,7 +146,6 @@ fn make_coherent(
         (Some(typ1), Some(typ2)) => (typ1, typ2),
         _ => panic!("ICE"),
     };
-    //    println!("-> {:?} {:?} {:?}", typ1, typ2, unification_method);
     match (typ1, typ2) {
         (Types::Unknown, _) => {
             let type_id = types.new_ref_unmarked(type_id2);
@@ -458,7 +458,6 @@ fn type_expr(
     types: &mut TypeStorage,
     out_type: usize,
 ) -> Result<(bool, Expr<usize>), Vec<TypeError>> {
-    //    println!("processing {top_expr:?}");
     let out = match *top_expr.content {
         ExprInner::Array(_) => todo!(),
 
@@ -640,7 +639,10 @@ fn type_expr(
                     }
                     None => (),
                 };
-                let type_id = types.insert_type(Types::Struct(ctxt.get_path(struct_name.get_content()), vec![]));
+                let type_id = types.insert_type(Types::Struct(
+                    ctxt.get_path(struct_name.get_content()),
+                    vec![],
+                ));
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
@@ -651,7 +653,10 @@ fn type_expr(
                     },
                 ))
             } else {
-                Err(vec![TypeError::unknown_struct(struct_name.get_loc(), ctxt.get_path(struct_name.get_content()))])
+                Err(vec![TypeError::unknown_struct(
+                    struct_name.get_loc(),
+                    ctxt.get_path(struct_name.get_content()),
+                )])
             }
         }
 
@@ -702,7 +707,10 @@ fn type_expr(
                     },
                 ))
             } else {
-                Err(vec![TypeError::unknown_struct(struct_path.get_loc(), cleaned_path)])
+                Err(vec![TypeError::unknown_struct(
+                    struct_path.get_loc(),
+                    cleaned_path,
+                )])
             }
         }
 
@@ -824,8 +832,7 @@ fn type_expr(
                         }
                         let mut exprs_out = Vec::new();
                         for (expr, typ) in exprs.into_iter().zip(args.iter()) {
-                            let expr =
-                                type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
                             forces_to(
                                 types,
                                 expr.typed,
@@ -837,13 +844,7 @@ fn type_expr(
                             exprs_out.push(expr)
                         }
                         let type_id = add_type(types, out, &free_types);
-                        check_coherence(
-                            types,
-                            type_id,
-                            top_expr.typed,
-                            top_expr.loc,
-                            ctxt,
-                        )?;
+                        check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                         Ok((
                             false,
                             Expr {
@@ -911,10 +912,10 @@ fn type_expr(
             if let Some((affectable, name, args)) =
                 get_struct_name(types, expr_val.typed, expr_val.loc, affectable)?
             {
-                if name.get_content().len() == 3 
-                    && name.get_content()[0] == NamePath::Name("std".to_string()) 
-                    && name.get_content()[1] == NamePath::Name("vec".to_string()) 
-                    && name.get_content()[2] == NamePath::Name("Vec".to_string()) 
+                if name.get_content().len() == 3
+                    && name.get_content()[0] == NamePath::Name("std".to_string())
+                    && name.get_content()[1] == NamePath::Name("vec".to_string())
+                    && name.get_content()[2] == NamePath::Name("Vec".to_string())
                     && args.len() == 1
                 {
                     let type_id = args[0];
@@ -1044,13 +1045,12 @@ fn type_expr(
             if let Some((_, struct_name, params)) =
                 get_struct_name(types, expr.typed, expr.loc, false)?
             {
-                if let Some(method) = ctxt.get_method_function(struct_name, &method_name).unwrap() {
-                    let module = ctxt.get_module(struct_name).unwrap();
-                    let (_, typ) = module.get_top_fun(method).unwrap();
+                if let Some(method) = ctxt.get_method_function(struct_name, &method_name) {
+                    let method = method.add_loc();
+                    let typ = ctxt.get_fun(&method).unwrap();
                     match &typ.content {
                         PostTypeInner::Fun(frees, args, out) => {
                             assert_eq!(frees.len(), params.len());
-                            let mut path = struct_name.add_loc();
                             let params = params.clone();
                             let mut free_types = HashMap::new();
                             for (name, id) in frees.iter().zip(params.iter()) {
@@ -1081,15 +1081,13 @@ fn type_expr(
                                 exprs_out.push(expr)
                             }
                             let type_id = add_type(types, &*out, &free_types);
-                            path.push(NamePath::Name(Ident::new(method, method_name.get_loc())));
                             check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                             Ok((
                                 false,
                                 Expr {
                                     content: Box::new(ExprInner::FunCallPath(
-                                        params,
-                                        path,
-//                                        Ident::new(method, method_name.get_loc()),
+                                        params, method,
+                                        //                                        Ident::new(method, method_name.get_loc()),
                                         exprs_out,
                                     )),
                                     loc: top_expr.loc,
@@ -1147,7 +1145,6 @@ fn type_expr(
                 get_struct_name(types, expr.typed, expr.loc, affectable)?
             {
                 assert!(params.is_empty());
-                println!("proj name of {:?}", struct_name);
                 let struct_info = ctxt.get_struct_path(struct_name).unwrap();
                 if let Some(field_typ) = struct_info.get_field_typ(proj_name.get_content()) {
                     (affectable, add_type(types, field_typ, &HashMap::new()))
@@ -1306,10 +1303,7 @@ fn type_expr(
         }
 
         ExprInner::VarPath(var_path) => {
-            match (
-                ctxt.get_fun(&var_path),
-                ctxt.get_const_val(&var_path),
-            ) {
+            match (ctxt.get_fun(&var_path), ctxt.get_const_val(&var_path)) {
                 (Some(typ), None) | (None, Some(Const { typ, .. })) => {
                     let type_id = types.insert_type(Types::unknown());
                     forces_to(
@@ -1410,10 +1404,6 @@ fn type_expr(
             ))
         }
     };
-    /*    println!("");
-        println!("{:?}", types);
-        println!("{:?}", out);
-    */
     out
 }
 
@@ -1459,11 +1449,6 @@ fn type_bloc(
             content: instr_content,
             loc: instr.loc,
         })
-        /*        println!("");
-                println!("{types:?}");
-                println!("{local_ctxt:?}");
-                println!("{content:?}");
-        */
     }
 
     let type_id = match content.pop() {

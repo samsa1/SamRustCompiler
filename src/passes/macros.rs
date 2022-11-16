@@ -131,9 +131,11 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
             ..top_expr
         },
 
-        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::VarPath(_) | ExprInner::String(_) => {
-            top_expr
-        }
+        ExprInner::Int(_, _)
+        | ExprInner::Bool(_)
+        | ExprInner::Var(_)
+        | ExprInner::VarPath(_)
+        | ExprInner::String(_) => top_expr,
 
         ExprInner::BuildStruct(name, exprs) => Expr {
             content: Box::new(ExprInner::BuildStruct(
@@ -284,8 +286,12 @@ fn rewrite_file(file: File) -> File {
     }
 }
 
-pub fn rewrite(m : crate::frontend::Module<File>) -> crate::frontend::Module<File> {
+pub fn rewrite(m: crate::frontend::Module<File>) -> crate::frontend::Module<File> {
     let content = rewrite_file(m.content);
-    let submodules = m.submodules.into_iter().map(|(k, (b, m_inner))| (k, (b, rewrite(m_inner)))).collect();
+    let submodules = m
+        .submodules
+        .into_iter()
+        .map(|(k, (b, m_inner))| (k, (b, rewrite(m_inner))))
+        .collect();
     crate::frontend::Module::build(content, submodules)
 }

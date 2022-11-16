@@ -363,7 +363,7 @@ peg::parser! {
             { to_expr(e1.loc.start(), end,
             ExprInner::Index(e1, e2)) }
           p:path() space() "(" v:opt_expr_list() ")" end:position!()
-            { 
+            {
                 if p.get_content().len() == 1 {
                     let mut p = p.content();
                     if let NamePath::Name(id) = p.remove(0) {

@@ -10,7 +10,7 @@ pub struct File {
 
 #[derive(Debug)]
 pub struct DeclFun {
-    pub name: common::Ident,
+    pub name: common::PathUL<()>,
     pub args: Vec<(common::Ident, bool, PostType)>,
     pub output: PostType,
     pub content: Bloc,
