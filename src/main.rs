@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 pub mod ast;
 mod backend;
 mod frontend;
@@ -36,8 +38,8 @@ fn main() {
             panic!("no argument can be given with the --generate-std option");
         }
 
-        let mut std = frontend::Module::new("std/mod.rs".to_string());
-        std.write_in_out("src/std_file.rs");
+        let std = frontend::Module::new("std/mod.rs".to_string());
+        std.write_in_out("src/std_file.rs").unwrap();
         std::process::exit(0)
     }
 
@@ -47,25 +49,26 @@ fn main() {
 
     let in_name = filenames.pop().unwrap();
 
-    let parsed_file = frontend::Module::new(in_name.clone());
-    let parsed_file = parsed_file.content;
+    let code = frontend::Module::new(in_name.clone());
     if parse_only {
         std::process::exit(0)
     }
 
     println!("<- parsing");
 
-    let unfolded_macros = passes::macros::rewrite_file(parsed_file);
-    let distinct_names = passes::give_uniq_id::rewrite_file(unfolded_macros);
-    let moved_refs = passes::move_refs::rewrite_file(distinct_names);
+    let code = passes::macros::rewrite(code);
+    let code = passes::unfold_uses::rewrite(code, &mut ast::common::Path::from_vec(vec!["crate"]));
+    let code = passes::give_uniq_id::rewrite(code);
+    let code = passes::move_refs::rewrite(code);
 
     println!("<- typing ");
 
-    let typed_file = typing::type_inferencer(moved_refs, true);
+    let (code_modint, typed_file) =
+        typing::type_inferencer(code, true, ast::common::PathUL::from_vec(vec!["crate"]));
 
     println!("<- check lifetime (TODO) ");
 
-    let checked_lifetime = typed_file;
+    let mut checked_lifetime = typed_file;
 
     //    println!("{:?}", checked_lifetime);
 
@@ -73,30 +76,42 @@ fn main() {
         std::process::exit(0)
     }
 
-    let mut std = std_file::stdlib().unwrap();
-    let allocator = std.remove("allocator").unwrap().content;
-    let allocator = passes::macros::rewrite_file(allocator);
-    let allocator = passes::give_uniq_id::rewrite_file(allocator);
-    let allocator = passes::move_refs::rewrite_file(allocator);
-    let allocator = typing::type_inferencer(allocator, false);
-    let allocator = passes::linear_programs::rewrite_file(allocator);
-    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
+    let std = std_file::stdlib().unwrap();
+    let std = passes::macros::rewrite(std);
+    let std = passes::unfold_uses::rewrite(std, &mut ast::common::Path::from_vec(vec!["crate"]));
+    let std = passes::give_uniq_id::rewrite(std);
+    let std = passes::move_refs::rewrite(std);
+    let (std_modint, std) =
+        typing::type_inferencer(std, false, ast::common::PathUL::from_vec(vec!["crate"]));
+    let std = passes::linear_programs::rewrite(std);
+    let std = passes::change_crate_name::rewrite(std, "crate", "std");
+    //let allocator = std.remove("allocator").unwrap().content;
+    //    let allocator = to_llr::rewrite_file(allocator, "alloc".to_string());
 
     println!("<- linear programs pass");
 
-    let made_linear = passes::linear_programs::rewrite_file(checked_lifetime);
+    let code = passes::linear_programs::rewrite(checked_lifetime);
+    let mut submodules = HashMap::new();
+    submodules.insert("crate".to_string(), (true, code));
+    submodules.insert("std".to_string(), (true, std));
+    let code = frontend::Module::build(ast::typed_rust::File::empty(), submodules);
+
+    let std_modint = std_modint.extract("std");
+    let code_modint = code_modint.extract("crate");
+    let mut modint = typing::context::ModuleInterface::empty();
+    modint.insert("std".to_string(), true, std_modint);
+    modint.insert("crate".to_string(), true, code_modint);
 
     println!("<- to llr");
 
-    let llr_form = to_llr::rewrite_file(made_linear, "file".to_string());
-
+    let (llr_form, strings) = to_llr::rewrite(code, modint, "file".to_string());
+    let llr_form = passes::concat_all::rewrite(llr_form);
     println!("<- to asm");
 
     let mut ctxt = backend::get_ctxt();
-    let entry_point = backend::base(&mut ctxt);
-    let allocator = backend::to_asm(allocator, &mut ctxt);
-    let asm = backend::to_asm(llr_form, &mut ctxt);
-    let asm = backend::bind(vec![entry_point, allocator, asm]);
+    let base = backend::base(&mut ctxt);
+    let asm = backend::to_asm(llr_form, strings, &mut ctxt);
+    let asm = backend::bind(vec![base, asm]);
 
     let mut out_name = std::path::PathBuf::from(in_name);
     out_name.set_extension("s");

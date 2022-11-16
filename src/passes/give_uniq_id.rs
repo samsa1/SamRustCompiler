@@ -134,10 +134,24 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             ..top_expr
         },
 
-        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::String(_) => top_expr,
+        ExprInner::Int(_, _)
+        | ExprInner::Bool(_)
+        | ExprInner::String(_)
+        | ExprInner::VarPath(_) => top_expr,
 
         ExprInner::BuildStruct(name, exprs) => Expr {
             content: Box::new(ExprInner::BuildStruct(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|(n, e)| (n, rewrite_expr(e, counter)))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::BuildStructPath(name, exprs) => Expr {
+            content: Box::new(ExprInner::BuildStructPath(
                 name,
                 exprs
                     .into_iter()
@@ -178,6 +192,21 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             };
             Expr {
                 content: Box::new(ExprInner::FunCall(
+                    args,
+                    name,
+                    exprs
+                        .into_iter()
+                        .map(|e| rewrite_expr(e, counter))
+                        .collect(),
+                )),
+                ..top_expr
+            }
+        }
+
+        ExprInner::FunCallPath(args, name, exprs) => {
+            assert!(name.get_content().len() > 1);
+            Expr {
+                content: Box::new(ExprInner::FunCallPath(
                     args,
                     name,
                     exprs
@@ -280,7 +309,7 @@ fn rewrite_decl(decl: Decl) -> Result<Decl, Vec<TypeError>> {
     }
 }
 
-pub fn rewrite_file(file: File) -> File {
+fn rewrite_file(file: File) -> File {
     let mut content = vec![];
     for decl in file.content {
         match rewrite_decl(decl) {
@@ -294,4 +323,14 @@ pub fn rewrite_file(file: File) -> File {
         }
     }
     File { content, ..file }
+}
+
+pub fn rewrite(m: crate::frontend::Module<File>) -> crate::frontend::Module<File> {
+    let content = rewrite_file(m.content);
+    let submodules = m
+        .submodules
+        .into_iter()
+        .map(|(k, (b, m_inner))| (k, (b, rewrite(m_inner))))
+        .collect();
+    crate::frontend::Module::build(content, submodules)
 }

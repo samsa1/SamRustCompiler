@@ -7,5 +7,7 @@ fn main() {
     module2::exec();
     module2::module3::exec_top();
     let module1 = 3;
-    println!("test {}", module1);
+    if module1 == 3 {
+        print!("test\n")
+    }
 }

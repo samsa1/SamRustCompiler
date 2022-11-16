@@ -8,9 +8,19 @@ pub struct File {
     pub structs: Vec<DeclStruct>,
 }
 
+impl File {
+    pub fn empty() -> Self {
+        Self {
+            name: String::new(),
+            funs: Vec::new(),
+            structs: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DeclFun {
-    pub name: common::Ident,
+    pub name: common::PathUL<()>,
     pub args: Vec<(common::Ident, bool, PostType)>,
     pub output: PostType,
     pub content: Bloc,
@@ -105,7 +115,7 @@ impl PostType {
         }
     }
 
-    pub fn get_struct(&self) -> Option<(&str, &Vec<PostType>)> {
+    pub fn get_struct(&self) -> Option<(&common::PathUL<()>, &Vec<PostType>)> {
         match &self.content {
             PostTypeInner::Struct(name, args) => Some((name, args)),
             PostTypeInner::Ref(_, typ) => match &typ.content {
@@ -120,7 +130,7 @@ impl PostType {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
-    Struct(String, Vec<PostType>),
+    Struct(common::PathUL<()>, Vec<PostType>),
     //    Enum(String),
     Box(Box<PostType>),
     /*    IdentParametrized(String, Vec<PostType>),*/
@@ -176,14 +186,16 @@ pub enum ExprInner {
     Bool(bool),
     Int(u64),
     Var(common::Ident),
+    VarPath(common::PathUL<()>),
     /*Method(Expr, common::Ident, Vec<Expr>),*/
     FunCall(common::Ident, Vec<Expr>),
+    FunCallPath(common::PathUL<()>, Vec<Expr>),
     //    Constructor(common::Ident, Vec<Expr>),
     Bloc(Bloc),
     Ref(bool, Expr),
     Deref(Expr),
     Tuple(Vec<Expr>),
-    BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
+    BuildStruct(common::PathUL<()>, Vec<(common::Ident, Expr)>),
     Proj(Expr, common::Projector),
     Set(Expr, Expr),
     Print(String),

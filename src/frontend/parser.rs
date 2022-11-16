@@ -121,7 +121,7 @@ peg::parser! {
             { Open::Mod(p.is_some(), n, r) }
       }
 
-      rule path() -> Path<PreType> = precedence!{
+      rule path() -> Path<()> = precedence!{
         n:name() "::" p:path_tl() {
             let (end, mut path_rev) = p;
             let loc = Location::new(n.get_loc().start(), end);
@@ -134,7 +134,7 @@ peg::parser! {
         }
       }
 
-      rule path_tl() -> (usize, Vec<NamePath<PreType>>) = precedence!{
+      rule path_tl() -> (usize, Vec<NamePath<()>>) = precedence!{
         n:name() "::" p:path_tl() { let (pos, mut p) = p; p.push(NamePath::Name(n)); (pos, p) }
         n:name() pos:position!() { (pos, vec![NamePath::Name(n)]) }
       }
@@ -362,8 +362,19 @@ peg::parser! {
           e1:@() space() "[" e2:expr_ws() "]" end:position!()
             { to_expr(e1.loc.start(), end,
             ExprInner::Index(e1, e2)) }
-          n:name() space() "(" v:opt_expr_list() ")" end:position!()
-            { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
+          p:path() space() "(" v:opt_expr_list() ")" end:position!()
+            {
+                if p.get_content().len() == 1 {
+                    let mut p = p.content();
+                    if let NamePath::Name(id) = p.remove(0) {
+                        to_expr(id.get_loc().start(), end, ExprInner::FunCall(vec![], id, v))
+                    } else {
+                        panic!("ICE")
+                    }
+                } else {
+                    to_expr(p.get_loc().start(), end, ExprInner::FunCallPath(vec![], p, v))
+                }
+            }
           n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1, n.2)) }
           t:true_expr()   { t }
           f:false_expr()  { f }
@@ -408,8 +419,19 @@ peg::parser! {
             { to_expr(start, end, ExprInner::Return(Some(e))) }
           l:position!() "ret" "urn" r:position!()
             { to_expr(l, r, ExprInner::Return(None)) }
-          n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
+          p:path() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
+            {
+                if p.get_content().len() == 1 {
+                    let mut p = p.content();
+                    if let NamePath::Name(id) = p.remove(0) {
+                        to_expr(id.get_loc().start(), end, ExprInner::BuildStruct(id, args))
+                    } else {
+                        panic!("ICE")
+                    }
+                } else {
+                    to_expr(p.get_loc().start(), end, ExprInner::BuildStructPath(p, args))
+                }
+            }
           i:if() { i }
           n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
               { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
