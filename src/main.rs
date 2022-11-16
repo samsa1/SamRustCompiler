@@ -102,10 +102,7 @@ fn main() {
     let llr_form = passes::concat_all::rewrite(llr_form);
 
     // Compile to asm
-    let mut ctxt = backend::get_ctxt();
-    let base = backend::base(&mut ctxt);
-    let asm = backend::to_asm(llr_form, strings, &mut ctxt);
-    let asm = backend::bind(vec![base, asm]);
+    let asm = backend::compile(llr_form, strings);
 
     // Printing asm
     let mut out_name = std::path::PathBuf::from(in_name);
