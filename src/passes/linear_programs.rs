@@ -14,10 +14,12 @@ fn is_ref(
         | ExprInner::PrintPtr(_)
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
+        | ExprInner::Constructor(_, _)
         | ExprInner::FunCall(_, _)
         | ExprInner::FunCallPath(_, _)
         | ExprInner::If(_, _, _)
         | ExprInner::Coercion(_, _, _)
+        | ExprInner::PatternMatching(_, _, _)
         | ExprInner::BinOp(_, _, _)
         | ExprInner::UnaOp(_, _)
         | ExprInner::Return(_)
@@ -112,6 +114,16 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             )),
             ..top_expr
         },
+        ExprInner::Constructor(name, exprs) => Expr {
+            content: Box::new(ExprInner::Constructor(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|e| is_ref(false, e, context, counter))
+                    .collect(),
+            )),
+            ..top_expr
+        },
 
         ExprInner::If(expr, bloc1, bloc2) => Expr {
             content: Box::new(ExprInner::If(
@@ -158,6 +170,8 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             content: Box::new(ExprInner::Proj(is_ref(false, expr, context, counter), proj)),
             ..top_expr
         },
+
+        ExprInner::PatternMatching(_, _, _) => todo!(),
 
         ExprInner::BinOp(binop, expr1, expr2) => Expr {
             content: Box::new(ExprInner::BinOp(

@@ -13,7 +13,7 @@ fn f3() -> i32 {
     4
 }
 fn f4() -> i32 {
-    4 + return (3 + return 4)
+    4 + { return (3 + { return 4; 1 }) ; 1}
 }
 fn f(x: i32) -> i32 {
     if x == 0 { return 0; }

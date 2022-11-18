@@ -89,11 +89,44 @@ fn get_tuple(
 ) -> Result<Option<(bool, &Vec<usize>)>, Vec<TypeError>> {
     match types.get(type_id) {
         None => panic!("ICE"),
+        Some(Types::SameAs(type_id)) => get_tuple(types, *type_id, loc, affectable),
         Some(Types::Tuple(vec)) => Ok(Some((affectable, vec))),
         Some(Types::Unknown) => Ok(None),
         Some(Types::Ref(mutable, type_id)) => {
             get_tuple(types, *type_id, loc, mutable.unwrap_or(true))
         }
+        Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
+    }
+}
+
+fn get_enum_inner(
+    types: &TypeStorage,
+    type_id: usize,
+    loc: Location,
+) -> Result<Option<(&PathUL<()>, &Vec<usize>)>, Vec<TypeError>> {
+    match types.get(type_id) {
+        None => panic!("ICE"),
+        Some(Types::SameAs(type_id)) => get_enum_inner(types, *type_id, loc),
+        Some(Types::Enum(path, vec)) => Ok(Some((path, vec))),
+        Some(Types::Unknown) => Ok(None),
+        Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
+    }
+}
+
+fn get_enum(
+    types: &TypeStorage,
+    type_id: usize,
+    loc: Location,
+) -> Result<Option<(Option<Option<bool>>, Option<(&PathUL<()>, &Vec<usize>)>)>, Vec<TypeError>> {
+    match types.get(type_id) {
+        None => panic!("ICE"),
+        Some(Types::SameAs(type_id)) => get_enum(types, *type_id, loc),
+        Some(Types::Enum(path, vec)) => Ok(Some((None, Some((path, vec))))),
+        Some(Types::Unknown) => Ok(None),
+        Some(Types::Ref(mutable, type_id)) => Ok(Some((
+            Some(*mutable),
+            get_enum_inner(types, *type_id, loc)?,
+        ))),
         Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
     }
 }
@@ -405,6 +438,13 @@ fn add_type(
             }
             types.insert_type(Types::Struct(param.clone(), vec))
         }
+        PostTypeInner::Enum(param, args) => {
+            let mut vec = Vec::new();
+            for typ in args.iter() {
+                vec.push(add_type(types, typ, free_types))
+            }
+            types.insert_type(Types::Enum(param.clone(), vec))
+        }
         PostTypeInner::Ref(mutable, typ) => {
             let type_id = add_type(types, typ, free_types);
             types.insert_type(Types::refed(*mutable, type_id))
@@ -703,6 +743,52 @@ fn type_expr(
                     cleaned_path,
                 )])
             }
+        }
+
+        ExprInner::Constructor(raw_path, exprs) => {
+            // untested section because can never happen unless a new pass is implemented before typing
+            let mut path = raw_path.cleaned();
+            let constructor = path.pop();
+            let enum_info = ctxt.get_enum(&path);
+            let (enum_info, constructor) = match (enum_info, constructor) {
+                (Some(ei), Some(NamePath::Name(c))) => (ei, c),
+                (_, None) => panic!("ICE"),
+                (_, Some(NamePath::Specialisation(_))) => panic!("Unhandled case"),
+                (None, _) => todo!(),
+            };
+            let types_expected = match enum_info.get_constructor(&constructor) {
+                None => todo!(),
+                Some((_, types)) => types,
+            };
+            let mut free_types = HashMap::new();
+            let mut vec_free_types = Vec::new();
+            for name in enum_info.get_free_types().iter() {
+                let type_id = types.insert_type(Types::unknown());
+                free_types.insert(name.clone(), type_id);
+                vec_free_types.push(type_id);
+            }
+            let mut exprs_out = Vec::new();
+            for (expr, typ) in exprs.into_iter().zip(types_expected.iter()) {
+                let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                forces_to(
+                    types,
+                    expr.typed,
+                    typ,
+                    expr.loc,
+                    &free_types,
+                    UnificationMethod::StrictSnd,
+                )?;
+                exprs_out.push(expr)
+            }
+            let type_id = types.insert_type(Types::Enum(path, vec_free_types));
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::Constructor(raw_path, exprs_out)),
+                    loc: top_expr.loc,
+                    typed: type_id,
+                },
+            ))
         }
 
         ExprInner::Deref(expr) => {
@@ -1102,6 +1188,120 @@ fn type_expr(
             Ok((false, expr))
         }
 
+        ExprInner::PatternMatching(expr, cases, fall) => {
+            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+            let (reference, mut enum_info, free) = match get_enum(types, expr.typed, expr.loc)? {
+                None => todo!(),
+                Some((_, None)) => todo!(),
+                Some((reference, Some((path, free)))) => {
+                    (reference, ctxt.enum_info(path).unwrap(), free)
+                }
+            };
+            let mut free_types = HashMap::new();
+            let free_names = enum_info.get_free_types();
+            assert_eq!(free_names.len(), free.len());
+            for (name, type_id) in free_names.iter().zip(free.iter()) {
+                assert!(free_types.insert(name.to_string(), *type_id).is_none())
+            }
+
+            let mut type_id_out = types.insert_type(Types::unknown());
+            let mut rows = Vec::new();
+            for row in cases {
+                local_ctxt.add_layer();
+                let cons = match row.constructor.last() {
+                    None => todo!(),
+                    Some(id) => {
+                        if row.guard.is_none() {
+                            enum_info.update_constructor(id.get_content())
+                        } else {
+                            enum_info.get_constructor(id.get_content())
+                        }
+                    }
+                };
+                let arg_types = match cons {
+                    None => todo!(),
+                    Some((true, _)) => todo!(),
+                    Some((false, types)) => types,
+                };
+                if arg_types.len() != row.arguments.len() {
+                    todo!()
+                }
+                for ((mutable, arg), post_type) in row.arguments.iter().zip(arg_types.iter()) {
+                    let type_id = add_type(types, post_type, &free_types);
+                    let type_id = match reference {
+                        None => type_id,
+                        Some(opt) => types.insert_type(Types::Ref(opt, type_id)),
+                    };
+                    local_ctxt.add_var(arg, *mutable, type_id)
+                }
+
+                let guard = match row.guard {
+                    None => None,
+                    Some(expr) => {
+                        let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                        let type_id = types.insert_bool();
+                        make_coherent(
+                            types,
+                            type_id,
+                            expr.typed,
+                            expr.loc,
+                            UnificationMethod::NoRef,
+                        )?;
+                        Some(expr)
+                    }
+                };
+
+                let (type_id_row, row_bloc) =
+                    type_bloc(ctxt, local_ctxt, row.bloc, types, out_type, None)?;
+
+                local_ctxt.pop_layer();
+                type_id_out = make_coherent(
+                    types,
+                    type_id_out,
+                    type_id_row,
+                    row_bloc.loc,
+                    UnificationMethod::Smallest,
+                )?;
+
+                rows.push(Pattern {
+                    constructor: row.constructor,
+                    arguments: row.arguments,
+                    guard,
+                    bloc: row_bloc,
+                })
+            }
+            let fall = match fall {
+                None => match enum_info.check_finished() {
+                    None => None,
+                    Some(id) => return Err(vec![TypeError::incomplete_match(expr.loc, id)]),
+                },
+                Some((mutable, ident, bloc)) => {
+                    local_ctxt.add_layer();
+                    local_ctxt.add_var(&ident, mutable, expr.typed);
+
+                    let (type_id2, bloc) =
+                        type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?;
+                    local_ctxt.pop_layer();
+                    type_id_out = make_coherent(
+                        types,
+                        type_id_out,
+                        type_id2,
+                        bloc.loc,
+                        UnificationMethod::Smallest,
+                    )?;
+                    Some((mutable, ident, bloc))
+                }
+            };
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::PatternMatching(expr, rows, fall)),
+                    loc: top_expr.loc,
+                    typed: type_id_out,
+                },
+            ))
+        }
+
         ExprInner::Proj(expr, Projector::Int(proj_id)) => {
             let (affectable, expr) = type_expr(ctxt, local_ctxt, expr, types, out_type)?;
             let (affectable, type_id) = if let Some((affectable, tuple)) =
@@ -1296,11 +1496,13 @@ fn type_expr(
         }
 
         ExprInner::VarPath(var_path) => {
+            let mut cleaned_path = var_path.cleaned();
             match (
                 ctxt.get_fun(&var_path),
-                ctxt.get_const_val(&var_path.cleaned()),
+                ctxt.get_const_val(&cleaned_path),
+                ctxt.is_constructor(&cleaned_path),
             ) {
-                (Some(typ), None) | (None, Some(Const { typ, .. })) => {
+                (Some(typ), None, None) | (None, Some(Const { typ, .. }), None) => {
                     let type_id = types.insert_type(Types::unknown());
                     forces_to(
                         types,
@@ -1319,8 +1521,27 @@ fn type_expr(
                         },
                     ))
                 }
-                (None, None) => Err(vec![TypeError::unknown_path(var_path)]),
-                (Some(_), Some(_)) => todo!(),
+                (None, None, Some(info)) => {
+                    cleaned_path.pop();
+                    let free_types = info
+                        .get_free_types()
+                        .iter()
+                        .map(|_| types.insert_type(Types::unknown()))
+                        .collect();
+                    let type_id = types.insert_type(Types::Enum(cleaned_path, free_types));
+                    Ok((
+                        false,
+                        Expr {
+                            content: Box::new(ExprInner::Constructor(var_path, Vec::new())),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
+                    ))
+                }
+                (None, None, None) => Err(vec![TypeError::unknown_path(var_path)]),
+                (Some(_), Some(_), _) => todo!(),
+                (Some(_), None, Some(_)) => todo!(),
+                (None, Some(_), Some(_)) => todo!(),
             }
         }
 

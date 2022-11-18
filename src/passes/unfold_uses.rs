@@ -111,6 +111,28 @@ fn translate_type(typ: PreType, map: &HashMap<String, Path<()>>) -> PreType {
     PreType { content }
 }
 
+fn rewrite_patt(
+    patt: Pattern,
+    local_ctxt: &mut LocalContext,
+    map: &HashMap<String, Path<()>>,
+) -> Pattern {
+    local_ctxt.add_layer();
+    for (_, id) in patt.get_arguments() {
+        if map.contains_key(id.get_content()) {
+            local_ctxt.insert(id.get_content().to_string());
+        }
+    }
+    let bloc = rewrite_bloc(patt.bloc, local_ctxt, map);
+    let guard = patt.guard.map(|expr| rewrite_expr(expr, local_ctxt, map));
+    local_ctxt.pop_layer();
+
+    Pattern {
+        bloc,
+        guard,
+        ..patt
+    }
+}
+
 fn rewrite_expr(
     expr: Expr,
     local_ctxt: &mut LocalContext,
@@ -152,6 +174,13 @@ fn rewrite_expr(
             rewrite_expr(expr, local_ctxt, map),
             typ.map(|typ| translate_type(typ, map)),
         ),
+        ExprInner::Constructor(path, exprs) => {
+            let exprs = exprs
+                .into_iter()
+                .map(|expr| rewrite_expr(expr, local_ctxt, map))
+                .collect();
+            ExprInner::Constructor(translate_path(path, map), exprs)
+        }
         ExprInner::Deref(expr) => ExprInner::Deref(rewrite_expr(expr, local_ctxt, map)),
         ExprInner::FunCall(free, name, exprs) => {
             let exprs = exprs
@@ -193,6 +222,15 @@ fn rewrite_expr(
                 .collect(),
         ),
         ExprInner::Parenthesis(expr) => ExprInner::Parenthesis(rewrite_expr(expr, local_ctxt, map)),
+        ExprInner::PatternMatching(expr, rows, opt) => {
+            let expr = rewrite_expr(expr, local_ctxt, map);
+            let opt = opt.map(|(b, name, bloc)| (b, name, rewrite_bloc(bloc, local_ctxt, map)));
+            let rows = rows
+                .into_iter()
+                .map(|patt| rewrite_patt(patt, local_ctxt, map))
+                .collect();
+            ExprInner::PatternMatching(expr, rows, opt)
+        }
         ExprInner::Proj(expr, proj) => ExprInner::Proj(rewrite_expr(expr, local_ctxt, map), proj),
         ExprInner::Ref(b, expr) => ExprInner::Ref(b, rewrite_expr(expr, local_ctxt, map)),
         ExprInner::Return(opt) => {
@@ -268,6 +306,23 @@ fn rewrite_decl(decl: Decl, map: &mut HashMap<String, Path<()>>, path: &Path<()>
             output: translate_type(decl_fun.output, map),
             ..decl_fun
         }),
+        Decl::Enum(decl_enum) => Decl::Enum(DeclEnum {
+            args: decl_enum
+                .args
+                .into_iter()
+                .map(|(id, types)| {
+                    (
+                        id,
+                        types
+                            .into_iter()
+                            .map(|typ| translate_type(typ, map))
+                            .collect(),
+                    )
+                })
+                .collect(),
+            ..decl_enum
+        }),
+
         Decl::Struct(decl_struct) => Decl::Struct(DeclStruct {
             args: decl_struct
                 .args
@@ -356,6 +411,11 @@ fn rewrite_file(file: File, path: &Path<()>) -> File {
     println!("{:?}", map);
     for decl in file.content.iter() {
         match decl {
+            Decl::Enum(decl_enum) => {
+                let mut path = path.clone();
+                path.push(NamePath::Name(decl_enum.name.clone()));
+                map.insert(decl_enum.name.get_content().to_string(), path);
+            }
             Decl::Struct(decl_struct) => {
                 let mut path = path.clone();
                 path.push(NamePath::Name(decl_struct.name.clone()));

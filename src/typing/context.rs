@@ -94,7 +94,68 @@ impl StructInfo {
         self.hashmap
     }
 }
+#[derive(Clone, Debug)]
+pub struct EnumInfo {
+    is_pub: bool,
+    size: usize,
+    hashmap: HashMap<String, (bool, Vec<PostType>)>,
+    free_types: Vec<String>,
+}
 
+impl EnumInfo {
+    pub fn new(size: usize, is_pub: bool, args: HashMap<String, Vec<PostType>>) -> Self {
+        let mut hashmap = HashMap::new();
+        for (name, typ) in args.into_iter() {
+            hashmap.insert(name, (false, typ));
+        }
+        Self {
+            size,
+            is_pub,
+            hashmap,
+            free_types: Vec::new(),
+        }
+    }
+
+    pub fn update_constructor(&mut self, name: &str) -> Option<(bool, &Vec<PostType>)> {
+        match self.hashmap.get_mut(name) {
+            Some(mut p) => {
+                let old = p.0;
+                p.0 = true;
+                Some((old, &p.1))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn get_constructor(&self, name: &str) -> Option<(bool, &Vec<PostType>)> {
+        self.hashmap.get(name).map(|(b, v)| (*b, v))
+    }
+
+    pub fn get_free_types(&self) -> &Vec<String> {
+        &self.free_types
+    }
+
+    pub fn check_finished(self) -> Option<String> {
+        for (name, (b, _)) in self.hashmap.into_iter() {
+            if !b {
+                return Some(name);
+            }
+        }
+        None
+    }
+
+    pub fn get_pub(&self) -> bool {
+        self.is_pub
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.size
+    }
+
+    pub fn args(self) -> HashMap<String, (bool, Vec<PostType>)> {
+        self.hashmap
+    }
+}
 #[derive(Debug)]
 pub struct Const {
     pub typ: PostType,
@@ -161,6 +222,7 @@ impl std::fmt::Debug for ModuleInterface {
 
 pub struct ModuleInterface {
     pub structs: HashMap<String, StructInfo>,
+    pub enums: HashMap<String, EnumInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, PathUL<()>>>,
     functions: HashMap<String, (bool, PostType)>,
@@ -178,6 +240,7 @@ impl ModuleInterface {
         }
         Self {
             structs: HashMap::new(),
+            enums: HashMap::new(),
             implemented_traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
@@ -247,6 +310,7 @@ impl ModuleInterface {
         submodules.insert("std".to_string(), (true, std_mod));
         Self {
             structs: HashMap::new(),
+            enums: HashMap::new(),
             implemented_traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
@@ -259,6 +323,7 @@ impl ModuleInterface {
     pub fn empty() -> Self {
         Self {
             structs: HashMap::new(),
+            enums: HashMap::new(),
             implemented_traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
@@ -276,6 +341,7 @@ impl ModuleInterface {
 
         Self {
             structs: self.structs,
+            enums: self.enums,
             implemented_traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
@@ -314,6 +380,44 @@ impl ModuleInterface {
 
     pub fn get_struct(&self, path: &PathUL<()>) -> Option<(bool, &StructInfo)> {
         self.get_struct_inner(path.get_content(), 0)
+    }
+
+    fn get_enum_inner(
+        &self,
+        path: &Vec<NamePath<(), String>>,
+        pos: usize,
+        take_last: bool,
+    ) -> Option<(bool, &EnumInfo)> {
+        if !take_last && pos == path.len() - 2 {
+            match (&path[pos], &path[pos + 1]) {
+                (NamePath::Name(name), NamePath::Name(constructor)) => match self.enums.get(name) {
+                    Some(enum_info) if enum_info.get_constructor(constructor).is_some() => {
+                        Some((enum_info.get_pub(), enum_info))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            }
+        } else if pos == path.len() - 1 {
+            match &path[pos] {
+                NamePath::Name(name) => self.enums.get(name).map(|el| (el.get_pub(), el)),
+                NamePath::Specialisation(_) => None,
+            }
+        } else {
+            match &path[pos] {
+                NamePath::Name(name) => match self.submodules.get(name) {
+                    None => None,
+                    Some((b, sb)) => sb
+                        .get_enum_inner(path, pos + 1, take_last)
+                        .map(|(b2, i)| (b2 && *b, i)),
+                },
+                _ => todo!(),
+            }
+        }
+    }
+
+    pub fn get_enum(&self, path: &PathUL<()>, take_last: bool) -> Option<(bool, &EnumInfo)> {
+        self.get_enum_inner(path.get_content(), 0, take_last)
     }
 
     fn get_traits_inner(
@@ -561,6 +665,44 @@ impl ModuleInterface {
         self.insert_struct_inner(path.get_content(), 0, StructInfo::new(size, is_pub, args))
     }
 
+    fn insert_enum_inner(
+        &mut self,
+        path: &Vec<NamePath<(), String>>,
+        pos: usize,
+        info: EnumInfo,
+    ) -> Option<EnumInfo> {
+        if pos == path.len() - 1 {
+            match &path[pos] {
+                NamePath::Name(name) => {
+                    if !self.submodules.contains_key(name) {
+                        self.submodules
+                            .insert(name.to_string(), (true, Self::empty()));
+                    }
+                    self.enums.insert(name.to_string(), info)
+                }
+                NamePath::Specialisation(_) => None,
+            }
+        } else {
+            match &path[pos] {
+                NamePath::Name(name) => match self.submodules.get_mut(name) {
+                    None => None,
+                    Some((_, sb)) => sb.insert_enum_inner(path, pos + 1, info),
+                },
+                _ => None,
+            }
+        }
+    }
+
+    pub fn insert_enum(
+        &mut self,
+        path: PathUL<(), String>,
+        size: usize,
+        is_pub: bool,
+        rows: HashMap<String, Vec<PostType>>,
+    ) -> Option<EnumInfo> {
+        self.insert_enum_inner(path.get_content(), 0, EnumInfo::new(size, is_pub, rows))
+    }
+
     pub fn impl_trait(&mut self, typ: &PostType, t: Trait) -> bool {
         match self.implemented_traits.get_mut(typ) {
             None => {
@@ -715,6 +857,21 @@ impl GlobalContext {
         self.get_struct_path(name).cloned()
     }
 
+    pub fn get_enum(&self, path: &PathUL<()>) -> Option<&EnumInfo> {
+        match self.modules.get_enum(path, true) {
+            Some((_, ei)) => Some(ei),
+            _ => None,
+        }
+    }
+
+    pub fn is_constructor(&self, path: &PathUL<()>) -> Option<&EnumInfo> {
+        self.modules.get_enum(path, false).map(|p| p.1)
+    }
+
+    pub fn enum_info(&self, name: &PathUL<()>) -> Option<EnumInfo> {
+        self.get_enum(name).cloned()
+    }
+
     pub fn get_method_function(
         &self,
         type_name: &PathUL<()>,
@@ -836,6 +993,14 @@ impl LocalContext {
     pub fn add_var(&mut self, ident: &Ident, mutable: bool, typ: &PostType) {
         if let Some(last) = self.vars.last_mut() {
             last.insert(ident.get_content().to_string(), (mutable, typ.clone()));
+        } else {
+            panic!("should never happend")
+        }
+    }
+
+    pub fn add_var2(&mut self, ident: String, mutable: bool, typ: PostType) {
+        if let Some(last) = self.vars.last_mut() {
+            last.insert(ident, (mutable, typ));
         } else {
             panic!("should never happend")
         }

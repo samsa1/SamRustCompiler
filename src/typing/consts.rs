@@ -22,7 +22,9 @@ pub enum Val {
 
 pub fn add_deps(expr: &rr::Expr, path: &PathUL<()>, graph: &mut Graph) {
     match &*expr.content {
-        rr::ExprInner::Array(exprs) | rr::ExprInner::Tuple(exprs) => {
+        rr::ExprInner::Array(exprs)
+        | rr::ExprInner::Constructor(_, exprs)
+        | rr::ExprInner::Tuple(exprs) => {
             for expr in exprs {
                 add_deps(expr, path, graph)
             }
@@ -49,6 +51,7 @@ pub fn add_deps(expr: &rr::Expr, path: &PathUL<()>, graph: &mut Graph) {
         rr::ExprInner::Index(_, _) => todo!(),
         rr::ExprInner::MacroCall(_, _) => panic!("ICE"),
         rr::ExprInner::Method(_, _, _) => todo!(),
+        rr::ExprInner::PatternMatching(_, _, _) => todo!(),
         rr::ExprInner::Ref(_, _) => todo!(),
         rr::ExprInner::Return(_) => todo!(),
         rr::ExprInner::Var(v) => {
@@ -153,9 +156,11 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
             Val::Struct(name, map)
         }
         tr::ExprInner::Coercion(_, _, _) => todo!(),
+        tr::ExprInner::Constructor(_, _) => todo!(),
         tr::ExprInner::Deref(_) => todo!(),
         tr::ExprInner::FunCall(_, _) => todo!(),
         tr::ExprInner::FunCallPath(_, _) => todo!(),
+        tr::ExprInner::PatternMatching(_, _, _) => todo!(),
         tr::ExprInner::If(_, _, _) => todo!(),
         tr::ExprInner::Print(_) | tr::ExprInner::PrintPtr(_) => panic!("ICE"),
         tr::ExprInner::Proj(expr, proj) => {

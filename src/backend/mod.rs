@@ -6,8 +6,8 @@ use crate::ast::typed_rust::PostType;
 
 use write_x86_64::*;
 
-mod context;
 mod base;
+mod context;
 
 #[derive(Debug, PartialEq, Eq)]
 enum Location {
@@ -1113,8 +1113,8 @@ pub fn compile(file: llr::File, strings: HashMap<String, String>) -> file::File 
     }
 
     file::File {
-        globl : base.globl,
-        text_ss : base.text_ss + file.text_ss,
-        data_ss : base.data_ss + file.data_ss,
+        globl: base.globl,
+        text_ss: base.text_ss + file.text_ss,
+        data_ss: base.data_ss + file.data_ss,
     }
 }

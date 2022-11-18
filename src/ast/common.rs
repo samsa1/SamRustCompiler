@@ -65,6 +65,14 @@ impl<T> Path<T> {
         }
     }
 
+    pub fn get_last(&self) -> Option<&Ident> {
+        let i = self.name.len();
+        match &self.name[i - 1] {
+            NamePath::Name(id) => Some(id),
+            _ => None,
+        }
+    }
+
     pub fn pop(&mut self) -> Option<NamePath<T, Ident>> {
         self.name.pop()
     }

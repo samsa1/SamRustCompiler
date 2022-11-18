@@ -31,6 +31,7 @@ enum TypeErrorInfo {
     WrongMutability(bool, bool),
     SelfRefConst(String),
     UndeclaredPath(Path<()>),
+    IncompleteMatch(String),
 }
 
 impl TypeErrorInfo {
@@ -58,6 +59,7 @@ impl TypeErrorInfo {
             Self::WrongMutability(_, _) => 20,
             Self::SelfRefConst(_) => 21,
             Self::UndeclaredPath(_) => 22,
+            Self::IncompleteMatch(_) => 23,
         }
     }
 
@@ -85,6 +87,7 @@ impl TypeErrorInfo {
             Self::WrongMutability(_, _) => "mutability incompatibility",
             Self::SelfRefConst(_) => "cycle detected in const evaluating",
             Self::UndeclaredPath(_) => "unknown variable path",
+            Self::IncompleteMatch(_) => "incomplete math",
         }
     }
 
@@ -131,6 +134,7 @@ impl TypeErrorInfo {
             }
             Self::SelfRefConst(name) => format!("constant `{name}` depends on itself"),
             Self::UndeclaredPath(path) => format!("unknown path {:?}", path),
+            Self::IncompleteMatch(id) => format!("Case {} is not handled", id),
         }
     }
 }
@@ -293,6 +297,13 @@ impl TypeError {
         Self {
             loc: id.get_loc(),
             info: TypeErrorInfo::SelfRefConst(id.content()),
+        }
+    }
+
+    pub fn incomplete_match(loc: Location, missing_constructor: String) -> Self {
+        Self {
+            loc,
+            info: TypeErrorInfo::IncompleteMatch(missing_constructor),
         }
     }
 

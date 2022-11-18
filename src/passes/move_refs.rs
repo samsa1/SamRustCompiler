@@ -12,6 +12,7 @@ fn is_ref(
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
         | ExprInner::BuildStructPath(_, _)
+        | ExprInner::Constructor(_, _)
         | ExprInner::FunCall(_, _, _)
         | ExprInner::FunCallPath(_, _, _)
         | ExprInner::If(_, _, _)
@@ -20,6 +21,7 @@ fn is_ref(
         | ExprInner::Ref(_, _)
         | ExprInner::UnaryOp(_, _)
         | ExprInner::MacroCall(_, _)
+        | ExprInner::PatternMatching(_, _, _)
         | ExprInner::Tuple(_)
         | ExprInner::Array(_)
         | ExprInner::Return(_)
@@ -243,6 +245,41 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             )),
             ..top_expr
         },
+        ExprInner::Constructor(name, exprs) => Expr {
+            content: Box::new(ExprInner::Constructor(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|expr| rewrite_expr(expr, context, counter))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+        ExprInner::PatternMatching(expr, patterns, fall) => Expr {
+            content: Box::new(ExprInner::PatternMatching(
+                rewrite_expr(expr, context, counter),
+                patterns
+                    .into_iter()
+                    .map(|patt| rewrite_patt(patt, counter))
+                    .collect(),
+                fall.map(|(b, id, bloc)| (b, id, rewrite_bloc(bloc, counter))),
+            )),
+            ..top_expr
+        },
+    }
+}
+
+fn rewrite_patt(patt: Pattern, counter: &mut IdCounter) -> Pattern {
+    let mut context = Vec::new();
+    let guard = patt
+        .guard
+        .map(|expr| rewrite_expr(expr, &mut context, counter));
+    assert!(context.is_empty());
+    let bloc = rewrite_bloc(patt.bloc, counter);
+    Pattern {
+        guard,
+        bloc,
+        ..patt
     }
 }
 
@@ -276,7 +313,7 @@ fn rewrite_fun(mut fun_decl: DeclFun) -> DeclFun {
 
 pub fn rewrite_decl(decl: Decl) -> Decl {
     match decl {
-        Decl::Const(_) | Decl::Struct(_) => decl,
+        Decl::Const(_) | Decl::Enum(_) | Decl::Struct(_) => decl,
         Decl::Fun(decl_fun) => Decl::Fun(rewrite_fun(decl_fun)),
         Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
             content: decl_impl.content.into_iter().map(rewrite_fun).collect(),

@@ -1,76 +1,11 @@
-use crate::ast::common::*;
 use crate::ast::typed_rust::*;
 
-fn is_ref(
-    mutable: bool,
-    mut top_expr: Expr,
-    context: &mut Vec<Instr>,
-    counter: &mut IdCounter,
-    name1: &str,
-    name2: &str,
-) -> Expr {
-    match *top_expr.content {
-        ExprInner::Set(_, _)
-        | ExprInner::Tuple(_)
-        | ExprInner::Print(_)
-        | ExprInner::PrintPtr(_)
-        | ExprInner::Bloc(_)
-        | ExprInner::BuildStruct(_, _)
-        | ExprInner::FunCall(_, _)
-        | ExprInner::FunCallPath(_, _)
-        | ExprInner::If(_, _, _)
-        | ExprInner::Coercion(_, _, _)
-        | ExprInner::BinOp(_, _, _)
-        | ExprInner::UnaOp(_, _)
-        | ExprInner::Return(_)
-        | ExprInner::While(_, _)
-        | ExprInner::Ref(_, _) => {
-            top_expr = rewrite_expr(top_expr, context, counter, name1, name2);
-            let name = counter.new_name();
-            let id = Ident::new_from(name, top_expr.loc.start(), top_expr.loc.end());
-            context.push(Instr::Binding(
-                mutable,
-                id.clone(),
-                Expr {
-                    loc: top_expr.loc,
-                    typed: top_expr.typed.clone(),
-                    content: top_expr.content,
-                },
-            ));
-            top_expr.content = Box::new(ExprInner::Var(id));
-            top_expr
-        }
-        ExprInner::Proj(expr, proj) => Expr {
-            content: Box::new(ExprInner::Proj(
-                is_ref(mutable, expr, context, counter, name1, name2),
-                proj,
-            )),
-            ..top_expr
-        },
-        ExprInner::VarPath(path) => Expr {
-            content: Box::new(ExprInner::VarPath(path.rewrite_base(name1, name2))),
-            ..top_expr
-        },
-        ExprInner::Bool(_)
-        | ExprInner::Deref(_)
-        | ExprInner::Int(_)
-        | ExprInner::String(_)
-        | ExprInner::Var(_) => top_expr,
-    }
-}
-
-fn rewrite_expr(
-    top_expr: Expr,
-    context: &mut Vec<Instr>,
-    counter: &mut IdCounter,
-    name1: &str,
-    name2: &str,
-) -> Expr {
+fn rewrite_expr(top_expr: Expr, name1: &str, name2: &str) -> Expr {
     match *top_expr.content {
         ExprInner::Set(expr1, expr2) => Expr {
             content: Box::new(ExprInner::Set(
-                rewrite_expr(expr1, context, counter, name1, name2),
-                rewrite_expr(expr2, context, counter, name1, name2),
+                rewrite_expr(expr1, name1, name2),
+                rewrite_expr(expr2, name1, name2),
             )),
             ..top_expr
         },
@@ -79,7 +14,7 @@ fn rewrite_expr(
             content: Box::new(ExprInner::Tuple(
                 exprs
                     .into_iter()
-                    .map(|e| is_ref(false, e, context, counter, name1, name2))
+                    .map(|e| rewrite_expr(e, name1, name2))
                     .collect(),
             )),
             ..top_expr
@@ -92,7 +27,7 @@ fn rewrite_expr(
 
         ExprInner::PrintPtr(expr) => {
             println!("print_ptr -> {:?}", expr);
-            let expr = is_ref(false, expr, context, counter, name1, name2);
+            let expr = rewrite_expr(expr, name1, name2);
             println!("          -> {:?}", expr);
             Expr {
                 content: Box::new(ExprInner::PrintPtr(expr)),
@@ -101,10 +36,7 @@ fn rewrite_expr(
         }
 
         ExprInner::Ref(mutable, expr) => Expr {
-            content: Box::new(ExprInner::Ref(
-                mutable,
-                is_ref(mutable, expr, context, counter, name1, name2),
-            )),
+            content: Box::new(ExprInner::Ref(mutable, rewrite_expr(expr, name1, name2))),
             ..top_expr
         },
 
@@ -121,7 +53,18 @@ fn rewrite_expr(
                 name,
                 exprs
                     .into_iter()
-                    .map(|(n, e)| (n, is_ref(false, e, context, counter, name1, name2)))
+                    .map(|(n, e)| (n, rewrite_expr(e, name1, name2)))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::Constructor(name, exprs) => Expr {
+            content: Box::new(ExprInner::Constructor(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|e| rewrite_expr(e, name1, name2))
                     .collect(),
             )),
             ..top_expr
@@ -129,15 +72,15 @@ fn rewrite_expr(
 
         ExprInner::If(expr, bloc1, bloc2) => Expr {
             content: Box::new(ExprInner::If(
-                rewrite_expr(expr, context, counter, name1, name2),
-                rewrite_bloc(bloc1, counter, name1, name2),
-                rewrite_bloc(bloc2, counter, name1, name2),
+                rewrite_expr(expr, name1, name2),
+                rewrite_bloc(bloc1, name1, name2),
+                rewrite_bloc(bloc2, name1, name2),
             )),
             ..top_expr
         },
 
         ExprInner::Bloc(bloc) => Expr {
-            content: Box::new(ExprInner::Bloc(rewrite_bloc(bloc, counter, name1, name2))),
+            content: Box::new(ExprInner::Bloc(rewrite_bloc(bloc, name1, name2))),
             ..top_expr
         },
 
@@ -146,7 +89,7 @@ fn rewrite_expr(
                 name,
                 exprs
                     .into_iter()
-                    .map(|e| is_ref(false, e, context, counter, name1, name2))
+                    .map(|e| rewrite_expr(e, name1, name2))
                     .collect(),
             )),
             ..top_expr
@@ -157,47 +100,39 @@ fn rewrite_expr(
                 path.rewrite_base(name1, name2),
                 exprs
                     .into_iter()
-                    .map(|e| is_ref(false, e, context, counter, name1, name2))
+                    .map(|e| rewrite_expr(e, name1, name2))
                     .collect(),
             )),
             ..top_expr
         },
 
         ExprInner::Deref(expr) => Expr {
-            content: Box::new(ExprInner::Deref(rewrite_expr(
-                expr, context, counter, name1, name2,
-            ))),
+            content: Box::new(ExprInner::Deref(rewrite_expr(expr, name1, name2))),
             ..top_expr
         },
 
         ExprInner::Proj(expr, proj) => Expr {
-            content: Box::new(ExprInner::Proj(
-                is_ref(false, expr, context, counter, name1, name2),
-                proj,
-            )),
+            content: Box::new(ExprInner::Proj(rewrite_expr(expr, name1, name2), proj)),
             ..top_expr
         },
 
         ExprInner::BinOp(binop, expr1, expr2) => Expr {
             content: Box::new(ExprInner::BinOp(
                 binop,
-                is_ref(false, expr1, context, counter, name1, name2),
-                is_ref(false, expr2, context, counter, name1, name2),
+                rewrite_expr(expr1, name1, name2),
+                rewrite_expr(expr2, name1, name2),
             )),
             ..top_expr
         },
 
         ExprInner::UnaOp(unaop, expr) => Expr {
-            content: Box::new(ExprInner::UnaOp(
-                unaop,
-                is_ref(false, expr, context, counter, name1, name2),
-            )),
+            content: Box::new(ExprInner::UnaOp(unaop, rewrite_expr(expr, name1, name2))),
             ..top_expr
         },
 
         ExprInner::Coercion(expr, typ1, typ2) => Expr {
             content: Box::new(ExprInner::Coercion(
-                is_ref(false, expr, context, counter, name1, name2),
+                rewrite_expr(expr, name1, name2),
                 typ1,
                 typ2,
             )),
@@ -206,31 +141,47 @@ fn rewrite_expr(
 
         ExprInner::Return(None) => top_expr,
         ExprInner::Return(Some(expr)) => Expr {
-            content: Box::new(ExprInner::Return(Some(rewrite_expr(
-                expr, context, counter, name1, name2,
-            )))),
+            content: Box::new(ExprInner::Return(Some(rewrite_expr(expr, name1, name2)))),
             ..top_expr
         },
         ExprInner::While(expr, bloc) => Expr {
-            content: Box::new(ExprInner::While(
-                expr,
-                rewrite_bloc(bloc, counter, name1, name2),
+            content: Box::new(ExprInner::While(expr, rewrite_bloc(bloc, name1, name2))),
+            ..top_expr
+        },
+
+        ExprInner::PatternMatching(expr, patterns, fall) => Expr {
+            content: Box::new(ExprInner::PatternMatching(
+                rewrite_expr(expr, name1, name2),
+                patterns
+                    .into_iter()
+                    .map(|patt| rewrite_patt(patt, name1, name2))
+                    .collect(),
+                fall.map(|(b, id, bloc)| (b, id, rewrite_bloc(bloc, name1, name2))),
             )),
             ..top_expr
         },
     }
 }
 
-fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter, name1: &str, name2: &str) -> Bloc {
+fn rewrite_patt(patt: Pattern, name1: &str, name2: &str) -> Pattern {
+    Pattern {
+        constructor: patt.constructor.rewrite_base(name1, name2),
+        arguments: patt.arguments,
+        guard: patt.guard.map(|expr| rewrite_expr(expr, name1, name2)),
+        bloc: rewrite_bloc(patt.bloc, name1, name2),
+    }
+}
+
+fn rewrite_bloc(bloc: Bloc, name1: &str, name2: &str) -> Bloc {
     let mut vec_out = Vec::new();
     for instr in bloc.content.into_iter() {
         match instr {
             Instr::Expr(drop, expr) => {
-                let expr = rewrite_expr(expr, &mut vec_out, counter, name1, name2);
+                let expr = rewrite_expr(expr, name1, name2);
                 vec_out.push(Instr::Expr(drop, expr))
             }
             Instr::Binding(mutable, name, expr) => {
-                let expr = rewrite_expr(expr, &mut vec_out, counter, name1, name2);
+                let expr = rewrite_expr(expr, name1, name2);
                 vec_out.push(Instr::Binding(mutable, name, expr))
             }
         }
@@ -241,10 +192,10 @@ fn rewrite_bloc(bloc: Bloc, counter: &mut IdCounter, name1: &str, name2: &str) -
     }
 }
 
-fn rewrite_fun(mut fun_decl: DeclFun, name1: &str, name2: &str) -> DeclFun {
+fn rewrite_fun(fun_decl: DeclFun, name1: &str, name2: &str) -> DeclFun {
     DeclFun {
         name: fun_decl.name.rewrite_base(name1, name2),
-        content: rewrite_bloc(fun_decl.content, &mut fun_decl.id_counter, name1, name2),
+        content: rewrite_bloc(fun_decl.content, name1, name2),
         ..fun_decl
     }
 }

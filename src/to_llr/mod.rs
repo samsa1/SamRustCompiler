@@ -42,10 +42,26 @@ impl StructInfo {
     }
 }
 
+#[derive(Debug, Clone)]
+struct EnumInfo {
+    size: usize,
+}
+
+impl EnumInfo {
+    fn new(size: usize) -> Self {
+        Self { size }
+    }
+
+    fn get_size(&self) -> usize {
+        self.size
+    }
+}
+
 struct DataStruct {
     max_id: usize,
     vars: Vec<HashMap<String, usize>>,
     structs: HashMap<PathUL<()>, StructInfo>,
+    enums: HashMap<PathUL<()>, EnumInfo>,
     strings_count: usize,
     string_extend: String,
     strings_stored: HashMap<String, String>,
@@ -55,6 +71,7 @@ struct DataStruct {
 fn build_structs_1(
     modint: &ModuleInterface,
     structs: &mut HashMap<PathUL<()>, StructInfo>,
+    enums: &mut HashMap<PathUL<()>, EnumInfo>,
     path: &mut PathUL<()>,
 ) {
     for (name, struct_info) in &modint.structs {
@@ -64,10 +81,17 @@ fn build_structs_1(
             .is_none());
         path.pop();
     }
+    for (name, enum_info) in &modint.enums {
+        path.push(NamePath::Name(name.to_string()));
+        assert!(enums
+            .insert(path.clone(), EnumInfo::new(enum_info.get_size()))
+            .is_none());
+        path.pop();
+    }
 
     for (name, (_, modint)) in &modint.submodules {
         path.push(NamePath::Name(name.to_string()));
-        build_structs_1(modint, structs, path);
+        build_structs_1(modint, structs, enums, path);
         path.pop();
     }
 }
@@ -76,6 +100,7 @@ fn build_structs_2(
     modint: ModuleInterface,
     data_struct: &DataStruct,
     structs: &mut HashMap<PathUL<()>, StructInfo>,
+    enums: &mut HashMap<PathUL<()>, EnumInfo>,
     path: &mut PathUL<()>,
 ) {
     for (name, struct_info) in modint.structs {
@@ -95,9 +120,13 @@ fn build_structs_2(
         path.pop();
     }
 
+    for (name, enum_info) in modint.enums {
+        todo!()
+    }
+
     for (name, (_, modint)) in modint.submodules {
         path.push(NamePath::Name(name));
-        build_structs_2(modint, data_struct, structs, path);
+        build_structs_2(modint, data_struct, structs, enums, path);
         path.pop();
     }
 }
@@ -105,25 +134,35 @@ fn build_structs_2(
 impl DataStruct {
     fn new(modint: ModuleInterface, string_extend: String) -> Self {
         let mut structs = HashMap::new();
-        build_structs_1(&modint, &mut structs, &mut PathUL::new(Vec::new()));
+        let mut enums = HashMap::new();
+        build_structs_1(
+            &modint,
+            &mut structs,
+            &mut enums,
+            &mut PathUL::new(Vec::new()),
+        );
         let mut data_struct = Self {
             max_id: 0,
             vars: vec![HashMap::new()],
             structs,
+            enums,
             strings_count: 0,
             string_extend,
             strings_stored: HashMap::new(),
             pointer_size: 8,
         };
         let mut structs = HashMap::new();
+        let mut enums = HashMap::new();
 
         build_structs_2(
             modint,
             &data_struct,
             &mut structs,
+            &mut enums,
             &mut PathUL::new(Vec::new()),
         );
         data_struct.structs = structs;
+        data_struct.enums = enums;
         data_struct
     }
 
@@ -194,6 +233,7 @@ impl DataStruct {
             tr::PostTypeInner::FreeType(_) => todo!(),
             tr::PostTypeInner::Struct(name, _) if name.is_vec() => self.pointer_size,
             tr::PostTypeInner::Struct(name, _) => self.structs.get(name).unwrap().get_size(),
+            tr::PostTypeInner::Enum(name, _) => self.enums.get(name).unwrap().get_size(),
             tr::PostTypeInner::Tuple(exprs) => {
                 let mut total = 0;
                 for expr in exprs {
@@ -236,6 +276,8 @@ impl DataStruct {
 
 fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
     match *top_expr.content {
+        tr::ExprInner::PatternMatching(_, _, _) => todo!(),
+
         tr::ExprInner::Bloc(bloc) => llr::Expr {
             content: Box::new(llr::ExprInner::Bloc(rewrite_bloc(bloc, names_info))),
             loc: top_expr.loc,
@@ -266,6 +308,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                 size: struct_info.get_size(),
             }
         }
+        tr::ExprInner::Constructor(_, _) => todo!(),
         tr::ExprInner::Deref(expr) => llr::Expr {
             content: Box::new(llr::ExprInner::Deref(rewrite_expr(expr, names_info))),
             loc: top_expr.loc,

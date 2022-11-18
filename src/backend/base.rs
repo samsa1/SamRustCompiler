@@ -1,6 +1,6 @@
-use write_x86_64::*;
-use crate::ast::common::PathUL;
 use super::context::Context;
+use crate::ast::common::PathUL;
+use write_x86_64::*;
 
 fn default_vec_function(heap_address: &str, ctxt: &Context) -> Text {
     let custom_alloc = true;

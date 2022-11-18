@@ -2,7 +2,7 @@ use super::context::{self, LocalContext};
 use super::errors::TypeError;
 use super::types::*;
 use crate::ast::common::*;
-use crate::ast::typed_rust::{PostType, PostTypeInner};
+use crate::ast::typed_rust::{ExprInner, PostType, PostTypeInner};
 use crate::ast::{rust, typed_rust};
 use std::collections::HashMap;
 
@@ -158,7 +158,15 @@ fn build_type(types: &rust::TypeStorage, type_id: usize) -> Option<typed_rust::P
         rust::Types::Ref(Some(mutable), type_id) => Some(typed_rust::PostType {
             content: PostTypeInner::Ref(*mutable, Box::new(build_type(types, *type_id)?)),
         }),
-        rust::Types::Enum(_) => todo!(),
+        rust::Types::Enum(path, args) => {
+            let mut args2 = Vec::new();
+            for typ in args.iter() {
+                args2.push(build_type(types, *typ)?);
+            }
+            Some(typed_rust::PostType {
+                content: PostTypeInner::Enum(path.clone(), args2),
+            })
+        }
         rust::Types::Fun(args, out) => {
             let out = build_type(types, *out)?;
             let args: Option<Vec<typed_rust::PostType>> =
@@ -240,6 +248,148 @@ pub fn type_checker(
                     typed_rust::ExprInner::Int(i),
                 )
             }
+        }
+
+        rust::ExprInner::Constructor(path, exprs) => {
+            let cleaned_path = path.cleaned();
+            let enum_info = match ctxt.is_constructor(&cleaned_path) {
+                Some(enum_info) => enum_info.clone(),
+                None => todo!(),
+            };
+            let typ = match translated_typ {
+                None => todo!(),
+                Some(typ) => {
+                    translated_typ = None;
+                    typ
+                }
+            };
+            match &typ.content {
+                PostTypeInner::Enum(type_path, freetypes) => {
+                    assert_eq!(enum_info.get_free_types().len(), freetypes.len());
+                    assert_eq!(path.get_content().len(), type_path.get_content().len() + 1);
+                    let mut hashmap = HashMap::new();
+                    for (name, typ) in enum_info.get_free_types().iter().zip(freetypes.into_iter())
+                    {
+                        hashmap.insert(name.to_string(), typ.clone());
+                    }
+                    let constructor = path.get_last().unwrap().get_content();
+                    let needed_types = enum_info.get_constructor(constructor).unwrap().1;
+                    assert_eq!(needed_types.len(), exprs.len());
+
+                    let mut exprs2 = Vec::new();
+                    for (expr, typ) in exprs.into_iter().zip(needed_types.iter()) {
+                        let typ = substitute(typ.clone(), &hashmap);
+                        let expr =
+                            type_checker(ctxt, expr, loc_ctxt, out, Some(&typ), typing_info)?.1;
+                        if are_compatible(&typ, &expr.typed) {
+                            exprs2.push(expr)
+                        } else {
+                            todo!()
+                        };
+                    }
+                    (
+                        false,
+                        typ,
+                        typed_rust::ExprInner::Constructor(cleaned_path, exprs2),
+                    )
+                }
+                _ => panic!("ICE"),
+            }
+        }
+        rust::ExprInner::PatternMatching(expr, patterns, fall) => {
+            let expr = type_checker(ctxt, expr, loc_ctxt, out, None, typing_info)?.1;
+            let (reference, path, free) = match &expr.typed.content {
+                PostTypeInner::Enum(path, free_types) => (None, path, free_types),
+                PostTypeInner::Ref(mutable, typ) => match &typ.content {
+                    PostTypeInner::Enum(path, free_types) => (Some(*mutable), path, free_types),
+                    _ => todo!(),
+                },
+                _ => todo!(),
+            };
+            let mut enum_info = ctxt.enum_info(path).unwrap();
+            let mut free_types = HashMap::new();
+            let free_names = enum_info.get_free_types();
+            assert_eq!(free_names.len(), free.len());
+            for (name, typ) in free_names.iter().zip(free.iter()) {
+                assert!(free_types.insert(name.to_string(), typ).is_none())
+            }
+            let mut rows = Vec::new();
+            let row_types = match translated_typ {
+                None => todo!(),
+                Some(typ) => {
+                    translated_typ = None;
+                    typ
+                }
+            };
+            for row in patterns {
+                let mut constructor = row.constructor.cleaned();
+                let constructor_name = match constructor.pop() {
+                    None => panic!("ICE"),
+                    Some(NamePath::Specialisation(_)) => panic!("Weird"),
+                    Some(NamePath::Name(id)) => id,
+                };
+                let types = match row.guard {
+                    None => enum_info.update_constructor(&constructor_name),
+                    Some(_) => enum_info.get_constructor(&constructor_name),
+                };
+                let types = match types {
+                    None => panic!("ICE should have been checked by inferencer"),
+                    Some((_, types)) => types,
+                };
+                loc_ctxt.add_layer();
+                assert_eq!(row.arguments.len(), types.len());
+                for ((mutable, ident), typ) in row.arguments.iter().zip(types.iter()) {
+                    let typ = match reference {
+                        None => typ.clone(),
+                        Some(b) => typed_rust::PostType {
+                            content: PostTypeInner::Ref(b, Box::new(typ.clone())),
+                        },
+                    };
+                    loc_ctxt.add_var2(ident.get_content().to_string(), *mutable, typ)
+                }
+                let bloc = type_bloc(row.bloc, ctxt, loc_ctxt, out, Some(&row_types), typing_info)?;
+                let guard = match row.guard {
+                    None => None,
+                    Some(expr) => {
+                        Some(type_checker(ctxt, expr, loc_ctxt, out, expected_typ, typing_info)?.1)
+                    }
+                };
+
+                loc_ctxt.pop_layer();
+
+                constructor.push(NamePath::Name(constructor_name));
+
+                rows.push(typed_rust::Pattern {
+                    constructor,
+                    arguments: row.arguments,
+                    bloc,
+                    guard,
+                })
+            }
+
+            let fall = match fall {
+                None => match enum_info.check_finished() {
+                    None => None,
+                    Some(id) => todo!(),
+                },
+                Some((mutable, ident, bloc)) => {
+                    loc_ctxt.add_layer();
+                    loc_ctxt.add_var(&ident, mutable, &expr.typed);
+
+                    let bloc = type_bloc(bloc, ctxt, loc_ctxt, out, Some(&row_types), typing_info)?;
+                    loc_ctxt.pop_layer();
+                    if !are_compatible(&row_types, &bloc.last_type) {
+                        todo!()
+                    };
+                    Some((mutable, ident, bloc))
+                }
+            };
+
+            (
+                false,
+                row_types,
+                ExprInner::PatternMatching(expr, rows, fall),
+            )
         }
 
         rust::ExprInner::Var(var_name) => match loc_ctxt.get_typ(&var_name) {

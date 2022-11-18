@@ -193,6 +193,18 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
             }
             b
         }
+        (PostTypeInner::Enum(path1, args1), PostTypeInner::Enum(path2, args2)) => {
+            if path1 == path2 {
+                for (t1, t2) in args1.iter().zip(args2.iter()) {
+                    if !are_compatible(t1, t2) {
+                        return false;
+                    }
+                }
+                true
+            } else {
+                false
+            }
+        }
         _ => {
             println!("not compatible :\n {:?}\n {:?}", expected, got);
             todo!()
@@ -265,6 +277,10 @@ pub fn substitute(typ: PostType, hash_map: &HashMap<String, PostType>) -> PostTy
         }
         PostTypeInner::String => PostTypeInner::String,
         PostTypeInner::Struct(name, args) => PostTypeInner::Struct(
+            name,
+            args.into_iter().map(|t| substitute(t, hash_map)).collect(),
+        ),
+        PostTypeInner::Enum(name, args) => PostTypeInner::Struct(
             name,
             args.into_iter().map(|t| substitute(t, hash_map)).collect(),
         ),
