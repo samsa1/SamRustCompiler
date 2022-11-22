@@ -175,12 +175,13 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
         tr::ExprInner::Return(_) => todo!(),
         tr::ExprInner::Set(_, _) => todo!(),
         tr::ExprInner::String(str) => Val::String(str),
-        tr::ExprInner::Tuple(exprs) => Val::Tuple(
+        tr::ExprInner::Tuple(exprs, 0) => Val::Tuple(
             exprs
                 .into_iter()
                 .map(|expr| compute_const(expr, ctxt))
                 .collect(),
         ),
+        tr::ExprInner::Tuple(exprs, _) => panic!("Should never happen"),
         tr::ExprInner::UnaOp(_, _) => todo!(),
         tr::ExprInner::Var(_) => todo!(), /*ctxt
         .get_const_val(v.get_content())

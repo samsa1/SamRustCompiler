@@ -224,11 +224,27 @@ fn rewrite_expr(
         ExprInner::Parenthesis(expr) => ExprInner::Parenthesis(rewrite_expr(expr, local_ctxt, map)),
         ExprInner::PatternMatching(expr, rows, opt) => {
             let expr = rewrite_expr(expr, local_ctxt, map);
-            let opt = opt.map(|(b, name, bloc)| (b, name, rewrite_bloc(bloc, local_ctxt, map)));
-            let rows = rows
+            let mut opt = opt.map(|(b, name, bloc)| (b, name, rewrite_bloc(bloc, local_ctxt, map)));
+            let mut rows: Vec<_> = rows
                 .into_iter()
                 .map(|patt| rewrite_patt(patt, local_ctxt, map))
                 .collect();
+            println!("{opt:?} {rows:?}");
+            if opt.is_none() {
+                match rows.pop() {
+                    Some(patt)
+                        if patt.guard.is_none()
+                            && patt.arguments.is_empty()
+                            && patt.constructor.get_content().len() == 1 =>
+                    {
+                        let id = patt.constructor.last().unwrap();
+                        opt = Some((false, id, patt.bloc))
+                    }
+                    Some(patt) => rows.push(patt),
+                    _ => (),
+                }
+            }
+
             ExprInner::PatternMatching(expr, rows, opt)
         }
         ExprInner::Proj(expr, proj) => ExprInner::Proj(rewrite_expr(expr, local_ctxt, map), proj),

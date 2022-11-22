@@ -385,7 +385,7 @@ peg::parser! {
       }
 
       rule row() -> Pattern = precedence! {
-        ("|" space())? p:pattern() "=>" space() expr:small_expr() space() "," spaces()
+        ("|" space())? p:pattern() "=>" space() expr:expr() space() "," spaces()
             {
                 Pattern {
                     constructor : p.0,
@@ -430,7 +430,6 @@ peg::parser! {
         {
             to_expr(start, end, ExprInner::PatternMatching(expr, rows, fall))
         }
-
       }
 
       // expression starting with spaces

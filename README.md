@@ -21,7 +21,7 @@ Currently, you can only print a static string :
 print!("Hello World")
 ```
 
-However `println` is not implemented and all printings valid in rust with a `{}` such as :
+However, `println` is not implemented and all printings valid in rust with a `{}` such as :
 
 ```rust
 let a = "my string";
@@ -33,6 +33,12 @@ print!("{}", a) // This is not handled
 
 As this compiler does not have a borrow checker we cannot deallocate anything.
 
+
+### Macros
+
+Only two built-in macros are handled by the compiler : `vec!` and `print!`.
+
+A few others are also handled and are here only for the purpose of helping the developers tests the compiler. As such they are not stable and should not be used!
 
 ### Std
 
@@ -78,5 +84,15 @@ The compiler also handles a few flags :
 
 You should use `make clean` to clean the `std_file.rs` inside the compiler and format the code before sending a pull request please.
 
+
+## Future features :
+
+- More complex pattern matching
+- Floating point arithmetic
+- Functions parametrized by types
+- Parametrized types
+- New backends and directly producing binary
+- More complex printing
+- And so much more handled by `rustc`
 
 

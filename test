@@ -390,6 +390,7 @@ for f in tests/exec/*.rs; do
 	echo "ÉCHEC de la compilation sur $f (devrait réussir)"
     fi
 done
+f=tests/dependancies/good/main.rs
 echo -n "."
 asm=tests/dependancies/good/main.s
 rm -f $asm

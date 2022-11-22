@@ -23,9 +23,9 @@ fn mov_struct(
     offset_out: i64,
     mut size: u64,
     free_reg: (reg::RegQ, reg::RegL, reg::RegW, reg::RegB),
-) -> Text {
+) -> Segment<instr::Instr> {
     let mut offset = 0;
-    let mut asm = Text::Concat(Vec::new());
+    let mut asm = Segment::empty();
     while size >= 8 {
         asm =
             asm + movq(
@@ -65,7 +65,11 @@ fn mov_struct(
     asm
 }
 
-fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offset: u64) -> Text {
+fn compile_expr_pointer(
+    ctxt: &mut context::Context,
+    expr: llr::Expr,
+    stack_offset: u64,
+) -> Segment<instr::Instr> {
     match *expr.content {
         llr::ExprInner::BinOp(_, _, _)
         | llr::ExprInner::Bloc(_)
@@ -132,7 +136,7 @@ fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
     }
 }
 
-fn move_stack_to_rax(pad: u64, size: usize) -> Text {
+fn move_stack_to_rax(pad: u64, size: usize) -> Segment<instr::Instr> {
     match size {
         0 => addq(immq(pad as i64), reg!(RSP)),
         1 => movb(addr!(RSP), reg!(AL)) + addq(immq(1 + pad as i64), reg!(RSP)),
@@ -147,7 +151,7 @@ fn compile_expr_val(
     ctxt: &mut context::Context,
     expr: llr::Expr,
     stack_offset: u64,
-) -> (Location, Text) {
+) -> (Location, Segment<instr::Instr>) {
     let size = expr.size;
     match *expr.content {
         llr::ExprInner::UnaOp(op, expr) => {
@@ -703,9 +707,9 @@ fn compile_expr_val(
                     + jz(else_label.clone())
                     + bloc1
                     + jmp(end_label.clone())
-                    + label(else_label)
+                    + Segment::label(else_label)
                     + bloc2
-                    + label(end_label),
+                    + Segment::label(end_label),
             )
         }
         llr::ExprInner::Int(i, size) => (
@@ -959,13 +963,13 @@ fn compile_expr_val(
             let (in_label, out_label) = ctxt.gen_while_labels();
             (
                 Location::Rax,
-                label(in_label.clone())
+                Segment::label(in_label.clone())
                     + expr
                     + testb(reg!(AL), reg!(AL))
                     + jz(out_label.clone())
                     + bloc
                     + jmp(in_label)
-                    + label(out_label),
+                    + Segment::label(out_label),
             )
         }
     }
@@ -975,7 +979,7 @@ fn compile_bloc(
     ctxt: &mut context::Context,
     bloc: llr::Bloc,
     mut stack_offset: u64,
-) -> (Location, Text) {
+) -> (Location, Segment<instr::Instr>) {
     let initial_stack_offset = stack_offset;
     ctxt.add_layer();
     for instr in &bloc.content {
@@ -1048,11 +1052,11 @@ fn compile_bloc(
     (last_loc, asm)
 }
 
-fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
+fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Segment<instr::Instr> {
     let size = fun_decl.output;
     ctxt.init(fun_decl.args);
     let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0);
-    let mut asm = label(ctxt.fun_label(&fun_decl.name))
+    let mut asm = Segment::label(ctxt.fun_label(&fun_decl.name))
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
         + bloc;
@@ -1088,14 +1092,17 @@ fn to_asm(
     strings: HashMap<String, String>,
     ctxt: &mut context::Context,
 ) -> file::File {
-    let mut text_ss = Text::Concat(Vec::new());
+    let mut text_ss = Segment::empty();
     for fun_decl in file.funs {
         text_ss = text_ss + compile_fun(fun_decl, ctxt)
     }
 
     text_ss = text_ss;
 
-    let data_ss = data::Data::from_strings(strings);
+    let mut data_ss = Data::empty();
+    for (str1, str2) in strings {
+        data_ss += Segment::label(new_label(&str2)) + data::dasciz(str1)
+    }
 
     file::File {
         globl: None,

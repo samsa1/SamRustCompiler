@@ -98,15 +98,15 @@ impl StructInfo {
 pub struct EnumInfo {
     is_pub: bool,
     size: usize,
-    hashmap: HashMap<String, (bool, Vec<PostType>)>,
+    hashmap: HashMap<String, (bool, Vec<PostType>, u64, usize)>,
     free_types: Vec<String>,
 }
 
 impl EnumInfo {
-    pub fn new(size: usize, is_pub: bool, args: HashMap<String, Vec<PostType>>) -> Self {
+    pub fn new(size: usize, is_pub: bool, args: HashMap<String, (usize, Vec<PostType>)>) -> Self {
         let mut hashmap = HashMap::new();
-        for (name, typ) in args.into_iter() {
-            hashmap.insert(name, (false, typ));
+        for (id, (name, (size, typ))) in args.into_iter().enumerate() {
+            hashmap.insert(name, (false, typ, id as u64, size));
         }
         Self {
             size,
@@ -128,7 +128,11 @@ impl EnumInfo {
     }
 
     pub fn get_constructor(&self, name: &str) -> Option<(bool, &Vec<PostType>)> {
-        self.hashmap.get(name).map(|(b, v)| (*b, v))
+        self.hashmap.get(name).map(|(b, v, _, _)| (*b, v))
+    }
+
+    pub fn get_cons_id(&self, name: &str) -> Option<(u64, usize)> {
+        self.hashmap.get(name).map(|(_, _, id, pad)| (*id, *pad))
     }
 
     pub fn get_free_types(&self) -> &Vec<String> {
@@ -136,7 +140,7 @@ impl EnumInfo {
     }
 
     pub fn check_finished(self) -> Option<String> {
-        for (name, (b, _)) in self.hashmap.into_iter() {
+        for (name, (b, _, _, _)) in self.hashmap.into_iter() {
             if !b {
                 return Some(name);
             }
@@ -152,7 +156,7 @@ impl EnumInfo {
         self.size
     }
 
-    pub fn args(self) -> HashMap<String, (bool, Vec<PostType>)> {
+    pub fn args(self) -> HashMap<String, (bool, Vec<PostType>, u64, usize)> {
         self.hashmap
     }
 }
@@ -698,7 +702,7 @@ impl ModuleInterface {
         path: PathUL<(), String>,
         size: usize,
         is_pub: bool,
-        rows: HashMap<String, Vec<PostType>>,
+        rows: HashMap<String, (usize, Vec<PostType>)>,
     ) -> Option<EnumInfo> {
         self.insert_enum_inner(path.get_content(), 0, EnumInfo::new(size, is_pub, rows))
     }
@@ -855,6 +859,10 @@ impl GlobalContext {
 
     pub fn struct_path(&self, name: &PathUL<()>) -> Option<StructInfo> {
         self.get_struct_path(name).cloned()
+    }
+
+    pub fn get_enum_name(&self, name: &str) -> Option<&EnumInfo> {
+        self.modules.get_module(&self.path)?.1.enums.get(name)
     }
 
     pub fn get_enum(&self, path: &PathUL<()>) -> Option<&EnumInfo> {

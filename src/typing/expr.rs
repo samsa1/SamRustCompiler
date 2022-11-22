@@ -867,7 +867,7 @@ pub fn type_checker(
                 typed_rust::PostType {
                     content: PostTypeInner::Tuple(vec_type),
                 },
-                typed_rust::ExprInner::Tuple(vec_expr),
+                typed_rust::ExprInner::Tuple(vec_expr, 0),
             )
         }
 

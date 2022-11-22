@@ -97,23 +97,34 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
             "usize" => Some(PostType {
                 content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize)),
             }),
-            _ => match sizes.get_struct(id.get_content()) {
-                None => {
+            _ => match (
+                sizes.get_struct(id.get_content()),
+                sizes.get_enum_name(id.get_content()),
+            ) {
+                (None, None) => {
                     println!("{:?}", id);
                     todo!()
                 }
-                Some(_) => Some(PostType {
+                (Some(_), None) => Some(PostType {
                     content: PostTypeInner::Struct(sizes.get_path(id.get_content()), Vec::new()),
                 }),
+                (None, Some(_)) => Some(PostType {
+                    content: PostTypeInner::Enum(sizes.get_path(id.get_content()), Vec::new()),
+                }),
+                (Some(_), Some(_)) => todo!(),
             },
         },
         PreTypeInner::IdentPath(path) => {
             let path = path.cleaned();
-            match sizes.get_struct_path(&path) {
-                None => todo!(),
-                Some(_) => Some(PostType {
+            match (sizes.get_struct_path(&path), sizes.get_enum(&path)) {
+                (None, None) => todo!(),
+                (Some(_), None) => Some(PostType {
                     content: PostTypeInner::Struct(path, Vec::new()),
                 }),
+                (None, Some(_)) => Some(PostType {
+                    content: PostTypeInner::Enum(path, Vec::new()),
+                }),
+                (Some(_), Some(_)) => todo!(),
             }
         }
 
@@ -123,14 +134,15 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
                 .map(|typ| translate_typ(typ, sizes))
                 .collect();
             let path = path.cleaned();
-            match sizes.get_struct_path(&path) {
-                None => {
-                    println!("{:?}", path);
-                    todo!()
-                }
-                Some(_) => Some(PostType {
+            match (sizes.get_struct_path(&path), sizes.get_enum(&path)) {
+                (None, None) => todo!(),
+                (Some(_), None) => Some(PostType {
                     content: PostTypeInner::Struct(path, args?),
                 }),
+                (None, Some(_)) => Some(PostType {
+                    content: PostTypeInner::Enum(path, args?),
+                }),
+                (Some(_), Some(_)) => todo!(),
             }
         }
         PreTypeInner::IdentParametrized(id, _) => {
@@ -280,7 +292,7 @@ pub fn substitute(typ: PostType, hash_map: &HashMap<String, PostType>) -> PostTy
             name,
             args.into_iter().map(|t| substitute(t, hash_map)).collect(),
         ),
-        PostTypeInner::Enum(name, args) => PostTypeInner::Struct(
+        PostTypeInner::Enum(name, args) => PostTypeInner::Enum(
             name,
             args.into_iter().map(|t| substitute(t, hash_map)).collect(),
         ),

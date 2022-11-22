@@ -6,8 +6,6 @@ use crate::ast::{common::*, rust, typed_rust};
 use crate::frontend::Module;
 use std::collections::{HashMap, HashSet};
 
-const CONSTRUCTOR_SIZE: usize = 8;
-
 const DEFAULT_TYPES: [(&str, BuiltinType); 11] = [
     ("usize", BuiltinType::Int(false, Sizes::SUsize)),
     ("isize", BuiltinType::Int(true, Sizes::SUsize)),
@@ -400,7 +398,7 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                         size = row_size
                     }
                 }
-                size += CONSTRUCTOR_SIZE;
+                size += crate::config::CONSTRUCTOR_SIZE;
             }
         }
         path.push(name);
@@ -442,9 +440,19 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                     .is_none());
                 let mut path2 = path.clone();
                 path2.pop();
+                let mut row_sizes = Vec::new();
+                for (constructor, types) in &enum_decl.args {
+                    let mut row_size = 0;
+                    for typ in types.iter() {
+                        row_size += compute_size(typ, &sizes, &mut path2);
+                    }
+                    row_sizes.push(row_size);
+                }
                 let ctxt = GlobalContext::new(path2, sizes);
                 let mut constructors = HashMap::new();
-                for (constructor, types) in enum_decl.args {
+                for ((constructor, types), row_size) in
+                    enum_decl.args.into_iter().zip(row_sizes.into_iter())
+                {
                     let mut row = Vec::new();
                     if constructors.contains_key(constructor.get_content()) {
                         println!(
@@ -461,7 +469,7 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                             Some(typ) => row.push(typ),
                         }
                     }
-                    constructors.insert(constructor.content(), row);
+                    constructors.insert(constructor.content(), (row_size, row));
                 }
                 sizes = ctxt.extract_module();
                 sizes

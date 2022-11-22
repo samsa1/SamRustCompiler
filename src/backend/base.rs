@@ -2,10 +2,10 @@ use super::context::Context;
 use crate::ast::common::PathUL;
 use write_x86_64::*;
 
-fn default_vec_function(heap_address: &str, ctxt: &Context) -> Text {
+fn default_vec_function(heap_address: &str, ctxt: &Context) -> Segment<instr::Instr> {
     let custom_alloc = true;
 
-    label(ctxt.fun_label(&PathUL::from_vec(vec!["print_ptr"])))
+    Segment::label(ctxt.fun_label(&PathUL::from_vec(vec!["print_ptr"])))
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
         + movq(addr!(16, RBP), reg!(RSI))
@@ -22,7 +22,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
 - Capacity
 - Size_of_elements
 */
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "new"])))
+    + Segment::label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "new"])))
         + pushq(reg!(RBP)) /* bit align for malloc */
         + movq(immq(32), reg!(RDI)) /* Allocate chunk for 4 numbers */
         + if custom_alloc {
@@ -62,13 +62,13 @@ A vector is a pointer to a tuple of 4 elements in the stack :
         + movq(reg!(RAX), addr!(16, RBP))
         + popq(RBP) /* returns */
         + ret()
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "len"])))
+    + Segment::label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "len"])))
         + movq(addr!(8, RSP), reg!(RAX)) /* get pointer to vec */
         + movq(addr!(RAX), reg!(RAX))    /* get pointer to 4-vector */
         + movq(addr!(8, RAX), reg!(RAX)) /* put length in Rax */
         + movq(reg!(RAX), addr!(16, RSP)) /* Store the result in stack */
         + ret()
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "get"])))
+    + Segment::label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "get"])))
         + movq(addr!(16, RSP), reg!(RCX)) /* get pointer to vec */
         + movq(addr!(RCX), reg!(RCX)) /* get pointer to 4-vector */
         + movq(addr!(8, RSP), reg!(RAX)) /* put index in Rax */
@@ -88,7 +88,7 @@ A vector is a pointer to a tuple of 4 elements in the stack :
 Called with pointer to pointer to quadri vector as second argument
 and then arg
 */
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "push"])))
+    + Segment::label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "push"])))
         + pushq(reg!(RBP))
         + movq(addr!(16, RSP), reg!(RBP)) /* get pointer to vec */
         + movq(addr!(RBP), reg!(RBP)) /* get pointer to 4-vector */
@@ -118,7 +118,7 @@ and then arg
         + movq(addr!(8, RBP), reg!(RAX)) /* get length */
         + movq(addr!(16, RBP), reg!(RSI)) /* get capacity */
         + addq(reg!(RSI), reg!(RSI))
-        + label(reg::Label::from_str("push_has_capacity".to_string()))
+        + Segment::label(reg::Label::from_str("push_has_capacity".to_string()))
         //    Rbp pointer to 4-vector
         //    Rsi current capacity
         //    Rax length
@@ -126,7 +126,7 @@ and then arg
         + imulq(reg!(RDI), reg!(RAX))
         + addq(addr!(RBP), reg!(RAX)) /* target of move */
         + leaq(addr!(24, RSP), RCX) /* origin of move */
-        + label(reg::Label::from_str("push_copy_while_start".to_string()))
+        + Segment::label(reg::Label::from_str("push_copy_while_start".to_string()))
         + testq(reg!(RDI), reg!(RDI))
         + jz(reg::Label::from_str("push_copy_while_end".to_string()))
         + movb(addr!(RCX), reg!(DL))
@@ -135,11 +135,11 @@ and then arg
         + incq(reg!(RAX))
         + incq(reg!(RCX))
         + jmp(reg::Label::from_str("push_copy_while_start".to_string()))
-        + label(reg::Label::from_str("push_copy_while_end".to_string()))
+        + Segment::label(reg::Label::from_str("push_copy_while_end".to_string()))
         + incq(addr!(8, RBP))
         + popq(RBP)
         + ret()
-    + label(reg::Label::panic())
+    + Segment::label(reg::Label::panic())
         + movq(reg!(R13), reg!(RSP))
         + movq(reg!(R12), reg!(RDI))
         + movq(immq(0), reg!(RAX))
@@ -155,7 +155,7 @@ pub fn base(ctxt: &Context) -> file::File {
     let heap_address = "heap_address".to_string();
     let heap_size = 8 << 10;
 
-    let text_ss = label(reg::Label::from_str("main".to_string()))
+    let text_ss = Segment::label(reg::Label::from_str("main".to_string()))
         + pushq(reg!(RBP))
         + pushq(reg!(R12))
         + pushq(reg!(R13))
@@ -185,13 +185,14 @@ pub fn base(ctxt: &Context) -> file::File {
         + xorq(reg!(RAX), reg!(RAX))
         + ret()
         + default_vec_function(&heap_address, ctxt);
-    let data_ss = data::dstring("my_string".to_string(), "%zd\\n".to_string())
-        + data::dstring(
-            "division_by_zero_str".to_string(),
-            "Division by zero\\n".to_string(),
-        )
-        + data::dstring("OoB_error".to_string(), "Index out of bound\\n".to_string())
-        + data::dquad(heap_address, vec![0]);
+    let data_ss = Segment::label(reg::Label::from_str("my_string".to_string()))
+        + data::dasciz("%zd\\n".to_string())
+        + Segment::label(reg::Label::from_str("division_by_zero_str".to_string()))
+        + data::dasciz("Division by zero\\n".to_string())
+        + Segment::label(reg::Label::from_str("OoB_error".to_string()))
+        + data::dasciz("Index out of bound\\n".to_string())
+        + Segment::label(reg::Label::from_str(heap_address))
+        + data::dquad(0);
 
     file::File {
         globl: Some(reg::Label::from_str("main".to_string())),

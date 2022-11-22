@@ -10,12 +10,13 @@ fn rewrite_expr(top_expr: Expr, name1: &str, name2: &str) -> Expr {
             ..top_expr
         },
 
-        ExprInner::Tuple(exprs) => Expr {
+        ExprInner::Tuple(exprs, pad) => Expr {
             content: Box::new(ExprInner::Tuple(
                 exprs
                     .into_iter()
                     .map(|e| rewrite_expr(e, name1, name2))
                     .collect(),
+                pad,
             )),
             ..top_expr
         },

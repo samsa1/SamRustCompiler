@@ -195,7 +195,8 @@ pub enum ExprInner {
     Return(Option<Expr>),
     Set(Expr, Expr),
     String(String),
-    Tuple(Vec<Expr>),
+    // usize is a padding at the end padding
+    Tuple(Vec<Expr>, usize),
     UnaOp(common::TypedUnaop, Expr),
     Var(common::Ident),
     VarPath(common::PathUL<()>),
