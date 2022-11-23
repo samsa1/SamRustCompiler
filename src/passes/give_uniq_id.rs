@@ -101,20 +101,16 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             ..top_expr
         },
 
-        ExprInner::MacroCall(name, exprs) if name.get_content() == "print" => {
-            eprintln!("Didn't unfold a print macro");
-            Expr {
-                content: Box::new(ExprInner::MacroCall(name, exprs)),
-                loc: top_expr.loc,
-                typed: top_expr.typed,
-            }
-        }
+        ExprInner::MacroCall(name, exprs) if name.get_content() == "print" => Expr {
+            content: Box::new(ExprInner::MacroCall(name, exprs)),
+            loc: top_expr.loc,
+            typed: top_expr.typed,
+        },
 
         ExprInner::MacroCall(name, mut exprs)
             if (name.get_content() == "print_ptr" || name.get_content() == "print_usize")
                 && exprs.len() == 1 =>
         {
-            eprintln!("Didn't unfold a print macro");
             Expr {
                 content: Box::new(ExprInner::MacroCall(
                     name,

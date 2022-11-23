@@ -1,0 +1,9 @@
+ -- rustc -O
+        0.14 real         0.00 user         0.00 sys
+ -- rustc
+       16.53 real        16.21 user         0.04 sys
+ -- SamRustCompiler
+       29.93 real        29.60 user         0.05 sys
+
+Nb lines
+    1869 tests/benchmarks/arithmetic.s
