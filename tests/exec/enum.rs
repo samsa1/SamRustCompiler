@@ -53,7 +53,7 @@ fn main() {
 
     let val3 = E2::Nothing1;
 
-    if val1.sum() == 57 {
+    if val1.sum() == 59 {
         print!("yes\n")
     } else {
         print!("oups\n")

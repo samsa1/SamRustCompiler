@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::thread::current;
 
 use crate::ast::common::{BuiltinType, ComputedValue, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;
@@ -177,10 +178,10 @@ fn compile_expr_val(
         }
 
         llr::ExprInner::BinOp(op, expr1, expr2) => {
-            println!("{:?} {:?} {:?}", op, expr1, expr2);
+            //            println!("{:?} {:?} {:?}", op, expr1, expr2);
             let size = expr2.size;
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
-            println!("{:?}", loc);
+            //            println!("{:?}", loc);
             let expr2 = match loc {
                 Location::Never => expr2,
                 Location::Rax => match size {
@@ -221,7 +222,7 @@ fn compile_expr_val(
                 },
             };
             let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
-            println!("{:?}", loc);
+            //            println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
                 Location::StackWithPadding(pad) => expr1 + move_stack_to_rax(pad, size),
@@ -739,6 +740,7 @@ fn compile_expr_val(
             )
         }
         llr::ExprInner::Proj(sub_expr, offset) => {
+            println!("type of proj {:?}", sub_expr.typed);
             let sub_expr = if sub_expr.typed.is_ref() {
                 let (loc, sub_expr) = compile_expr_val(ctxt, sub_expr, stack_offset);
                 match loc {
@@ -844,6 +846,7 @@ fn compile_expr_val(
             (Location::Rax, asm)
         }
         llr::ExprInner::Tuple(tuple_size, exprs) => {
+            println!("Build tuple : {tuple_size}",);
             let mut asm = subq(immq(tuple_size as i64), reg!(RSP));
             let mut current_offset = 0;
             for expr in exprs {
@@ -871,7 +874,7 @@ fn compile_expr_val(
                                 RSP,
                                 0,
                                 RSP,
-                                size as i64 + pad as i64,
+                                size as i64 + pad as i64 + current_offset,
                                 size as u64,
                                 (RAX, EAX, AX, AL),
                             ) + addq(immq(pad as i64 + size as i64), reg!(RSP))

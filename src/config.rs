@@ -1,4 +1,4 @@
 use crate::ast::common::*;
 
-pub const CONSTRUCTOR_SIZE: usize = 8;
-pub const CONSTRUCTOR_PARAM: BuiltinType = BuiltinType::Int(false, Sizes::S64);
+pub const CONSTRUCTOR_SIZE: Sizes = Sizes::S64;
+pub const CONSTRUCTOR_PARAM: BuiltinType = BuiltinType::Int(false, CONSTRUCTOR_SIZE);

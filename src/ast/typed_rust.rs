@@ -139,19 +139,19 @@ pub enum PostTypeInner {
     String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bloc {
     pub content: Vec<Instr>,
     pub last_type: PostType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instr {
     Expr(common::ComputedValue, Expr),
     Binding(bool, common::Ident, Expr),
 }
 
-#[derive()]
+#[derive(Clone)]
 pub struct Expr {
     pub content: Box<ExprInner>,
     pub loc: common::Location,
@@ -174,7 +174,7 @@ impl std::fmt::Debug for Expr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprInner {
     BinOp(common::TypedBinop, Expr, Expr),
     Bloc(Bloc),
@@ -203,10 +203,11 @@ pub enum ExprInner {
     While(Expr, Bloc),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Pattern {
+    pub constructor_id: u64,
     pub constructor: common::PathUL<()>,
-    pub arguments: Vec<(bool, common::Ident)>,
+    pub arguments: Vec<(bool, common::Ident, PostType)>,
     pub guard: Option<Expr>,
     pub bloc: Bloc,
 }

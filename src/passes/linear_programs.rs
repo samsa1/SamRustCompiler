@@ -176,14 +176,15 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             let expr = rewrite_expr(expr, context, counter);
             let name = counter.new_name();
             let id = Ident::new_from(name, top_expr.loc.start(), top_expr.loc.end());
-            context.push(Instr::Binding(false, id.clone(), expr));
+            let new_expr = Expr {
+                content: Box::new(ExprInner::Var(id.clone())),
+                loc: expr.loc,
+                typed: expr.typed.clone(),
+            };
+            context.push(Instr::Binding(false, id, expr));
             Expr {
                 content: Box::new(ExprInner::PatternMatching(
-                    Expr {
-                        content: Box::new(ExprInner::Var(id)),
-                        typed: top_expr.typed.clone(),
-                        loc: top_expr.loc,
-                    },
+                    new_expr,
                     patterns
                         .into_iter()
                         .map(|patt| rewrite_pattern(patt, counter))
@@ -236,6 +237,7 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
 
 fn rewrite_pattern(patt: Pattern, counter: &mut IdCounter) -> Pattern {
     Pattern {
+        constructor_id: patt.constructor_id,
         constructor: patt.constructor,
         arguments: patt.arguments,
         guard: patt.guard,

@@ -581,7 +581,7 @@ impl ErrorReporter {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum TypedBinop {
     Add(Sizes),
     Mul(bool, Sizes),
@@ -600,7 +600,7 @@ pub enum TypedBinop {
     GreaterEq(bool, Sizes),
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum TypedUnaop {
     Not(Sizes),
     Neg(Sizes),

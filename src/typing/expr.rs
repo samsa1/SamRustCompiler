@@ -328,6 +328,7 @@ pub fn type_checker(
                     Some(NamePath::Specialisation(_)) => panic!("Weird"),
                     Some(NamePath::Name(id)) => id,
                 };
+                let constructor_id = enum_info.get_cons_id(&constructor_name).unwrap().0;
                 let types = match row.guard {
                     None => enum_info.update_constructor(&constructor_name),
                     Some(_) => enum_info.get_constructor(&constructor_name),
@@ -347,6 +348,7 @@ pub fn type_checker(
                     };
                     loc_ctxt.add_var2(ident.get_content().to_string(), *mutable, typ)
                 }
+                let types = types.clone();
                 let bloc = type_bloc(row.bloc, ctxt, loc_ctxt, out, Some(&row_types), typing_info)?;
                 let guard = match row.guard {
                     None => None,
@@ -361,7 +363,13 @@ pub fn type_checker(
 
                 rows.push(typed_rust::Pattern {
                     constructor,
-                    arguments: row.arguments,
+                    constructor_id,
+                    arguments: row
+                        .arguments
+                        .into_iter()
+                        .zip(types.into_iter())
+                        .map(|((b, id), typ)| (b, id, typ))
+                        .collect(),
                     bloc,
                     guard,
                 })

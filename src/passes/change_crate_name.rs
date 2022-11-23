@@ -167,6 +167,7 @@ fn rewrite_expr(top_expr: Expr, name1: &str, name2: &str) -> Expr {
 fn rewrite_patt(patt: Pattern, name1: &str, name2: &str) -> Pattern {
     Pattern {
         constructor: patt.constructor.rewrite_base(name1, name2),
+        constructor_id: patt.constructor_id,
         arguments: patt.arguments,
         guard: patt.guard.map(|expr| rewrite_expr(expr, name1, name2)),
         bloc: rewrite_bloc(patt.bloc, name1, name2),

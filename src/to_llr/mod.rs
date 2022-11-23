@@ -100,7 +100,6 @@ fn build_structs_2(
     modint: ModuleInterface,
     data_struct: &DataStruct,
     structs: &mut HashMap<PathUL<()>, StructInfo>,
-    enums: &mut HashMap<PathUL<()>, EnumInfo>,
     path: &mut PathUL<()>,
 ) {
     for (name, struct_info) in modint.structs {
@@ -120,13 +119,9 @@ fn build_structs_2(
         path.pop();
     }
 
-    for (name, enum_info) in modint.enums {
-        todo!()
-    }
-
     for (name, (_, modint)) in modint.submodules {
         path.push(NamePath::Name(name));
-        build_structs_2(modint, data_struct, structs, enums, path);
+        build_structs_2(modint, data_struct, structs, path);
         path.pop();
     }
 }
@@ -152,17 +147,14 @@ impl DataStruct {
             pointer_size: 8,
         };
         let mut structs = HashMap::new();
-        let mut enums = HashMap::new();
 
         build_structs_2(
             modint,
             &data_struct,
             &mut structs,
-            &mut enums,
             &mut PathUL::new(Vec::new()),
         );
         data_struct.structs = structs;
-        data_struct.enums = enums;
         data_struct
     }
 
@@ -479,7 +471,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
         }
         tr::ExprInner::Tuple(exprs, pad) => llr::Expr {
             content: Box::new(llr::ExprInner::Tuple(
-                names_info.compute_size(&top_expr.typed) + pad,
+                names_info.compute_size(&top_expr.typed), // + pad,
                 exprs
                     .into_iter()
                     .map(|e| rewrite_expr(e, names_info))

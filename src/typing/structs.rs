@@ -398,7 +398,7 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                         size = row_size
                     }
                 }
-                size += crate::config::CONSTRUCTOR_SIZE;
+                size += crate::config::CONSTRUCTOR_SIZE.to_byte_size();
             }
         }
         path.push(name);
