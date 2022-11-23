@@ -20,5 +20,5 @@ fn loop_operations(n : i64) -> i64 {
 
 
 fn main() {
-    loop_operations(1000_000_000);
+    loop_operations(2_000_000_000);
 }

@@ -10,5 +10,5 @@ fn fibo(n : usize) -> i32 {
 
 
 fn main() {
-    fibo(45);
+    fibo(46);
 }

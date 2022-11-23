@@ -19,3 +19,14 @@ build:
 	echo "Compiling std"
 	./target/debug/sam_rust_compiler --generate-std
 	cargo build
+
+bench:
+	./bench.sh
+
+
+prepare:
+	make all
+	make build
+	make clean
+	make bench
+	

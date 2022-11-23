@@ -42,7 +42,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut IdCounter) -> Expr {
         },
 
         ExprInner::MacroCall(name, exprs) if name.get_content() == "print" => {
-            eprintln!("Didn't unfold a print macro");
+            println!("Didn't unfold a print macro");
             Expr {
                 content: Box::new(ExprInner::MacroCall(name, exprs)),
                 loc: top_expr.loc,

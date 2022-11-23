@@ -309,11 +309,11 @@ impl TypeError {
 
     pub fn report_error(&self, err_reporter: &ErrorReporter) {
         if self.loc.start() == usize::MAX {
-            println!("Unknown line");
-            println!("{:?}", self);
+            eprintln!("Unknown line");
+            eprintln!("{:?}", self);
             std::process::exit(1)
         } else {
-            println!(
+            eprintln!(
                 "{}error[E{:0>4}]{}: {}",
                 RED,
                 self.info.get_id(),
@@ -324,7 +324,7 @@ impl TypeError {
             let lst_line_id = err_reporter.get_last_line_id(self.loc);
             let line_str = err_reporter.get_line(fst_line_id).unwrap();
             let char_id_fst = *err_reporter.get_line_start_char(fst_line_id).unwrap();
-            println!(
+            eprintln!(
                 " {}-->{} {}:{}:{}:",
                 BLUE,
                 NC,
@@ -339,19 +339,19 @@ impl TypeError {
                     str.push(' ');
                     i *= 10
                 }
-                println!("{str} {BLUE}|{NC}");
-                print!("{BLUE}{} |{NC} {line_str}", fst_line_id + 1);
-                print!("{str} {BLUE}|{NC} ");
+                eprintln!("{str} {BLUE}|{NC}");
+                eprint!("{BLUE}{} |{NC} {line_str}", fst_line_id + 1);
+                eprint!("{str} {BLUE}|{NC} ");
                 for _ in char_id_fst..self.loc.start() {
-                    print!(" ")
+                    eprint!(" ")
                 }
-                print!("{}", RED);
+                eprint!("{}", RED);
                 for _ in self.loc.start()..self.loc.end() {
-                    print!("^")
+                    eprint!("^")
                 }
-                println!(" {}{}", self.info.get_message(), NC);
+                eprintln!(" {}{}", self.info.get_message(), NC);
             } else {
-                println!("{:?}", self);
+                eprintln!("{:?}", self);
                 todo!()
             }
         }
