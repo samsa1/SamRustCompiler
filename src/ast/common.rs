@@ -350,6 +350,25 @@ impl Sizes {
             }
         }
     }
+
+    pub fn max_sval(&self) -> i64 {
+        match self {
+            Self::S8 => (-1i8) as i64,
+            Self::S16 => (-1i16) as i64,
+            Self::S32 => (-1i32) as i64,
+            Self::S64 => -1i64,
+            Self::SUsize => -1i64,
+        }
+    }
+    pub fn max_uval(&self) -> u64 {
+        match self {
+            Self::S8 => u8::MAX as u64,
+            Self::S16 => u16::MAX as u64,
+            Self::S32 => u32::MAX as u64,
+            Self::S64 => u64::MAX,
+            Self::SUsize => u64::MAX,
+        }
+    }
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]

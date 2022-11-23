@@ -163,9 +163,12 @@ peg::parser! {
           space()                     { Vec::new() }
       }
 
+      rule generics() -> Vec<Ident> =
+        "<" l:(name_ws() ++ ",") ">" space() { l }
+
       rule decl_fun() -> DeclFun =
           p:("pub" spaces())?
-          "fn" spaces() n:name() "(" args:fun_args() ")"
+          "fn" spaces() n:name() space() gen:generics()? "(" args:fun_args() ")"
                   space()
                   out:arrow_typ() b:bloc() space()
               {
@@ -174,6 +177,7 @@ peg::parser! {
                       name : n,
                       self_arg : None,
                       args,
+                      generics : gen.unwrap_or(Vec::new()),
                       output : out,
                       content : b,
                       id_counter : IdCounter::new(),
@@ -254,6 +258,7 @@ peg::parser! {
                       name : n,
                       self_arg : args.0,
                       args : args.1,
+                      generics : Vec::new(),
                       output : out,
                       content : b,
                       id_counter : IdCounter::new(),
@@ -280,6 +285,9 @@ peg::parser! {
           start:position!() n:name_inner() end:position!() {
             Ident::new_from(n, start, end)
           }
+
+      rule name_ws() -> Ident =
+          space() n:name() space() { n }
 
       rule name_inner() -> String =
           !reserved() n1:(quiet!{char()}/expected!("identifier")) n2:(char_num()*) {

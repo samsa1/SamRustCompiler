@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::thread::current;
 
 use crate::ast::common::{BuiltinType, ComputedValue, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;

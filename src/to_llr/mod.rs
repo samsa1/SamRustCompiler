@@ -469,9 +469,9 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             }
             .to_ref(names_info.get_pointer_size())
         }
-        tr::ExprInner::Tuple(exprs, pad) => llr::Expr {
+        tr::ExprInner::Tuple(exprs, _) => llr::Expr {
             content: Box::new(llr::ExprInner::Tuple(
-                names_info.compute_size(&top_expr.typed), // + pad,
+                names_info.compute_size(&top_expr.typed),
                 exprs
                     .into_iter()
                     .map(|e| rewrite_expr(e, names_info))

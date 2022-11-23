@@ -154,6 +154,9 @@ fn build_type(types: &rust::TypeStorage, type_id: usize) -> Option<typed_rust::P
         rust::Types::Array(_, _) => todo!(),
         rust::Types::Bool => Some(typed_rust::PostType::bool()),
         rust::Types::Deref(_) => None,
+        rust::Types::Free(str) => Some(typed_rust::PostType {
+            content: PostTypeInner::FreeType(str.to_string()),
+        }),
         rust::Types::Ref(None, _type_id) => todo!(),
         rust::Types::Ref(Some(mutable), type_id) => Some(typed_rust::PostType {
             content: PostTypeInner::Ref(*mutable, Box::new(build_type(types, *type_id)?)),
@@ -378,7 +381,7 @@ pub fn type_checker(
             let fall = match fall {
                 None => match enum_info.check_finished() {
                     None => None,
-                    Some(id) => todo!(),
+                    Some(_) => panic!("ICE, should be handled by inferencer"),
                 },
                 Some((mutable, ident, bloc)) => {
                     loc_ctxt.add_layer();

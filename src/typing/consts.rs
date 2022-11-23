@@ -83,7 +83,7 @@ fn compute_i64(bin: TypedBinop, i1: i64, i2: i64) -> Val {
         TypedBinop::And(s) => Val::Integer(i1 & i2, s),
         TypedBinop::Or(s) => Val::Integer(i1 | i2, s),
         TypedBinop::Shl(s) => Val::Integer(i1 << i2, s),
-        TypedBinop::Shr(s) => todo!(),
+        TypedBinop::Shr(s) => Val::Integer((i1 & s.max_sval()) >> i2, s),
     }
 }
 
@@ -103,7 +103,7 @@ fn compute_u64(bin: TypedBinop, i1: u64, i2: u64) -> Val {
         TypedBinop::And(s) => Val::Uinteger(i1 & i2, s),
         TypedBinop::Or(s) => Val::Uinteger(i1 | i2, s),
         TypedBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
-        TypedBinop::Shr(s) => todo!(),
+        TypedBinop::Shr(s) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
     }
 }
 fn compute_bool(bin: TypedBinop, i1: bool, i2: bool) -> Val {
@@ -181,13 +181,9 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
                 .map(|expr| compute_const(expr, ctxt))
                 .collect(),
         ),
-        tr::ExprInner::Tuple(exprs, _) => panic!("Should never happen"),
+        tr::ExprInner::Tuple(_, _) => panic!("Should never happen"),
         tr::ExprInner::UnaOp(_, _) => todo!(),
-        tr::ExprInner::Var(_) => todo!(), /*ctxt
-        .get_const_val(v.get_content())
-        .unwrap()
-        .get_value()
-        .clone(),*/
+        tr::ExprInner::Var(_) => todo!(),
         tr::ExprInner::VarPath(v) => ctxt.get_const_val(&v).unwrap().get_value().clone(),
         tr::ExprInner::While(_, _) => todo!(),
     }

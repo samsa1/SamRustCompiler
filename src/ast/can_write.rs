@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 use super::common::*;
 use super::rust::*;
 use std::io::prelude::*;
@@ -542,6 +544,8 @@ impl CanWrite for DeclFun {
         self.args.write_in(file)?;
         file.write_all(b",\n\toutput : ")?;
         self.output.write_in(file)?;
+        file.write_all(b",\n\tgenerics : ")?;
+        self.generics.write_in(file)?;
         file.write_all(b",\n\tcontent : ")?;
         self.content.write_in(file)?;
         file.write_all(b",\n\tid_counter : ")?;

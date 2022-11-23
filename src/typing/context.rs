@@ -156,9 +156,9 @@ impl EnumInfo {
         self.size
     }
 
-    pub fn args(self) -> HashMap<String, (bool, Vec<PostType>, u64, usize)> {
-        self.hashmap
-    }
+    // pub fn args(self) -> HashMap<String, (bool, Vec<PostType>, u64, usize)> {
+    //     self.hashmap
+    // }
 }
 #[derive(Debug)]
 pub struct Const {
