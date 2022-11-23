@@ -16,6 +16,12 @@ impl CanWrite for bool {
     }
 }
 
+impl CanWrite for () {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"()")
+    }
+}
+
 impl<T: CanWrite> CanWrite for Option<T> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
@@ -88,7 +94,7 @@ impl<T: CanWrite> CanWrite for NamePath<T> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
             Self::Name(id) => {
-                file.write_all(b"common::NamePath::<PreType>::Name(")?;
+                file.write_all(b"common::NamePath::Name(")?;
                 id.write_in(file)?;
                 file.write_all(b")")
             }
@@ -99,7 +105,7 @@ impl<T: CanWrite> CanWrite for NamePath<T> {
 
 impl<T: CanWrite> CanWrite for Path<T> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
-        file.write_all(b"common::Path::<PreType>::new(")?;
+        file.write_all(b"common::Path::new(")?;
         self.get_content().write_in(file)?;
         file.write_all(b", common::Location::default())")
     }
@@ -129,8 +135,20 @@ impl CanWrite for PreTypeInner {
                 id.write_in(file)?;
                 file.write_all(b")")
             }
+            Self::IdentPath(id) => {
+                file.write_all(b"PreTypeInner::IdentPath(")?;
+                id.write_in(file)?;
+                file.write_all(b")")
+            }
             Self::IdentParametrized(id1, id2) => {
                 file.write_all(b"PreTypeInner::IdentParametrized(")?;
+                id1.write_in(file)?;
+                file.write_all(b", ")?;
+                id2.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::IdentParametrizedPath(id1, id2) => {
+                file.write_all(b"PreTypeInner::IdentParametrizedPath(")?;
                 id1.write_in(file)?;
                 file.write_all(b", ")?;
                 id2.write_in(file)?;
@@ -226,9 +244,31 @@ impl CanWrite for Sizes {
 impl CanWrite for Projector {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
-            Self::Name(_) => todo!(),
-            Self::Int(_) => todo!(),
+            Self::Name(id) => {
+                file.write_all(b"Projector::Name(")?;
+                id.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::Int(id) => {
+                file.write_all(b"Projector::Int(")?;
+                id.write_in(file)?;
+                file.write_all(b")")
+            }
         }
+    }
+}
+
+impl<T: CanWrite> CanWrite for Pattern<T> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"Pattern::new(")?;
+        self.get_constructor().write_in(file)?;
+        file.write_all(b",")?;
+        self.get_arguments().write_in(file)?;
+        file.write_all(b",")?;
+        self.get_guard().write_in(file)?;
+        file.write_all(b",")?;
+        self.get_bloc().write_in(file)?;
+        file.write_all(b")")
     }
 }
 
@@ -266,8 +306,22 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
                 args.write_in(file)?;
                 file.write_all(b")")
             }
+            Self::BuildStructPath(b, args) => {
+                file.write_all(b"ExprInner::BuildStructPath(")?;
+                b.write_in(file)?;
+                file.write_all(b", ")?;
+                args.write_in(file)?;
+                file.write_all(b")")
+            }
             Self::Coercion(a1, a2) => {
                 file.write_all(b"ExprInner::Coercion(")?;
+                a1.write_in(file)?;
+                file.write_all(b", ")?;
+                a2.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::Constructor(a1, a2) => {
+                file.write_all(b"ExprInner::Constructor(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
@@ -280,6 +334,15 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
             }
             Self::FunCall(a1, a2, a3) => {
                 file.write_all(b"ExprInner::FunCall(")?;
+                a1.write_in(file)?;
+                file.write_all(b", ")?;
+                a2.write_in(file)?;
+                file.write_all(b", ")?;
+                a3.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::FunCallPath(a1, a2, a3) => {
+                file.write_all(b"ExprInner::FunCallPath(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
@@ -331,6 +394,15 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
                 e.write_in(file)?;
                 file.write_all(b")")
             }
+            Self::PatternMatching(expr, rows, fallthrough) => {
+                file.write_all(b"ExprInner::PatternMatching(")?;
+                expr.write_in(file)?;
+                file.write_all(b", ")?;
+                rows.write_in(file)?;
+                file.write_all(b", ")?;
+                fallthrough.write_in(file)?;
+                file.write_all(b")")
+            }
             Self::Proj(a1, a2) => {
                 file.write_all(b"ExprInner::Proj(")?;
                 a1.write_in(file)?;
@@ -369,6 +441,11 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
             }
             Self::Var(v) => {
                 file.write_all(b"ExprInner::Var(")?;
+                v.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::VarPath(v) => {
+                file.write_all(b"ExprInner::VarPath(")?;
                 v.write_in(file)?;
                 file.write_all(b")")
             }
@@ -479,6 +556,12 @@ impl CanWrite for DeclStruct {
     }
 }
 
+impl CanWrite for DeclEnum {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        todo!()
+    }
+}
+
 impl<DF: CanWrite> CanWrite for Decl<DF> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
@@ -499,6 +582,11 @@ impl<DF: CanWrite> CanWrite for Decl<DF> {
             }
             Self::Const(dc) => {
                 file.write_all(b"Decl::Const(")?;
+                dc.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::Enum(dc) => {
+                file.write_all(b"Decl::Enum(")?;
                 dc.write_in(file)?;
                 file.write_all(b")")
             }

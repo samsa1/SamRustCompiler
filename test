@@ -53,7 +53,9 @@ for f in tests/exec/*.rs; do
     if rustc $f -o a.out > /dev/null 2>&1 ; then
       ./a.out > out
       if ! cmp --quiet out $expected; then
-          echo "mauvaise sortie de rustc sur $f"; exit 1
+          echo "mauvaise sortie de rustc sur $f";
+          cmp out $expected;
+          exit 1
       fi
     else
       echo "Échec de rustc sur $f"; exit 1
@@ -95,7 +97,7 @@ echo "Partie 1"
 
 # les mauvais
 echo -n "mauvais "
-for f in tests/syntax/bad/*.rs; do
+for f in tests/syntax/bad/*.rs tests/dependancies/bad/ambiguity/main.rs tests/dependancies/bad/missing_mod/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --parse-only $f;
@@ -143,7 +145,7 @@ echo "Partie 1"
 
 # les bons
 echo -n "bons "
-for f in tests/syntax/good/*.rs tests/typing/bad/*.rs tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
+for f in tests/syntax/good/*.rs tests/typing/bad/*.rs tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs tests/dependancies/good/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --parse-only $f;
@@ -165,7 +167,7 @@ echo
 
 # les mauvais
 echo -n "mauvais "
-for f in tests/syntax/bad/*.rs; do
+for f in tests/syntax/bad/*.rs tests/dependancies/bad/ambiguity/main.rs tests/dependancies/bad/missing_mod/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --parse-only $f;
@@ -197,7 +199,7 @@ max=0
 
 # les mauvais
 echo -n "mauvais "
-for f in tests/typing/bad/*.rs; do
+for f in tests/typing/bad/*.rs tests/dependancies/bad/no_main/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --type-only $f;
@@ -215,7 +217,7 @@ echo
 
 # les bons
 echo -n "bons "
-for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
+for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs tests/dependancies/good/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --type-only $f;
@@ -245,7 +247,7 @@ max=0
 
 # les bons
 echo -n "bons "
-for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
+for f in tests/typing/good/*.rs tests/typing2/bad/*.rs tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs tests/dependancies/good/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --type-only $f;
@@ -270,7 +272,7 @@ echo
 
 # les mauvais
 echo -n "mauvais "
-for f in tests/typing/bad/*.rs; do
+for f in tests/typing/bad/*.rs tests/dependancies/bad/no_main/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --type-only $f;
@@ -325,7 +327,7 @@ echo
 
 # les bons
 echo -n "bons "
-for f in tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs; do
+for f in tests/typing2/good/*.rs tests/exec/*.rs tests/exec-fail/*.rs tests/dependancies/good/main.rs; do
     echo -n ".";
     max=`expr $max + 1`;
     compile --no-asm $f;
@@ -390,6 +392,31 @@ for f in tests/exec/*.rs; do
 	echo "ÉCHEC de la compilation sur $f (devrait réussir)"
     fi
 done
+f=tests/dependancies/good/main.rs
+echo -n "."
+asm=tests/dependancies/good/main.s
+rm -f $asm
+expected=tests/dependancies/good/main.out
+max=`expr $max + 1`;
+if compile $f; then
+rm -f out
+score_comp=`expr $score_comp + 1`;
+if $GCC $asm && ./a.out > out; then
+    score_out=`expr $score_out + 1`;
+    if cmp --quiet out $expected; then
+    score_test=`expr $score_test + 1`;
+    else
+    echo
+    echo "ÉCHEC : mauvaise sortie pour $f"
+    fi
+else
+    echo
+    echo "ÉCHEC du code produit pour $f"
+fi
+else
+echo
+echo "ÉCHEC de la compilation sur $f (devrait réussir)"
+fi
 echo
 
 echo "Execution conduisant à un échec"

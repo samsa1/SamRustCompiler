@@ -2,7 +2,8 @@ use super::context::{Const, GlobalContext};
 use super::errors::TypeError;
 use super::types::translate_typ;
 use crate::ast::common::{
-    BinOperator, BuiltinType, ComputedValue, Ident, Location, Projector, UnaOperator,
+    BinOperator, BuiltinType, ComputedValue, Ident, Location, NamePath, PathUL, Projector,
+    UnaOperator,
 };
 use crate::ast::rust::*;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
@@ -68,13 +69,31 @@ fn get_struct_name(
     type_id: usize,
     loc: Location,
     affectable: bool,
-) -> Result<Option<(bool, &str, &Vec<usize>)>, Vec<TypeError>> {
+) -> Result<Option<(bool, &PathUL<()>, &Vec<usize>)>, Vec<TypeError>> {
     match types.get(type_id) {
         None => panic!("ICE"),
         Some(Types::Struct(name, params)) => Ok(Some((affectable, name, params))),
         Some(Types::Unknown) => Ok(None),
         Some(Types::Ref(mutable, type_id)) => {
             get_struct_name(types, *type_id, loc, mutable.unwrap_or(true))
+        }
+        Some(typ) => Err(vec![TypeError::expected_struct(typ.clone(), loc)]),
+    }
+}
+
+fn get_method_caller_name(
+    types: &TypeStorage,
+    type_id: usize,
+    loc: Location,
+    affectable: bool,
+) -> Result<Option<(bool, &PathUL<()>, &Vec<usize>)>, Vec<TypeError>> {
+    match types.get(type_id) {
+        None => panic!("ICE"),
+        Some(Types::Struct(name, params)) => Ok(Some((affectable, name, params))),
+        Some(Types::Enum(name, params)) => Ok(Some((affectable, name, params))),
+        Some(Types::Unknown) => Ok(None),
+        Some(Types::Ref(mutable, type_id)) => {
+            get_method_caller_name(types, *type_id, loc, mutable.unwrap_or(true))
         }
         Some(typ) => Err(vec![TypeError::expected_struct(typ.clone(), loc)]),
     }
@@ -88,11 +107,44 @@ fn get_tuple(
 ) -> Result<Option<(bool, &Vec<usize>)>, Vec<TypeError>> {
     match types.get(type_id) {
         None => panic!("ICE"),
+        Some(Types::SameAs(type_id)) => get_tuple(types, *type_id, loc, affectable),
         Some(Types::Tuple(vec)) => Ok(Some((affectable, vec))),
         Some(Types::Unknown) => Ok(None),
         Some(Types::Ref(mutable, type_id)) => {
             get_tuple(types, *type_id, loc, mutable.unwrap_or(true))
         }
+        Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
+    }
+}
+
+fn get_enum_inner(
+    types: &TypeStorage,
+    type_id: usize,
+    loc: Location,
+) -> Result<Option<(&PathUL<()>, &Vec<usize>)>, Vec<TypeError>> {
+    match types.get(type_id) {
+        None => panic!("ICE"),
+        Some(Types::SameAs(type_id)) => get_enum_inner(types, *type_id, loc),
+        Some(Types::Enum(path, vec)) => Ok(Some((path, vec))),
+        Some(Types::Unknown) => Ok(None),
+        Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
+    }
+}
+
+fn get_enum(
+    types: &TypeStorage,
+    type_id: usize,
+    loc: Location,
+) -> Result<Option<(Option<Option<bool>>, Option<(&PathUL<()>, &Vec<usize>)>)>, Vec<TypeError>> {
+    match types.get(type_id) {
+        None => panic!("ICE"),
+        Some(Types::SameAs(type_id)) => get_enum(types, *type_id, loc),
+        Some(Types::Enum(path, vec)) => Ok(Some((None, Some((path, vec))))),
+        Some(Types::Unknown) => Ok(None),
+        Some(Types::Ref(mutable, type_id)) => Ok(Some((
+            Some(*mutable),
+            get_enum_inner(types, *type_id, loc)?,
+        ))),
         Some(typ) => Err(vec![TypeError::expected_tuple(typ.clone(), loc)]),
     }
 }
@@ -145,7 +197,6 @@ fn make_coherent(
         (Some(typ1), Some(typ2)) => (typ1, typ2),
         _ => panic!("ICE"),
     };
-    //    println!("-> {:?} {:?} {:?}", typ1, typ2, unification_method);
     match (typ1, typ2) {
         (Types::Unknown, _) => {
             let type_id = types.new_ref_unmarked(type_id2);
@@ -328,6 +379,28 @@ fn make_coherent(
             )])
         }
 
+        (Types::Enum(name1, vec1), Types::Enum(name2, vec2)) if vec1.len() == vec2.len() => {
+            if name1 == name2 {
+                let mut type_vec = Vec::new();
+                let name = name1.clone();
+                for (typ1, typ2) in vec1.clone().into_iter().zip(vec2.clone().into_iter()) {
+                    type_vec.push(make_coherent(types, typ1, typ2, loc, unification_method)?)
+                }
+                Ok(types.insert_type(Types::Enum(name, type_vec)))
+            } else {
+                Err(vec![TypeError::not_compatible(
+                    loc,
+                    typ1.clone(),
+                    typ2.clone(),
+                )])
+            }
+        }
+        (Types::Enum(_, _), _) | (_, Types::Enum(_, _)) => Err(vec![TypeError::not_compatible(
+            loc,
+            typ1.clone(),
+            typ2.clone(),
+        )]),
+
         (Types::Fun(args1, out1), Types::Fun(args2, out2)) if args1.len() == args2.len() => {
             let args1 = args1.clone();
             let args2 = args2.clone();
@@ -380,16 +453,12 @@ fn add_type(
     free_types: &HashMap<String, usize>,
 ) -> usize {
     match &post_type.content {
-        PostTypeInner::Box(typ) => {
-            let type_id = add_type(types, typ, free_types);
-            types.insert_type(Types::boxed(type_id))
-        }
+        PostTypeInner::Box(_) => todo!(),
         PostTypeInner::BuiltIn(BuiltinType::Bool) => types.insert_bool(),
         PostTypeInner::BuiltIn(BuiltinType::Int(signed, size)) => {
             types.insert_type(Types::Int(Some(*signed), Some(*size)))
         }
         PostTypeInner::Diverge => todo!(),
-        //        PostTypeInner::Enum(_) => todo!(),
         PostTypeInner::Fun(free, type_vec, out_type) => {
             let mut free_types2 = free_types.clone();
             for name in free.iter() {
@@ -407,7 +476,14 @@ fn add_type(
             for typ in args.iter() {
                 vec.push(add_type(types, typ, free_types))
             }
-            types.insert_type(Types::Struct(param.to_string(), vec))
+            types.insert_type(Types::Struct(param.clone(), vec))
+        }
+        PostTypeInner::Enum(param, args) => {
+            let mut vec = Vec::new();
+            for typ in args.iter() {
+                vec.push(add_type(types, typ, free_types))
+            }
+            types.insert_type(Types::Enum(param.clone(), vec))
         }
         PostTypeInner::Ref(mutable, typ) => {
             let type_id = add_type(types, typ, free_types);
@@ -452,64 +528,6 @@ fn forces_to(
     let type_id2 = add_type(types, typ, free_types);
     make_coherent(types, type_id, type_id2, loc, unification_method)?;
     Ok(())
-
-    /*if let PostTypeInner::FreeType(name) = &typ.content {
-        let id = free_types.get(name).unwrap();
-        make_coherent(types, type_id, *id, loc)?;
-        return Ok(())
-    };
-    match types.get(type_id).unwrap() {
-        Types::SameAs(type_id2) => forces_to(types, *type_id2, typ, loc, free_types),
-        Types::Unknown => {
-            let new_type_id = add_type(types, typ, free_types);
-            types.set(type_id, Types::SameAs(new_type_id));
-            Ok(())
-        },
-        Types::Bool => {
-            match &typ.content {
-                PostTypeInner::BuiltIn(BuiltinType::Bool) => Ok(()),
-                _ => Err(vec![TypeError::unknown_error(loc)]),
-            }
-        },
-        Types::Int(b1, s1) => {
-            match &typ.content {
-                PostTypeInner::BuiltIn(BuiltinType::Int(b2, s2)) => {
-                    if (b1.is_none() || b1 == &Some(*b2)) && (s1.is_none() || s1 == &Some(*s2)) {
-                        types.set(type_id, Types::Int(Some(*b2), Some(*s2)));
-                        Ok(())
-                    } else {
-                        todo!()
-                    }
-                },
-                _ => {println!("got {typ:?} and expected int"); Err(vec![TypeError::unknown_error(loc)])},
-            }
-        }
-        Types::Struct(name, args) => {
-            match &typ.content {
-                PostTypeInner::Struct(name2, args2) => {
-                    if name == name2 {
-                        for (typ1, typ2) in args.clone().into_iter().zip(args2.iter()) {
-                            forces_to(types, typ1, typ2, loc, free_types)?;
-                        };
-                        Ok(())
-                    } else {
-                        todo!()
-                    }
-                },
-                typ2 => {println!("got {typ2:?} and expected {typ:?}"); Err(vec![TypeError::unknown_error(loc)])},
-            }
-        },
-
-        Types::Ref(type_id) => {
-            match &typ.content {
-                PostTypeInner::Ref(_, typ) => {
-                    forces_to(types, *type_id, typ, loc, free_types)
-                },
-                _ => todo!()
-            }
-        }
-        typ2 => {println!("{typ2:?} forced to {typ:?}"); todo!()},
-    }*/
 }
 
 fn type_expr(
@@ -519,7 +537,6 @@ fn type_expr(
     types: &mut TypeStorage,
     out_type: usize,
 ) -> Result<(bool, Expr<usize>), Vec<TypeError>> {
-    //    println!("processing {top_expr:?}");
     let out = match *top_expr.content {
         ExprInner::Array(_) => todo!(),
 
@@ -619,14 +636,6 @@ fn type_expr(
                     UnificationMethod::NoRef,
                 )?;
                 let type_id = expr1.typed;
-                /*                let type_id2 = types.insert_type(Types::Int(None, None));
-                make_coherent(
-                    types,
-                    type_id,
-                    type_id2,
-                    top_expr.loc,
-                    UnificationMethod::NoRef,
-                )?;*/
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
@@ -686,7 +695,7 @@ fn type_expr(
                     } else {
                         return Err(vec![TypeError::struct_no_field(
                             top_expr.loc,
-                            struct_name.content(),
+                            PathUL::new(vec![NamePath::Name(struct_name.content())]),
                             name.content(),
                         )]);
                     }
@@ -695,13 +704,16 @@ fn type_expr(
                     Some(field_name) => {
                         return Err(vec![TypeError::missing_field(
                             top_expr.loc,
-                            struct_name.content(),
+                            PathUL::new(vec![NamePath::Name(struct_name.content())]),
                             field_name,
                         )])
                     }
                     None => (),
                 };
-                let type_id = types.insert_type(Types::struct_from_str(struct_name.get_content()));
+                let type_id = types.insert_type(Types::Struct(
+                    ctxt.get_path(struct_name.get_content()),
+                    vec![],
+                ));
                 check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                 Ok((
                     false,
@@ -712,8 +724,111 @@ fn type_expr(
                     },
                 ))
             } else {
-                Err(vec![TypeError::unknown_struct(struct_name)])
+                Err(vec![TypeError::unknown_struct(
+                    struct_name.get_loc(),
+                    ctxt.get_path(struct_name.get_content()),
+                )])
             }
+        }
+
+        ExprInner::BuildStructPath(struct_path, args) => {
+            assert!(struct_path.get_content().len() > 1);
+            let cleaned_path = struct_path.cleaned();
+            if let Some(struct_info) = ctxt.get_struct_path(&cleaned_path) {
+                let mut struct_info = struct_info.clone();
+                let mut args2 = Vec::new();
+                for (name, expr) in args.into_iter() {
+                    let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                    if let Some(typ) = struct_info.get_typ(name.get_content()) {
+                        forces_to(
+                            types,
+                            expr.typed,
+                            typ,
+                            top_expr.loc,
+                            &HashMap::new(),
+                            UnificationMethod::StrictSnd,
+                        )?;
+                        args2.push((name, expr));
+                    } else {
+                        return Err(vec![TypeError::struct_no_field(
+                            top_expr.loc,
+                            cleaned_path,
+                            name.content(),
+                        )]);
+                    }
+                }
+                match struct_info.check_finished() {
+                    Some(field_name) => {
+                        return Err(vec![TypeError::missing_field(
+                            top_expr.loc,
+                            cleaned_path,
+                            field_name,
+                        )])
+                    }
+                    None => (),
+                };
+                let type_id = types.insert_type(Types::Struct(cleaned_path, vec![]));
+                check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+                Ok((
+                    false,
+                    Expr {
+                        content: Box::new(ExprInner::BuildStructPath(struct_path, args2)),
+                        loc: top_expr.loc,
+                        typed: type_id,
+                    },
+                ))
+            } else {
+                Err(vec![TypeError::unknown_struct(
+                    struct_path.get_loc(),
+                    cleaned_path,
+                )])
+            }
+        }
+
+        ExprInner::Constructor(raw_path, exprs) => {
+            // untested section because can never happen unless a new pass is implemented before typing
+            let mut path = raw_path.cleaned();
+            let constructor = path.pop();
+            let enum_info = ctxt.get_enum(&path);
+            let (enum_info, constructor) = match (enum_info, constructor) {
+                (Some(ei), Some(NamePath::Name(c))) => (ei, c),
+                (_, None) => panic!("ICE"),
+                (_, Some(NamePath::Specialisation(_))) => panic!("Unhandled case"),
+                (None, _) => todo!(),
+            };
+            let types_expected = match enum_info.get_constructor(&constructor) {
+                None => todo!(),
+                Some((_, types)) => types,
+            };
+            let mut free_types = HashMap::new();
+            let mut vec_free_types = Vec::new();
+            for name in enum_info.get_free_types().iter() {
+                let type_id = types.insert_type(Types::unknown());
+                free_types.insert(name.clone(), type_id);
+                vec_free_types.push(type_id);
+            }
+            let mut exprs_out = Vec::new();
+            for (expr, typ) in exprs.into_iter().zip(types_expected.iter()) {
+                let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                forces_to(
+                    types,
+                    expr.typed,
+                    typ,
+                    expr.loc,
+                    &free_types,
+                    UnificationMethod::StrictSnd,
+                )?;
+                exprs_out.push(expr)
+            }
+            let type_id = types.insert_type(Types::Enum(path, vec_free_types));
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::Constructor(raw_path, exprs_out)),
+                    loc: top_expr.loc,
+                    typed: type_id,
+                },
+            ))
         }
 
         ExprInner::Deref(expr) => {
@@ -734,7 +849,7 @@ fn type_expr(
             assert!(args.is_empty());
             match local_ctxt.get_typ(&name) {
                 None => {
-                    if let Some(typ) = ctxt.get_typ(name.get_content()) {
+                    if let Some(typ) = ctxt.get_top_fun(name.get_content()) {
                         match &typ.content {
                             PostTypeInner::Fun(free, args, out) if args.len() == exprs.len() => {
                                 let mut free_types = HashMap::new();
@@ -769,8 +884,10 @@ fn type_expr(
                                 Ok((
                                     false,
                                     Expr {
-                                        content: Box::new(ExprInner::FunCall(
-                                            vec_types, name, exprs_out,
+                                        content: Box::new(ExprInner::FunCallPath(
+                                            vec_types,
+                                            ctxt.get_path(name.get_content()).add_loc(),
+                                            exprs_out,
                                         )),
                                         loc: top_expr.loc,
                                         typed: type_id,
@@ -820,6 +937,96 @@ fn type_expr(
             }
         }
 
+        ExprInner::FunCallPath(args, path, exprs) => {
+            assert!(args.is_empty());
+            match (ctxt.get_fun(&path), ctxt.is_constructor(&path.cleaned())) {
+                (Some(typ), None) => match &typ.content {
+                    PostTypeInner::Fun(free, args, out) if args.len() == exprs.len() => {
+                        let mut free_types = HashMap::new();
+                        let mut vec_types = Vec::new();
+                        for name in free.iter() {
+                            let type_id = types.insert_type(Types::unknown());
+                            vec_types.push(type_id);
+                            free_types.insert(name.clone(), type_id);
+                        }
+                        let mut exprs_out = Vec::new();
+                        for (expr, typ) in exprs.into_iter().zip(args.iter()) {
+                            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                            forces_to(
+                                types,
+                                expr.typed,
+                                typ,
+                                expr.loc,
+                                &free_types,
+                                UnificationMethod::StrictSnd,
+                            )?;
+                            exprs_out.push(expr)
+                        }
+                        let type_id = add_type(types, out, &free_types);
+                        check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+                        Ok((
+                            false,
+                            Expr {
+                                content: Box::new(ExprInner::FunCallPath(
+                                    vec_types, path, exprs_out,
+                                )),
+                                loc: top_expr.loc,
+                                typed: type_id,
+                            },
+                        ))
+                    }
+                    PostTypeInner::Fun(_, args, _) => Err(vec![TypeError::wrong_nb_args(
+                        top_expr.loc,
+                        exprs.len(),
+                        args.len(),
+                    )]),
+                    typ => Err(vec![TypeError::expected_fun(path.get_loc(), typ.clone())]),
+                },
+                (None, Some(enum_info)) => {
+                    let mut free_types = HashMap::new();
+                    let mut vec_types = Vec::new();
+                    for name in enum_info.get_free_types().iter() {
+                        let type_id = types.insert_type(Types::unknown());
+                        vec_types.push(type_id);
+                        free_types.insert(name.clone(), type_id);
+                    }
+                    let mut exprs_out = Vec::new();
+                    let mut path2 = path.cleaned();
+                    let constructor = match path2.pop().unwrap() {
+                        NamePath::Name(id) => id,
+                        _ => panic!("ICE"),
+                    };
+                    for (expr, typ) in exprs
+                        .into_iter()
+                        .zip(enum_info.get_constructor(&constructor).unwrap().1.iter())
+                    {
+                        let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                        forces_to(
+                            types,
+                            expr.typed,
+                            typ,
+                            expr.loc,
+                            &free_types,
+                            UnificationMethod::StrictSnd,
+                        )?;
+                        exprs_out.push(expr)
+                    }
+                    let type_id = types.insert_type(Types::Enum(path2, vec_types));
+                    check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+                    Ok((
+                        false,
+                        Expr {
+                            content: Box::new(ExprInner::Constructor(path, exprs_out)),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
+                    ))
+                }
+                (Some(_), Some(_)) => todo!(),
+                (None, None) => Err(vec![TypeError::unknown_path(path)]),
+            }
+        }
+
         ExprInner::If(expr, bloc1, bloc2) => {
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             let (type_id1, bloc1) = type_bloc(ctxt, local_ctxt, bloc1, types, out_type, None)?;
@@ -864,7 +1071,12 @@ fn type_expr(
             if let Some((affectable, name, args)) =
                 get_struct_name(types, expr_val.typed, expr_val.loc, affectable)?
             {
-                if name == "Vec" && args.len() == 1 {
+                if name.get_content().len() == 3
+                    && name.get_content()[0] == NamePath::Name("std".to_string())
+                    && name.get_content()[1] == NamePath::Name("vec".to_string())
+                    && name.get_content()[2] == NamePath::Name("Vec".to_string())
+                    && args.len() == 1
+                {
                     let type_id = args[0];
                     // can be improved
                     check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
@@ -990,10 +1202,11 @@ fn type_expr(
         ExprInner::Method(expr, method_name, exprs) => {
             let mut expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             if let Some((_, struct_name, params)) =
-                get_struct_name(types, expr.typed, expr.loc, false)?
+                get_method_caller_name(types, expr.typed, expr.loc, false)?
             {
-                if let Some(method) = ctxt.get_method_function(struct_name, &method_name).unwrap() {
-                    let typ = ctxt.get_typ(method).unwrap();
+                if let Some(method) = ctxt.get_method_function(struct_name, &method_name) {
+                    let method = method.add_loc();
+                    let typ = ctxt.get_fun(&method).unwrap();
                     match &typ.content {
                         PostTypeInner::Fun(frees, args, out) => {
                             assert_eq!(frees.len(), params.len());
@@ -1026,15 +1239,13 @@ fn type_expr(
                                 )?;
                                 exprs_out.push(expr)
                             }
-                            let type_id = add_type(types, out, &free_types);
+                            let type_id = add_type(types, &*out, &free_types);
                             check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
                             Ok((
                                 false,
                                 Expr {
-                                    content: Box::new(ExprInner::FunCall(
-                                        params,
-                                        Ident::new(method, method_name.get_loc()),
-                                        exprs_out,
+                                    content: Box::new(ExprInner::FunCallPath(
+                                        params, method, exprs_out,
                                     )),
                                     loc: top_expr.loc,
                                     typed: type_id,
@@ -1055,6 +1266,121 @@ fn type_expr(
             let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
             check_coherence(types, expr.typed, top_expr.typed, top_expr.loc, ctxt)?;
             Ok((false, expr))
+        }
+
+        ExprInner::PatternMatching(expr, cases, fall) => {
+            let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+            let (reference, mut enum_info, free) = match get_enum(types, expr.typed, expr.loc)? {
+                None => todo!(),
+                Some((_, None)) => todo!(),
+                Some((reference, Some((path, free)))) => {
+                    (reference, ctxt.enum_info(path).unwrap(), free)
+                }
+            };
+            let mut free_types = HashMap::new();
+            let free_names = enum_info.get_free_types();
+            assert_eq!(free_names.len(), free.len());
+            for (name, type_id) in free_names.iter().zip(free.iter()) {
+                assert!(free_types.insert(name.to_string(), *type_id).is_none())
+            }
+
+            let mut type_id_out = types.insert_type(Types::unknown());
+            let mut rows = Vec::new();
+            for row in cases {
+                local_ctxt.add_layer();
+                let cons = match row.constructor.last() {
+                    None => todo!(),
+                    Some(id) => {
+                        println!("{:?} {:?}", row.constructor, id);
+                        if row.guard.is_none() {
+                            enum_info.update_constructor(id.get_content())
+                        } else {
+                            enum_info.get_constructor(id.get_content())
+                        }
+                    }
+                };
+                let arg_types = match cons {
+                    None => todo!(),
+                    Some((true, _)) => todo!(),
+                    Some((false, types)) => types,
+                };
+                if arg_types.len() != row.arguments.len() {
+                    todo!()
+                }
+                for ((mutable, arg), post_type) in row.arguments.iter().zip(arg_types.iter()) {
+                    let type_id = add_type(types, post_type, &free_types);
+                    let type_id = match reference {
+                        None => type_id,
+                        Some(opt) => types.insert_type(Types::Ref(opt, type_id)),
+                    };
+                    local_ctxt.add_var(arg, *mutable, type_id)
+                }
+
+                let guard = match row.guard {
+                    None => None,
+                    Some(expr) => {
+                        let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                        let type_id = types.insert_bool();
+                        make_coherent(
+                            types,
+                            type_id,
+                            expr.typed,
+                            expr.loc,
+                            UnificationMethod::NoRef,
+                        )?;
+                        Some(expr)
+                    }
+                };
+
+                let (type_id_row, row_bloc) =
+                    type_bloc(ctxt, local_ctxt, row.bloc, types, out_type, None)?;
+
+                local_ctxt.pop_layer();
+                type_id_out = make_coherent(
+                    types,
+                    type_id_out,
+                    type_id_row,
+                    row_bloc.loc,
+                    UnificationMethod::Smallest,
+                )?;
+
+                rows.push(Pattern {
+                    constructor: row.constructor,
+                    arguments: row.arguments,
+                    guard,
+                    bloc: row_bloc,
+                })
+            }
+            let fall = match fall {
+                None => match enum_info.check_finished() {
+                    None => None,
+                    Some(id) => return Err(vec![TypeError::incomplete_match(expr.loc, id)]),
+                },
+                Some((mutable, ident, bloc)) => {
+                    local_ctxt.add_layer();
+                    local_ctxt.add_var(&ident, mutable, expr.typed);
+
+                    let (type_id2, bloc) =
+                        type_bloc(ctxt, local_ctxt, bloc, types, out_type, None)?;
+                    local_ctxt.pop_layer();
+                    type_id_out = make_coherent(
+                        types,
+                        type_id_out,
+                        type_id2,
+                        bloc.loc,
+                        UnificationMethod::Smallest,
+                    )?;
+                    Some((mutable, ident, bloc))
+                }
+            };
+            Ok((
+                false,
+                Expr {
+                    content: Box::new(ExprInner::PatternMatching(expr, rows, fall)),
+                    loc: top_expr.loc,
+                    typed: type_id_out,
+                },
+            ))
         }
 
         ExprInner::Proj(expr, Projector::Int(proj_id)) => {
@@ -1091,13 +1417,13 @@ fn type_expr(
                 get_struct_name(types, expr.typed, expr.loc, affectable)?
             {
                 assert!(params.is_empty());
-                let struct_info = ctxt.get_struct(struct_name).unwrap();
+                let struct_info = ctxt.get_struct_path(struct_name).unwrap();
                 if let Some(field_typ) = struct_info.get_field_typ(proj_name.get_content()) {
                     (affectable, add_type(types, field_typ, &HashMap::new()))
                 } else {
                     return Err(vec![TypeError::struct_no_field(
                         top_expr.loc,
-                        struct_name.to_string(),
+                        struct_name.clone(),
                         proj_name.content(),
                     )]);
                 }
@@ -1220,8 +1546,8 @@ fn type_expr(
                 ))
             } else {
                 match (
-                    ctxt.get_typ(var_name.get_content()),
-                    ctxt.get_const_val(var_name.get_content()),
+                    ctxt.get_top_fun(var_name.get_content()),
+                    ctxt.get_top_const_val(var_name.get_content()),
                 ) {
                     (Some(typ), None) | (None, Some(Const { typ, .. })) => {
                         let type_id = types.insert_type(Types::unknown());
@@ -1236,15 +1562,67 @@ fn type_expr(
                         Ok((
                             false,
                             Expr {
-                                content: Box::new(ExprInner::Var(var_name)),
+                                content: Box::new(ExprInner::VarPath(
+                                    ctxt.get_path(var_name.get_content()).add_loc(),
+                                )),
                                 loc: top_expr.loc,
                                 typed: type_id,
                             },
                         ))
                     }
                     (None, None) => Err(vec![TypeError::unknown_var(var_name)]),
-                    (Some(typ), Some(constant)) => todo!(),
+                    (Some(_), Some(_)) => todo!(),
                 }
+            }
+        }
+
+        ExprInner::VarPath(var_path) => {
+            let mut cleaned_path = var_path.cleaned();
+            match (
+                ctxt.get_fun(&var_path),
+                ctxt.get_const_val(&cleaned_path),
+                ctxt.is_constructor(&cleaned_path),
+            ) {
+                (Some(typ), None, None) | (None, Some(Const { typ, .. }), None) => {
+                    let type_id = types.insert_type(Types::unknown());
+                    forces_to(
+                        types,
+                        type_id,
+                        typ,
+                        top_expr.loc,
+                        &HashMap::new(),
+                        UnificationMethod::Smallest,
+                    )?;
+                    Ok((
+                        false,
+                        Expr {
+                            content: Box::new(ExprInner::VarPath(var_path)),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
+                    ))
+                }
+                (None, None, Some(info)) => {
+                    cleaned_path.pop();
+                    let free_types = info
+                        .get_free_types()
+                        .iter()
+                        .map(|_| types.insert_type(Types::unknown()))
+                        .collect();
+                    let type_id = types.insert_type(Types::Enum(cleaned_path, free_types));
+                    Ok((
+                        false,
+                        Expr {
+                            content: Box::new(ExprInner::Constructor(var_path, Vec::new())),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
+                    ))
+                }
+                (None, None, None) => Err(vec![TypeError::unknown_path(var_path)]),
+                (Some(_), Some(_), _) => todo!(),
+                (Some(_), None, Some(_)) => todo!(),
+                (None, Some(_), Some(_)) => todo!(),
             }
         }
 
@@ -1324,10 +1702,6 @@ fn type_expr(
             ))
         }
     };
-    /*    println!("");
-        println!("{:?}", types);
-        println!("{:?}", out);
-    */
     out
 }
 
@@ -1373,11 +1747,6 @@ fn type_bloc(
             content: instr_content,
             loc: instr.loc,
         })
-        /*        println!("");
-                println!("{types:?}");
-                println!("{local_ctxt:?}");
-                println!("{content:?}");
-        */
     }
 
     let type_id = match content.pop() {

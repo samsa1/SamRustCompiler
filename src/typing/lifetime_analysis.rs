@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-
+/*
 use super::context::{GlobalContext, Trait};
 use crate::ast::common::Location;
 use crate::ast::typed_rust::*;
@@ -83,3 +83,5 @@ fn check_scopes_expr(
 fn check_scopes_bloc(_ctxt: &GlobalContext, _bloc: &Bloc, _scope_scan: &mut ScopeScanResult) {
     todo!()
 }
+
+*/

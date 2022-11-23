@@ -50,6 +50,25 @@ impl GiveUniqueId {
     }
 }
 
+fn rewrite_patt(patt: Pattern, counter: &mut GiveUniqueId) -> Pattern {
+    counter.add_layer();
+    let arguments = patt
+        .arguments
+        .into_iter()
+        .map(|(b, name)| (b, counter.add_name(name)))
+        .collect();
+    let guard = patt.guard.map(|expr| rewrite_expr(expr, counter));
+    let bloc = rewrite_bloc(patt.bloc, counter);
+    counter.pop_layer();
+
+    Pattern {
+        constructor: patt.constructor,
+        arguments,
+        guard,
+        bloc,
+    }
+}
+
 fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
     match *top_expr.content {
         ExprInner::Method(expr, name, args) => Expr {
@@ -106,9 +125,7 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             }
         }
 
-        ExprInner::MacroCall(_name, _exprs) => {
-            todo!()
-        }
+        ExprInner::MacroCall(name, _) => panic!("ICE {name:?}"),
 
         ExprInner::Index(expr1, expr2) => {
             let expr1 = rewrite_expr(expr1, counter);
@@ -134,10 +151,24 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             ..top_expr
         },
 
-        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::String(_) => top_expr,
+        ExprInner::Int(_, _)
+        | ExprInner::Bool(_)
+        | ExprInner::String(_)
+        | ExprInner::VarPath(_) => top_expr,
 
         ExprInner::BuildStruct(name, exprs) => Expr {
             content: Box::new(ExprInner::BuildStruct(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|(n, e)| (n, rewrite_expr(e, counter)))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::BuildStructPath(name, exprs) => Expr {
+            content: Box::new(ExprInner::BuildStructPath(
                 name,
                 exprs
                     .into_iter()
@@ -189,6 +220,32 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             }
         }
 
+        ExprInner::FunCallPath(args, name, exprs) => {
+            assert!(name.get_content().len() > 1);
+            Expr {
+                content: Box::new(ExprInner::FunCallPath(
+                    args,
+                    name,
+                    exprs
+                        .into_iter()
+                        .map(|e| rewrite_expr(e, counter))
+                        .collect(),
+                )),
+                ..top_expr
+            }
+        }
+
+        ExprInner::Constructor(path, exprs) => Expr {
+            content: Box::new(ExprInner::Constructor(
+                path,
+                exprs
+                    .into_iter()
+                    .map(|e| rewrite_expr(e, counter))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
         ExprInner::Deref(expr) => Expr {
             content: Box::new(ExprInner::Deref(rewrite_expr(expr, counter))),
             ..top_expr
@@ -215,6 +272,18 @@ fn rewrite_expr(top_expr: Expr, counter: &mut GiveUniqueId) -> Expr {
             )),
             ..top_expr
         },
+        ExprInner::PatternMatching(expr, patterns, fall) => {
+            let expr = rewrite_expr(expr, counter);
+            let fall = fall.map(|(b, id, bloc)| (b, id, rewrite_bloc(bloc, counter)));
+            let patterns = patterns
+                .into_iter()
+                .map(|patt| rewrite_patt(patt, counter))
+                .collect();
+            Expr {
+                content: Box::new(ExprInner::PatternMatching(expr, patterns, fall)),
+                ..top_expr
+            }
+        }
     }
 }
 
@@ -265,7 +334,7 @@ fn rewrite_fun(fun_decl: DeclFun) -> Result<DeclFun, Vec<TypeError>> {
 
 fn rewrite_decl(decl: Decl) -> Result<Decl, Vec<TypeError>> {
     match decl {
-        Decl::Const(_) | Decl::Struct(_) => Ok(decl),
+        Decl::Const(_) | Decl::Enum(_) | Decl::Struct(_) => Ok(decl),
         Decl::Impl(decl_impl) => {
             let mut content = Vec::new();
             for decl_fun in decl_impl.content {
@@ -280,7 +349,7 @@ fn rewrite_decl(decl: Decl) -> Result<Decl, Vec<TypeError>> {
     }
 }
 
-pub fn rewrite_file(file: File) -> File {
+fn rewrite_file(file: File) -> File {
     let mut content = vec![];
     for decl in file.content {
         match rewrite_decl(decl) {
@@ -294,4 +363,14 @@ pub fn rewrite_file(file: File) -> File {
         }
     }
     File { content, ..file }
+}
+
+pub fn rewrite(m: crate::frontend::Module<File>) -> crate::frontend::Module<File> {
+    let content = rewrite_file(m.content);
+    let submodules = m
+        .submodules
+        .into_iter()
+        .map(|(k, (b, m_inner))| (k, (b, rewrite(m_inner))))
+        .collect();
+    crate::frontend::Module::build(content, submodules)
 }

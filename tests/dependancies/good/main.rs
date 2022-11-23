@@ -1,5 +1,6 @@
 mod module1;
 mod module2;
+use module2::Constructor::True;
 
 
 fn main() {
@@ -7,5 +8,12 @@ fn main() {
     module2::exec();
     module2::module3::exec_top();
     let module1 = 3;
-    println!("test {}", module1);
+    if module1 == 3 {
+        print!("test\n")
+    }
+    let something = True;
+    match something {
+        True => print!("success\n"),
+        module2::Constructor::False => print!("failed\n"),
+    }
 }

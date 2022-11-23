@@ -121,7 +121,7 @@ peg::parser! {
             { Open::Mod(p.is_some(), n, r) }
       }
 
-      rule path() -> Path<PreType> = precedence!{
+      rule path() -> Path<()> = precedence!{
         n:name() "::" p:path_tl() {
             let (end, mut path_rev) = p;
             let loc = Location::new(n.get_loc().start(), end);
@@ -134,7 +134,7 @@ peg::parser! {
         }
       }
 
-      rule path_tl() -> (usize, Vec<NamePath<PreType>>) = precedence!{
+      rule path_tl() -> (usize, Vec<NamePath<()>>) = precedence!{
         n:name() "::" p:path_tl() { let (pos, mut p) = p; p.push(NamePath::Name(n)); (pos, p) }
         n:name() pos:position!() { (pos, vec![NamePath::Name(n)]) }
       }
@@ -145,6 +145,7 @@ peg::parser! {
       rule decl() -> Decl = precedence!{
           df:decl_fun()     { Decl::Fun(df) }
           ds:decl_struct()  { Decl::Struct(ds) }
+          de:decl_enum()    { Decl::Enum(de) }
           di:decl_impl()    { Decl::Impl(di) }
           dc:decl_const()   { Decl::Const(dc) }
       }
@@ -192,6 +193,27 @@ peg::parser! {
           "struct" spaces() n:name() space() "{"
               args:typ_decls() "}" space() {
               DeclStruct {
+                  public : p.is_some(),
+                  name : n,
+                  args,
+              }
+      }
+
+      rule cons_decl() -> (Ident, Vec<PreType>) = precedence! {
+        space() n:name() "(" t:(typ_ws() ++ ",") ("," space())? ")" space() { (n,t) }
+        space() n:name() space() { (n, Vec::new()) }
+      }
+
+      rule cons_decls() -> Vec<(Ident, Vec<PreType>)> = precedence! {
+          v:(cons_decl() ++ ",") ","? space() { v }
+          space() { Vec::new() }
+      }
+
+      rule decl_enum() -> DeclEnum =
+          p:("pub" spaces())?
+          "enum" spaces() n:name() space() "{"
+              args:cons_decls() "}" space() {
+              DeclEnum {
                   public : p.is_some(),
                   name : n,
                   args,
@@ -348,6 +370,68 @@ peg::parser! {
               { (start, e1, e2) }
       }
 
+      rule guard() -> Expr =
+        "if" e:expr_ws() { e }
+
+      rule pot_mut_name() -> (bool, Ident) =
+        space() b:("mut" spaces())? n:name() space() { (b.is_some(), n) }
+
+
+      rule pattern() -> (Path<()>, Vec<(bool, Ident)>, Option<Expr>) = precedence! {
+        path:path() spaces() guard:guard()?
+            { (path, Vec::new(), guard) }
+        path:path() "(" args:(pot_mut_name() ++ ",") ","? ")" space() guard:guard()?
+            { (path, args, guard) }
+      }
+
+      rule row() -> Pattern = precedence! {
+        ("|" space())? p:pattern() "=>" space() expr:expr() space() "," spaces()
+            {
+                Pattern {
+                    constructor : p.0,
+                    arguments : p.1,
+                    guard : p.2,
+                    bloc : expr.to_bloc(),
+                }
+            }
+        ("|" space())? p:pattern() "=>" space() expr:expr_wb() space() ","? spaces()
+            {
+                Pattern {
+                    constructor : p.0,
+                    arguments : p.1,
+                    guard : p.2,
+                    bloc : expr.to_bloc(),
+                }
+            }
+        ("|" space())? p:pattern() "=>" space() bloc:bloc() space() ","?  space()
+            {
+                Pattern {
+                    constructor : p.0,
+                    arguments : p.1,
+                    guard : p.2,
+                    bloc,
+                }
+
+            }
+      }
+
+      rule fall() -> (bool, Ident, Bloc) = precedence! {
+        b:("mut" space())? name:name() spaces() expr:small_expr() space() ("," space())?
+            { (b.is_some(), name, expr.to_bloc()) }
+        b:("mut" space())? name:name() spaces() expr:expr_wb() space() ("," space())?
+            { (b.is_some(), name, expr.to_bloc()) }
+        b:("mut" space())? name:name() spaces() bloc:bloc() space() ("," space())?
+            { (b.is_some(), name, bloc) }
+      }
+
+      rule pattern_matching() -> Expr = precedence! {
+        start:position!() "match" spaces() expr:expr() space()
+            "{" space() rows:row()+ fall:fall()? "}" end:position!()
+        {
+            to_expr(start, end, ExprInner::PatternMatching(expr, rows, fall))
+        }
+      }
+
       // expression starting with spaces
       rule expr_ws() -> Expr =
           space() e:(quiet!{expr()} / expected!("expr")) space() { e }
@@ -359,15 +443,42 @@ peg::parser! {
           start:position!() "false" end:position!() { to_expr(start, end, ExprInner::Bool(false)) }
 
       rule small_expr() -> Expr = precedence! {
+          n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
+            { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
+          start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
+            { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec").unwrap(), v)) }
           e1:@() space() "[" e2:expr_ws() "]" end:position!()
             { to_expr(e1.loc.start(), end,
             ExprInner::Index(e1, e2)) }
-          n:name() space() "(" v:opt_expr_list() ")" end:position!()
-            { to_expr(n.get_loc().start(), end, ExprInner::FunCall(vec![], n, v)) }
+          p:path() space() "(" v:opt_expr_list() ")" end:position!()
+            {
+                if p.get_content().len() == 1 {
+                    let mut p = p.content();
+                    if let NamePath::Name(id) = p.remove(0) {
+                        to_expr(id.get_loc().start(), end, ExprInner::FunCall(vec![], id, v))
+                    } else {
+                        panic!("ICE")
+                    }
+                } else {
+                    to_expr(p.get_loc().start(), end, ExprInner::FunCallPath(vec![], p, v))
+                }
+            }
           n:number() { to_expr(n.0.0, n.0.1, ExprInner::Int(n.1, n.2)) }
           t:true_expr()   { t }
           f:false_expr()  { f }
-          n:name() { to_expr(n.get_loc().start(), n.get_loc().end(), ExprInner::Var(n)) }
+          p:path()
+            {
+                if p.get_content().len() == 1 {
+                    let mut p = p;
+                    let n = match p.pop() {
+                        Some(NamePath::Name(n)) => n,
+                        _ => todo!(),
+                    };
+                    to_expr(n.get_loc().start(), n.get_loc().end(), ExprInner::Var(n))
+                } else {
+                    to_expr(p.get_loc().start(), p.get_loc().end(), ExprInner::VarPath(p))
+                }
+            }
           b:bloc() { expr_of_bloc(b) }
           s:string() { to_expr(s.0.0, s.0.1, ExprInner::String(s.1)) }
           start:position!() "(" v:(expr_ws() ++ ",") s:("," space())? ")" end:position!()
@@ -398,23 +509,32 @@ peg::parser! {
       rule expr_wb() -> Expr = precedence! {
           start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
             { to_expr(start, end, ExprInner::While(e, b)) }
+          e:pattern_matching() { e }
           i:if() { i }
         }
 
       rule expr() -> Expr = precedence! {
+          e:pattern_matching() { e }
           start:position!() "while" spaces() e:expr() space() b:bloc() end:position!()
             { to_expr(start, end, ExprInner::While(e, b)) }
           start:position!() "return" spaces() e:expr() end:position!()
             { to_expr(start, end, ExprInner::Return(Some(e))) }
           l:position!() "ret" "urn" r:position!()
             { to_expr(l, r, ExprInner::Return(None)) }
-          n:name() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::BuildStruct(n, args)) }
+          p:path() space() "{" args:(expr_decl() ** ",") ","? space() "}" end:position!()
+            {
+                if p.get_content().len() == 1 {
+                    let mut p = p.content();
+                    if let NamePath::Name(id) = p.remove(0) {
+                        to_expr(id.get_loc().start(), end, ExprInner::BuildStruct(id, args))
+                    } else {
+                        panic!("ICE")
+                    }
+                } else {
+                    to_expr(p.get_loc().start(), end, ExprInner::BuildStructPath(p, args))
+                }
+            }
           i:if() { i }
-          n:name() space() "!" space() "(" v:opt_expr_list() ")" end:position!()
-              { to_expr(n.get_loc().start(), end, ExprInner::MacroCall(n, v)) }
-          start:position!() "vec" space() "!" space() "[" v:opt_expr_list() "]" end:position!()
-              { to_expr(start, end, ExprInner::MacroCall(Ident::from_str("vec").unwrap(), v)) }
           e1:@ space() (quiet!{"="}/ expected!("infix operator")) space() e2:(@)
               { to_expr(e1.loc.start(), e2.loc.end(), ExprInner::BinaryOp(BinOperator::Set, e1, e2)) }
           --

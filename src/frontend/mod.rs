@@ -5,19 +5,21 @@ use std::collections::HashMap;
 use std::io::prelude::*;
 use std::path::PathBuf;
 
-pub struct Module {
-    pub content: File,
-    submodules: HashMap<String, (bool, Module)>,
+pub struct Module<F> {
+    pub content: F,
+    pub submodules: HashMap<String, (bool, Module<F>)>,
 }
 
-impl Module {
-    pub fn build(content: File, submodules: HashMap<String, (bool, Module)>) -> Self {
+impl<F> Module<F> {
+    pub fn build(content: F, submodules: HashMap<String, (bool, Self)>) -> Self {
         Self {
             content,
             submodules,
         }
     }
+}
 
+impl Module<File> {
     pub fn new(base_file_name: String) -> Self {
         let base_file_name = PathBuf::from(base_file_name);
         match base_file_name.extension() {
@@ -51,8 +53,14 @@ impl Module {
                     let file_name = match (path1.exists(), path2.exists()) {
                         (true, false) => path1,
                         (false, true) => path2,
-                        (true, true) => panic!("Ambiguity"),
-                        (false, false) => panic!("No file"),
+                        (true, true) => {
+                            println!("Two possible modules {:?} {:?}", path1, path2);
+                            std::process::exit(1)
+                        }
+                        (false, false) => {
+                            println!("Missing module {:?}", path1);
+                            std::process::exit(1)
+                        }
                     };
                     let submod = Self::new_inner(file_name, false);
                     let name = match name2 {
@@ -70,32 +78,19 @@ impl Module {
         }
     }
 
-    pub fn remove(&mut self, name: &str) -> Option<Module> {
-        match self.submodules.get(name) {
-            None => None,
-            Some((b, _)) => {
-                if *b {
-                    Some(self.submodules.remove(name).unwrap().1)
-                } else {
-                    None
-                }
-            }
-        }
-    }
-
     pub fn write_in_out(&self, name: &str) -> std::io::Result<()> {
         let mut file = std::fs::File::create(name)?;
         file.write_all(b"use std::collections::HashMap;\n")?;
         file.write_all(b"use crate::ast::common;\n")?;
         file.write_all(b"use crate::ast::rust::*;\n")?;
         file.write_all(b"use crate::frontend::Module;\n\n")?;
-        file.write_all(b"pub fn stdlib() -> Option<Module> {Some(\n")?;
+        file.write_all(b"pub fn stdlib() -> Option<Module<File>> {Some(\n")?;
         self.write_in(&mut file)?;
         file.write_all(b")}\n")
     }
 }
 
-impl CanWrite for Module {
+impl CanWrite for Module<File> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         file.write_all(b"\n{let file = ")?;
         self.content.write_in(file)?;

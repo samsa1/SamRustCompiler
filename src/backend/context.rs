@@ -1,3 +1,5 @@
+use crate::ast::common::{NamePath, PathUL};
+
 use super::reg::Label;
 
 use std::collections::HashMap;
@@ -7,8 +9,6 @@ pub struct Context {
     nb_while_labels: usize,
     vars: Vec<HashMap<usize, i64>>,
     return_offset: i64,
-    //   nb_str: usize,
-    //    strings: HashMap<String, Label>,
 }
 
 impl Context {
@@ -56,18 +56,34 @@ impl Context {
         (Label::from_str(str1), Label::from_str(str2))
     }
 
-    pub fn fun_label(&self, fun_name: &str) -> Label {
+    pub fn fun_label(&self, fun_name: &PathUL<()>) -> Label {
         let mut fun_name2 = String::new();
-        for char in fun_name.chars() {
-            match char {
-                '<' => fun_name2.push_str(".l"),
-                '>' => fun_name2.push_str(".g"),
-                ':' => fun_name2.push('.'),
-                _ => fun_name2.push(char),
+        fun_name2.push_str("user_fun");
+        for el in fun_name.get_content() {
+            match el {
+                NamePath::Name(s) => {
+                    fun_name2.push_str("..");
+                    fun_name2.push_str(s);
+                }
+                NamePath::Specialisation(_) => todo!(),
             }
         }
-        let str = format!("user_fun_{fun_name2}");
-        Label::from_str(str)
+        Label::from_str(fun_name2)
+    }
+
+    pub fn string_label(&self, fun_name: &PathUL<()>) -> Label {
+        let mut fun_name2 = String::new();
+        fun_name2.push_str("user_string");
+        for el in fun_name.get_content() {
+            match el {
+                NamePath::Name(s) => {
+                    fun_name2.push_str("..");
+                    fun_name2.push_str(s);
+                }
+                NamePath::Specialisation(_) => todo!(),
+            }
+        }
+        Label::from_str(fun_name2)
     }
 
     pub fn add_layer(&mut self) {

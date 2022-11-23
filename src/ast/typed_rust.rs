@@ -8,9 +8,19 @@ pub struct File {
     pub structs: Vec<DeclStruct>,
 }
 
+impl File {
+    pub fn empty() -> Self {
+        Self {
+            name: String::new(),
+            funs: Vec::new(),
+            structs: Vec::new(),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct DeclFun {
-    pub name: common::Ident,
+    pub name: common::PathUL<()>,
     pub args: Vec<(common::Ident, bool, PostType)>,
     pub output: PostType,
     pub content: Bloc,
@@ -21,7 +31,8 @@ pub struct DeclFun {
 pub struct DeclStruct {
     pub name: common::Ident,
     pub args: HashMap<String, PostType>,
-    pub size: usize, /* size in bytes */
+    /// Size in bytes
+    pub size: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
@@ -33,21 +44,18 @@ impl PostType {
     pub fn unit() -> Self {
         Self {
             content: PostTypeInner::Tuple(Vec::new()),
-            //            size : 0,
         }
     }
 
     pub const fn diverge() -> Self {
         Self {
             content: PostTypeInner::Diverge,
-            //            size : 0,
         }
     }
 
     pub const fn bool() -> Self {
         Self {
             content: PostTypeInner::BuiltIn(common::BuiltinType::Bool),
-            //            size : 1,
         }
     }
 
@@ -66,7 +74,6 @@ impl PostType {
     pub fn to_ref(self, mutable: bool) -> Self {
         Self {
             content: PostTypeInner::Ref(mutable, Box::new(self)),
-            //            size : 8,
         }
     }
 
@@ -105,7 +112,7 @@ impl PostType {
         }
     }
 
-    pub fn get_struct(&self) -> Option<(&str, &Vec<PostType>)> {
+    pub fn get_struct(&self) -> Option<(&common::PathUL<()>, &Vec<PostType>)> {
         match &self.content {
             PostTypeInner::Struct(name, args) => Some((name, args)),
             PostTypeInner::Ref(_, typ) => match &typ.content {
@@ -120,34 +127,31 @@ impl PostType {
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
-    Struct(String, Vec<PostType>),
-    //    Enum(String),
+    Struct(common::PathUL<()>, Vec<PostType>),
+    Enum(common::PathUL<()>, Vec<PostType>),
     Box(Box<PostType>),
-    /*    IdentParametrized(String, Vec<PostType>),*/
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
     FreeType(String),
-    // Free types, args types, out type
+    /// Free types, args types, out type
     Fun(Vec<String>, Vec<PostType>, Box<PostType>),
     Diverge,
     String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bloc {
     pub content: Vec<Instr>,
-    //    pub expr : Option<Expr>,
-    //    pub values : HashMap<String, PostType>,
     pub last_type: PostType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instr {
     Expr(common::ComputedValue, Expr),
     Binding(bool, common::Ident, Expr),
 }
 
-#[derive()]
+#[derive(Clone)]
 pub struct Expr {
     pub content: Box<ExprInner>,
     pub loc: common::Location,
@@ -170,29 +174,40 @@ impl std::fmt::Debug for Expr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprInner {
-    If(Expr, Bloc, Bloc),
-    Bool(bool),
-    Int(u64),
-    Var(common::Ident),
-    /*Method(Expr, common::Ident, Vec<Expr>),*/
-    FunCall(common::Ident, Vec<Expr>),
-    //    Constructor(common::Ident, Vec<Expr>),
+    BinOp(common::TypedBinop, Expr, Expr),
     Bloc(Bloc),
-    Ref(bool, Expr),
+    Bool(bool),
+    BuildStruct(common::PathUL<()>, Vec<(common::Ident, Expr)>),
+    Coercion(Expr, common::BuiltinType, common::BuiltinType),
+    Constructor(common::PathUL<()>, Vec<Expr>),
     Deref(Expr),
-    Tuple(Vec<Expr>),
-    BuildStruct(common::Ident, Vec<(common::Ident, Expr)>),
+    FunCall(common::Ident, Vec<Expr>),
+    FunCallPath(common::PathUL<()>, Vec<Expr>),
+    Int(u64),
+    If(Expr, Bloc, Bloc),
+    PatternMatching(Expr, Vec<Pattern>, Option<(bool, common::Ident, Bloc)>),
     Proj(Expr, common::Projector),
-    Set(Expr, Expr),
     Print(String),
     PrintPtr(Expr),
-    String(String),
-    //    Vec(Vec<Expr>),
-    BinOp(common::TypedBinop, Expr, Expr),
-    UnaOp(common::TypedUnaop, Expr),
-    Coercion(Expr, common::BuiltinType, common::BuiltinType),
-    While(Expr, Bloc),
+    Ref(bool, Expr),
     Return(Option<Expr>),
+    Set(Expr, Expr),
+    String(String),
+    // usize is a padding at the end padding
+    Tuple(Vec<Expr>, usize),
+    UnaOp(common::TypedUnaop, Expr),
+    Var(common::Ident),
+    VarPath(common::PathUL<()>),
+    While(Expr, Bloc),
+}
+
+#[derive(Debug, Clone)]
+pub struct Pattern {
+    pub constructor_id: u64,
+    pub constructor: common::PathUL<()>,
+    pub arguments: Vec<(bool, common::Ident, PostType)>,
+    pub guard: Option<Expr>,
+    pub bloc: Bloc,
 }

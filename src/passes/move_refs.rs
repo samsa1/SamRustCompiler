@@ -11,13 +11,17 @@ fn is_ref(
         ExprInner::Bool(_)
         | ExprInner::Bloc(_)
         | ExprInner::BuildStruct(_, _)
+        | ExprInner::BuildStructPath(_, _)
+        | ExprInner::Constructor(_, _)
         | ExprInner::FunCall(_, _, _)
+        | ExprInner::FunCallPath(_, _, _)
         | ExprInner::If(_, _, _)
         | ExprInner::Int(_, _)
         | ExprInner::BinaryOp(_, _, _)
         | ExprInner::Ref(_, _)
         | ExprInner::UnaryOp(_, _)
         | ExprInner::MacroCall(_, _)
+        | ExprInner::PatternMatching(_, _, _)
         | ExprInner::Tuple(_)
         | ExprInner::Array(_)
         | ExprInner::Return(_)
@@ -43,7 +47,7 @@ fn is_ref(
             top_expr.content = Box::new(ExprInner::Var(id));
             top_expr
         }
-        ExprInner::Var(_) => top_expr,
+        ExprInner::Var(_) | ExprInner::VarPath(_) => top_expr,
         ExprInner::Proj(expr, proj) => Expr {
             content: Box::new(ExprInner::Proj(
                 is_ref(mutable, expr, context, counter),
@@ -133,12 +137,25 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
-        ExprInner::Int(_, _) | ExprInner::Bool(_) | ExprInner::Var(_) | ExprInner::String(_) => {
-            top_expr
-        }
+        ExprInner::Int(_, _)
+        | ExprInner::Bool(_)
+        | ExprInner::Var(_)
+        | ExprInner::VarPath(_)
+        | ExprInner::String(_) => top_expr,
 
         ExprInner::BuildStruct(name, exprs) => Expr {
             content: Box::new(ExprInner::BuildStruct(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|(n, e)| (n, rewrite_expr(e, context, counter)))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
+        ExprInner::BuildStructPath(name, exprs) => Expr {
+            content: Box::new(ExprInner::BuildStructPath(
                 name,
                 exprs
                     .into_iter()
@@ -184,6 +201,18 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
+        ExprInner::FunCallPath(args, name, exprs) => Expr {
+            content: Box::new(ExprInner::FunCallPath(
+                args,
+                name,
+                exprs
+                    .into_iter()
+                    .map(|e| rewrite_expr(e, context, counter))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+
         ExprInner::Deref(expr) => Expr {
             content: Box::new(ExprInner::Deref(rewrite_expr(expr, context, counter))),
             ..top_expr
@@ -216,6 +245,41 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             )),
             ..top_expr
         },
+        ExprInner::Constructor(name, exprs) => Expr {
+            content: Box::new(ExprInner::Constructor(
+                name,
+                exprs
+                    .into_iter()
+                    .map(|expr| rewrite_expr(expr, context, counter))
+                    .collect(),
+            )),
+            ..top_expr
+        },
+        ExprInner::PatternMatching(expr, patterns, fall) => Expr {
+            content: Box::new(ExprInner::PatternMatching(
+                rewrite_expr(expr, context, counter),
+                patterns
+                    .into_iter()
+                    .map(|patt| rewrite_patt(patt, counter))
+                    .collect(),
+                fall.map(|(b, id, bloc)| (b, id, rewrite_bloc(bloc, counter))),
+            )),
+            ..top_expr
+        },
+    }
+}
+
+fn rewrite_patt(patt: Pattern, counter: &mut IdCounter) -> Pattern {
+    let mut context = Vec::new();
+    let guard = patt
+        .guard
+        .map(|expr| rewrite_expr(expr, &mut context, counter));
+    assert!(context.is_empty());
+    let bloc = rewrite_bloc(patt.bloc, counter);
+    Pattern {
+        guard,
+        bloc,
+        ..patt
     }
 }
 
@@ -249,7 +313,7 @@ fn rewrite_fun(mut fun_decl: DeclFun) -> DeclFun {
 
 pub fn rewrite_decl(decl: Decl) -> Decl {
     match decl {
-        Decl::Const(_) | Decl::Struct(_) => decl,
+        Decl::Const(_) | Decl::Enum(_) | Decl::Struct(_) => decl,
         Decl::Fun(decl_fun) => Decl::Fun(rewrite_fun(decl_fun)),
         Decl::Impl(decl_impl) => Decl::Impl(DeclImpl {
             content: decl_impl.content.into_iter().map(rewrite_fun).collect(),
@@ -258,9 +322,19 @@ pub fn rewrite_decl(decl: Decl) -> Decl {
     }
 }
 
-pub fn rewrite_file(file: File) -> File {
+fn rewrite_file(file: File) -> File {
     File {
         content: file.content.into_iter().map(rewrite_decl).collect(),
         ..file
     }
+}
+
+pub fn rewrite(m: crate::frontend::Module<File>) -> crate::frontend::Module<File> {
+    let content = rewrite_file(m.content);
+    let submodules = m
+        .submodules
+        .into_iter()
+        .map(|(k, (b, m_inner))| (k, (b, rewrite(m_inner))))
+        .collect();
+    crate::frontend::Module::build(content, submodules)
 }

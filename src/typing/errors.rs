@@ -1,5 +1,5 @@
 use super::context::Trait;
-use crate::ast::common::{ErrorReporter, Ident, Location, Sizes};
+use crate::ast::common::{ErrorReporter, Ident, Location, Path, PathUL, Sizes};
 use crate::ast::rust::Types;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
 
@@ -16,11 +16,11 @@ enum TypeErrorInfo {
     TryUnref(Types),
     UndeclaredVariable(String),
     CannotAffectValue,
-    UndeclaredStruct(String),
+    UndeclaredStruct(PathUL<()>),
     WrongNbArgs(usize, usize),
     ExpectedFun(PostTypeInner),
-    StructDoesNotHasField(String, String),
-    MissingField(String, String),
+    StructDoesNotHasField(PathUL<()>, String),
+    MissingField(PathUL<()>, String),
     CannotBorrowAsMutable,
     SameArgName(String, String),
     ExpectedSigned,
@@ -30,6 +30,8 @@ enum TypeErrorInfo {
     OutOfBoundTuple(usize, usize),
     WrongMutability(bool, bool),
     SelfRefConst(String),
+    UndeclaredPath(Path<()>),
+    IncompleteMatch(String),
 }
 
 impl TypeErrorInfo {
@@ -56,6 +58,8 @@ impl TypeErrorInfo {
             Self::OutOfBoundTuple(_, _) => 19,
             Self::WrongMutability(_, _) => 20,
             Self::SelfRefConst(_) => 21,
+            Self::UndeclaredPath(_) => 22,
+            Self::IncompleteMatch(_) => 23,
         }
     }
 
@@ -82,6 +86,8 @@ impl TypeErrorInfo {
             Self::OutOfBoundTuple(_, _) => "index out of bound",
             Self::WrongMutability(_, _) => "mutability incompatibility",
             Self::SelfRefConst(_) => "cycle detected in const evaluating",
+            Self::UndeclaredPath(_) => "unknown variable path",
+            Self::IncompleteMatch(_) => "incomplete math",
         }
     }
 
@@ -94,14 +100,14 @@ impl TypeErrorInfo {
             Self::TryUnref(typ) => format!("{} cannot be dereferenced", typ),
             Self::UndeclaredVariable(var) => format!("{} is not defined", var),
             Self::CannotAffectValue => String::new(),
-            Self::UndeclaredStruct(_) => String::new(),
+            Self::UndeclaredStruct(path) => format!("{:?}", path),
             Self::WrongNbArgs(id1, id2) => format!("expected {} arguments but got {}", id1, id2),
             Self::ExpectedFun(typ) => format!("{:?} is not a function", typ),
             Self::StructDoesNotHasField(name, field) => {
-                format!("struct {} does not have field {}", name, field)
+                format!("struct {:?} does not have field {}", name, field)
             }
             Self::MissingField(name, field) => {
-                format!("missing field {} for struct {}", field, name)
+                format!("missing field {} for struct {:?}", field, name)
             }
             Self::CannotBorrowAsMutable => String::new(),
             Self::SameArgName(_, arg) => format!("argument {} defined multiple times", arg),
@@ -127,6 +133,8 @@ impl TypeErrorInfo {
                 }
             }
             Self::SelfRefConst(name) => format!("constant `{name}` depends on itself"),
+            Self::UndeclaredPath(path) => format!("unknown path {:?}", path),
+            Self::IncompleteMatch(id) => format!("Case {} is not handled", id),
         }
     }
 }
@@ -166,15 +174,6 @@ impl TypeError {
         }
     }
 
-    /*    pub fn unknown_error(loc: Location) -> Self {
-            todo!();
-            Self {
-                loc,
-                info: TypeErrorInfo::Unknown,
-            }
-        }
-    */
-
     pub fn not_compatible(loc: Location, got: Types, expected: Types) -> Self {
         Self {
             loc,
@@ -203,10 +202,17 @@ impl TypeError {
         }
     }
 
-    pub fn unknown_struct(id: Ident) -> Self {
+    pub fn unknown_path(id: Path<()>) -> Self {
         Self {
             loc: id.get_loc(),
-            info: TypeErrorInfo::UndeclaredStruct(id.content()),
+            info: TypeErrorInfo::UndeclaredPath(id),
+        }
+    }
+
+    pub fn unknown_struct(loc: Location, id: PathUL<()>) -> Self {
+        Self {
+            loc,
+            info: TypeErrorInfo::UndeclaredStruct(id),
         }
     }
 
@@ -224,14 +230,14 @@ impl TypeError {
         }
     }
 
-    pub fn struct_no_field(loc: Location, struct_name: String, field_name: String) -> Self {
+    pub fn struct_no_field(loc: Location, struct_name: PathUL<()>, field_name: String) -> Self {
         Self {
             loc,
             info: TypeErrorInfo::StructDoesNotHasField(struct_name, field_name),
         }
     }
 
-    pub fn missing_field(loc: Location, struct_name: String, field_name: String) -> Self {
+    pub fn missing_field(loc: Location, struct_name: PathUL<()>, field_name: String) -> Self {
         Self {
             loc,
             info: TypeErrorInfo::MissingField(struct_name, field_name),
@@ -294,9 +300,18 @@ impl TypeError {
         }
     }
 
+    pub fn incomplete_match(loc: Location, missing_constructor: String) -> Self {
+        Self {
+            loc,
+            info: TypeErrorInfo::IncompleteMatch(missing_constructor),
+        }
+    }
+
     pub fn report_error(&self, err_reporter: &ErrorReporter) {
         if self.loc.start() == usize::MAX {
-            println!("Unknown line")
+            println!("Unknown line");
+            println!("{:?}", self);
+            std::process::exit(1)
         } else {
             println!(
                 "{}error[E{:0>4}]{}: {}",

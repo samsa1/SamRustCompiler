@@ -1,8 +1,13 @@
 use super::context::GlobalContext;
+use super::context::ModuleInterface;
 use super::structs::Graph;
-use crate::ast::common::{BinOperator, BuiltinType, Projector, Sizes, TypedBinop};
+use crate::ast::common::ErrorReporter;
+use crate::ast::common::{
+    BinOperator, BuiltinType, NamePath, PathUL, Projector, Sizes, TypedBinop,
+};
 use crate::ast::rust as rr;
 use crate::ast::typed_rust as tr;
+use crate::frontend::Module;
 use std::collections::HashMap;
 
 #[derive(Debug, Clone)]
@@ -11,43 +16,53 @@ pub enum Val {
     Integer(i64, Sizes),
     Uinteger(u64, Sizes),
     String(String),
-    Struct(String, HashMap<String, Val>),
+    Struct(PathUL<()>, HashMap<String, Val>),
     Tuple(Vec<Val>),
 }
 
-pub fn add_deps(expr: &rr::Expr, name: &str, graph: &mut Graph) {
+pub fn add_deps(expr: &rr::Expr, path: &PathUL<()>, graph: &mut Graph) {
     match &*expr.content {
-        rr::ExprInner::Array(exprs) | rr::ExprInner::Tuple(exprs) => {
+        rr::ExprInner::Array(exprs)
+        | rr::ExprInner::Constructor(_, exprs)
+        | rr::ExprInner::Tuple(exprs) => {
             for expr in exprs {
-                add_deps(expr, name, graph)
+                add_deps(expr, path, graph)
             }
         }
         rr::ExprInner::BinaryOp(BinOperator::Set, _, _) => {}
         rr::ExprInner::BinaryOp(_, e1, e2) => {
-            add_deps(e1, name, graph);
-            add_deps(e2, name, graph)
+            add_deps(e1, path, graph);
+            add_deps(e2, path, graph)
         }
         rr::ExprInner::BuildStruct(_, _) => todo!(),
+        rr::ExprInner::BuildStructPath(_, _) => todo!(),
 
         rr::ExprInner::Coercion(expr, _)
         | rr::ExprInner::Parenthesis(expr)
         | rr::ExprInner::Proj(expr, _)
-        | rr::ExprInner::UnaryOp(_, expr) => add_deps(expr, name, graph),
+        | rr::ExprInner::UnaryOp(_, expr) => add_deps(expr, path, graph),
         rr::ExprInner::Bool(_) | rr::ExprInner::Int(_, _) | rr::ExprInner::String(_) => (),
 
         rr::ExprInner::Bloc(_) => todo!(),
         rr::ExprInner::Deref(_) => todo!(),
         rr::ExprInner::FunCall(_, _, _) => todo!(),
+        rr::ExprInner::FunCallPath(_, _, _) => todo!(),
         rr::ExprInner::If(_, _, _) => todo!(),
         rr::ExprInner::Index(_, _) => todo!(),
         rr::ExprInner::MacroCall(_, _) => panic!("ICE"),
         rr::ExprInner::Method(_, _, _) => todo!(),
+        rr::ExprInner::PatternMatching(_, _, _) => todo!(),
         rr::ExprInner::Ref(_, _) => todo!(),
         rr::ExprInner::Return(_) => todo!(),
-        rr::ExprInner::Var(v) => match graph.add_edge(name, v.get_content()) {
-            None => todo!(),
-            Some(_) => (),
-        },
+        rr::ExprInner::Var(v) => {
+            let mut path2 = path.clone();
+            path2.pop();
+            path2.push(NamePath::Name(v.get_content().to_string()));
+            graph.add_edge(path, &path2).unwrap();
+        }
+        rr::ExprInner::VarPath(path2) => {
+            graph.add_edge(path, &path2.cleaned()).unwrap();
+        }
         rr::ExprInner::While(_, _) => todo!(),
     }
 }
@@ -138,11 +153,14 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
                 let val = compute_const(expr, ctxt);
                 assert!(map.insert(id.content(), val).is_none());
             }
-            Val::Struct(name.content(), map)
+            Val::Struct(name, map)
         }
         tr::ExprInner::Coercion(_, _, _) => todo!(),
+        tr::ExprInner::Constructor(_, _) => todo!(),
         tr::ExprInner::Deref(_) => todo!(),
         tr::ExprInner::FunCall(_, _) => todo!(),
+        tr::ExprInner::FunCallPath(_, _) => todo!(),
+        tr::ExprInner::PatternMatching(_, _, _) => todo!(),
         tr::ExprInner::If(_, _, _) => todo!(),
         tr::ExprInner::Print(_) | tr::ExprInner::PrintPtr(_) => panic!("ICE"),
         tr::ExprInner::Proj(expr, proj) => {
@@ -157,18 +175,109 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
         tr::ExprInner::Return(_) => todo!(),
         tr::ExprInner::Set(_, _) => todo!(),
         tr::ExprInner::String(str) => Val::String(str),
-        tr::ExprInner::Tuple(exprs) => Val::Tuple(
+        tr::ExprInner::Tuple(exprs, 0) => Val::Tuple(
             exprs
                 .into_iter()
                 .map(|expr| compute_const(expr, ctxt))
                 .collect(),
         ),
+        tr::ExprInner::Tuple(exprs, _) => panic!("Should never happen"),
         tr::ExprInner::UnaOp(_, _) => todo!(),
-        tr::ExprInner::Var(v) => ctxt
-            .get_const_val(v.get_content())
-            .unwrap()
-            .get_value()
-            .clone(),
+        tr::ExprInner::Var(_) => todo!(), /*ctxt
+        .get_const_val(v.get_content())
+        .unwrap()
+        .get_value()
+        .clone(),*/
+        tr::ExprInner::VarPath(v) => ctxt.get_const_val(&v).unwrap().get_value().clone(),
         tr::ExprInner::While(_, _) => todo!(),
     }
+}
+
+fn handle_file<'a>(
+    file: &'a mut rr::File,
+    path: &PathUL<()>,
+    consts: &mut Vec<(PathUL<()>, rr::DeclConst, &'a ErrorReporter)>,
+) {
+    let mut local_structs = Vec::new();
+    local_structs.append(&mut file.content);
+    for decl in local_structs.into_iter() {
+        match decl {
+            rr::Decl::Const(decl_const) => {
+                let mut path = path.clone();
+                path.push(NamePath::Name(decl_const.name.get_content().to_string()));
+                consts.push((path.clone(), decl_const, &file.err_reporter))
+            }
+            _ => file.content.push(decl),
+        }
+    }
+}
+
+pub fn handle_rec<'a>(
+    module: &'a mut Module<rr::File>,
+    path: PathUL<()>,
+    consts: &mut Vec<(PathUL<()>, rr::DeclConst, &'a ErrorReporter)>,
+) {
+    handle_file(&mut module.content, &path, consts);
+    for (name, (_, submod)) in module.submodules.iter_mut() {
+        let mut path = path.clone();
+        path.push(NamePath::Name(name.clone()));
+        handle_rec(submod, path, consts)
+    }
+}
+
+pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> ModuleInterface {
+    let mut constants = Vec::new();
+    handle_rec(
+        module,
+        PathUL::new(vec![NamePath::Name("crate".to_string())]),
+        &mut constants,
+    );
+    if constants.len() == 0 {
+        return modint;
+    }
+
+    let mut graph = super::structs::Graph::new();
+    for (path, _, _) in constants.iter() {
+        graph.add_node(path.clone())
+    }
+
+    for (path, const_decl, _) in constants.iter() {
+        add_deps(&const_decl.expr, path, &mut graph);
+    }
+
+    let constants = match super::structs::topological_sort(constants, &graph) {
+        Ok(c) => c,
+        Err((id, mut consts)) => {
+            let constant = consts.swap_remove(id);
+            let err = super::errors::TypeError::self_referencing_constant(constant.1.name);
+            constant.2.report(vec![err])
+        }
+    };
+
+    for (mut path, const_decl, err_reporter) in constants.into_iter() {
+        path.pop();
+        let mut ctxt = GlobalContext::new(path, modint);
+        let expected_typ = match super::types::translate_typ(const_decl.typ, &ctxt) {
+            None => todo!(),
+            Some(t) => t,
+        };
+        let (typing_info, expr) =
+            match super::inferencer::type_const(const_decl.expr, &ctxt, &expected_typ) {
+                Ok(e) => e,
+                Err(errs) => err_reporter.report(errs),
+            };
+        let expr = match super::expr::type_const(expr, &ctxt, &expected_typ, &typing_info) {
+            Ok(e) => e,
+            Err(errs) => err_reporter.report(errs),
+        };
+        let value = compute_const(expr, &ctxt);
+        ctxt.add_const(
+            const_decl.name.get_content().to_string(),
+            const_decl.public,
+            expected_typ,
+            value,
+        );
+        modint = ctxt.extract_module();
+    }
+    modint
 }
