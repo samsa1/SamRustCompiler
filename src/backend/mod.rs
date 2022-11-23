@@ -1,11 +1,13 @@
 use std::collections::HashMap;
+use std::thread::current;
 
-use crate::ast::common::{BuiltinType, ComputedValue, PathUL, Sizes, TypedBinop, TypedUnaop};
+use crate::ast::common::{BuiltinType, ComputedValue, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;
 use crate::ast::typed_rust::PostType;
 
 use write_x86_64::*;
 
+mod base;
 mod context;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -22,9 +24,9 @@ fn mov_struct(
     offset_out: i64,
     mut size: u64,
     free_reg: (reg::RegQ, reg::RegL, reg::RegW, reg::RegB),
-) -> Text {
+) -> Segment<instr::Instr> {
     let mut offset = 0;
-    let mut asm = Text::Concat(Vec::new());
+    let mut asm = Segment::empty();
     while size >= 8 {
         asm =
             asm + movq(
@@ -64,7 +66,11 @@ fn mov_struct(
     asm
 }
 
-fn compile_expr_pointer(ctxt: &mut context::Context, expr: llr::Expr, stack_offset: u64) -> Text {
+fn compile_expr_pointer(
+    ctxt: &mut context::Context,
+    expr: llr::Expr,
+    stack_offset: u64,
+) -> Segment<instr::Instr> {
     match *expr.content {
         llr::ExprInner::BinOp(_, _, _)
         | llr::ExprInner::Bloc(_)
@@ -131,7 +137,7 @@ fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
     }
 }
 
-fn move_stack_to_rax(pad: u64, size: usize) -> Text {
+fn move_stack_to_rax(pad: u64, size: usize) -> Segment<instr::Instr> {
     match size {
         0 => addq(immq(pad as i64), reg!(RSP)),
         1 => movb(addr!(RSP), reg!(AL)) + addq(immq(1 + pad as i64), reg!(RSP)),
@@ -146,7 +152,7 @@ fn compile_expr_val(
     ctxt: &mut context::Context,
     expr: llr::Expr,
     stack_offset: u64,
-) -> (Location, Text) {
+) -> (Location, Segment<instr::Instr>) {
     let size = expr.size;
     match *expr.content {
         llr::ExprInner::UnaOp(op, expr) => {
@@ -172,10 +178,10 @@ fn compile_expr_val(
         }
 
         llr::ExprInner::BinOp(op, expr1, expr2) => {
-            println!("{:?} {:?} {:?}", op, expr1, expr2);
+            //            println!("{:?} {:?} {:?}", op, expr1, expr2);
             let size = expr2.size;
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
-            println!("{:?}", loc);
+            //            println!("{:?}", loc);
             let expr2 = match loc {
                 Location::Never => expr2,
                 Location::Rax => match size {
@@ -216,7 +222,7 @@ fn compile_expr_val(
                 },
             };
             let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
-            println!("{:?}", loc);
+            //            println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
                 Location::StackWithPadding(pad) => expr1 + move_stack_to_rax(pad, size),
@@ -702,9 +708,9 @@ fn compile_expr_val(
                     + jz(else_label.clone())
                     + bloc1
                     + jmp(end_label.clone())
-                    + label(else_label)
+                    + Segment::label(else_label)
                     + bloc2
-                    + label(end_label),
+                    + Segment::label(end_label),
             )
         }
         llr::ExprInner::Int(i, size) => (
@@ -734,6 +740,7 @@ fn compile_expr_val(
             )
         }
         llr::ExprInner::Proj(sub_expr, offset) => {
+            println!("type of proj {:?}", sub_expr.typed);
             let sub_expr = if sub_expr.typed.is_ref() {
                 let (loc, sub_expr) = compile_expr_val(ctxt, sub_expr, stack_offset);
                 match loc {
@@ -839,6 +846,7 @@ fn compile_expr_val(
             (Location::Rax, asm)
         }
         llr::ExprInner::Tuple(tuple_size, exprs) => {
+            println!("Build tuple : {tuple_size}",);
             let mut asm = subq(immq(tuple_size as i64), reg!(RSP));
             let mut current_offset = 0;
             for expr in exprs {
@@ -866,7 +874,7 @@ fn compile_expr_val(
                                 RSP,
                                 0,
                                 RSP,
-                                size as i64 + pad as i64,
+                                size as i64 + pad as i64 + current_offset,
                                 size as u64,
                                 (RAX, EAX, AX, AL),
                             ) + addq(immq(pad as i64 + size as i64), reg!(RSP))
@@ -958,13 +966,13 @@ fn compile_expr_val(
             let (in_label, out_label) = ctxt.gen_while_labels();
             (
                 Location::Rax,
-                label(in_label.clone())
+                Segment::label(in_label.clone())
                     + expr
                     + testb(reg!(AL), reg!(AL))
                     + jz(out_label.clone())
                     + bloc
                     + jmp(in_label)
-                    + label(out_label),
+                    + Segment::label(out_label),
             )
         }
     }
@@ -974,7 +982,7 @@ fn compile_bloc(
     ctxt: &mut context::Context,
     bloc: llr::Bloc,
     mut stack_offset: u64,
-) -> (Location, Text) {
+) -> (Location, Segment<instr::Instr>) {
     let initial_stack_offset = stack_offset;
     ctxt.add_layer();
     for instr in &bloc.content {
@@ -1047,11 +1055,11 @@ fn compile_bloc(
     (last_loc, asm)
 }
 
-fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
+fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Segment<instr::Instr> {
     let size = fun_decl.output;
     ctxt.init(fun_decl.args);
     let (loc, bloc) = compile_bloc(ctxt, fun_decl.content, 0);
-    let mut asm = label(ctxt.fun_label(&fun_decl.name))
+    let mut asm = Segment::label(ctxt.fun_label(&fun_decl.name))
         + pushq(reg!(RBP))
         + movq(reg!(RSP), reg!(RBP))
         + bloc;
@@ -1082,19 +1090,22 @@ fn compile_fun(fun_decl: llr::DeclFun, ctxt: &mut context::Context) -> Text {
     asm + movq(reg!(RBP), reg!(RSP)) + popq(RBP) + ret()
 }
 
-pub fn to_asm(
+fn to_asm(
     file: llr::File,
     strings: HashMap<String, String>,
     ctxt: &mut context::Context,
 ) -> file::File {
-    let mut text_ss = Text::Concat(Vec::new());
+    let mut text_ss = Segment::empty();
     for fun_decl in file.funs {
         text_ss = text_ss + compile_fun(fun_decl, ctxt)
     }
 
     text_ss = text_ss;
 
-    let data_ss = data::Data::from_strings(strings);
+    let mut data_ss = Data::empty();
+    for (str1, str2) in strings {
+        data_ss += Segment::label(new_label(&str2)) + data::dasciz(str1)
+    }
 
     file::File {
         globl: None,
@@ -1103,228 +1114,17 @@ pub fn to_asm(
     }
 }
 
-fn default_vec_function(heap_address: &str, ctxt: &context::Context) -> Text {
-    let custom_alloc = true;
-
-    label(ctxt.fun_label(&PathUL::from_vec(vec!["print_ptr"])))
-        + pushq(reg!(RBP))
-        + movq(reg!(RSP), reg!(RBP))
-        + movq(addr!(16, RBP), reg!(RSI))
-        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str("my_string".to_string())), RDI)
-        + call(reg::Label::printf())
-        + movq(reg!(RBP), reg!(RSP))
-        + popq(RBP)
-        + ret()
-
-/*
-A vector is a pointer to a tuple of 4 elements in the stack :
-- Pointer
-- Length
-- Capacity
-- Size_of_elements
-*/
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "new"])))
-        + pushq(reg!(RBP)) /* bit align for malloc */
-        + movq(immq(32), reg!(RDI)) /* Allocate chunk for 4 numbers */
-        + if custom_alloc {
-            // call of src-malloc
-            subq(immq(16), reg!(RSP))
-            + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
-            + pushq(reg!(RAX))
-            + pushq(reg!(RDI))
-            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "malloc"])))
-            + addq(immq(16), reg!(RSP))
-            + popq(RAX)
-            + addq(immq(8), reg!(RSP))
-            + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
-            + addq(immq(32), reg!(RAX))
-        } else { call(reg::Label::malloc()) }
-        + movq(reg!(RAX), addr!(24, RSP)) /* Store the pointer to return it */
-        + movq(reg!(RAX), reg!(RBP)) /* Store the pointer also in Rbp */
-        + movq(addr!(16, RSP), reg!(RDI)) /* Get size of elements */
-        + movq(reg!(RDI), addr!(24, RBP)) /* Initialize quadri-vector with a capacity of 1 */
-        + if custom_alloc {
-            // call of src-malloc
-            subq(immq(16), reg!(RSP))
-            + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
-            + pushq(reg!(RAX))
-            + pushq(reg!(RDI))
-            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "malloc"])))
-            + addq(immq(16), reg!(RSP))
-            + popq(RAX)
-            + addq(immq(8), reg!(RSP))
-            + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
-            + addq(immq(32), reg!(RAX))
-        } else { call(reg::Label::malloc()) }
-        + movq(reg!(RAX), addr!(RBP))
-        + movq(immq(0), reg!(RAX))
-        + movq(reg!(RAX), addr!(8, RBP))
-        + movq(immq(1), reg!(RAX))
-        + movq(reg!(RAX), addr!(16, RBP))
-        + popq(RBP) /* returns */
-        + ret()
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "len"])))
-        + movq(addr!(8, RSP), reg!(RAX)) /* get pointer to vec */
-        + movq(addr!(RAX), reg!(RAX))    /* get pointer to 4-vector */
-        + movq(addr!(8, RAX), reg!(RAX)) /* put length in Rax */
-        + movq(reg!(RAX), addr!(16, RSP)) /* Store the result in stack */
-        + ret()
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "get"])))
-        + movq(addr!(16, RSP), reg!(RCX)) /* get pointer to vec */
-        + movq(addr!(RCX), reg!(RCX)) /* get pointer to 4-vector */
-        + movq(addr!(8, RSP), reg!(RAX)) /* put index in Rax */
-        + movq(addr!(8, RCX), reg!(RDX))
-        + leaq(
-            reg::Operand::LabRelAddr(reg::Label::from_str("OoB_error".to_string())),
-            R12,
-            )
-        + cmpq(reg!(RDX), reg!(RAX))
-        + jae(reg::Label::panic())
-        + imulq(addr!(24, RCX), reg!(RAX)) /* multiply by size of elements */
-        + addq(addr!(RCX), reg!(RAX)) /* add base of vector to offset */
-        + movq(reg!(RAX), addr!(24, RSP)) /* store result */
-        + ret()
-
-/*
-Called with pointer to pointer to quadri vector as second argument
-and then arg
-*/
-    + label(ctxt.fun_label(&PathUL::from_vec(vec!["std", "vec", "Vec", "push"])))
-        + pushq(reg!(RBP))
-        + movq(addr!(16, RSP), reg!(RBP)) /* get pointer to vec */
-        + movq(addr!(RBP), reg!(RBP)) /* get pointer to 4-vector */
-        + movq(addr!(8, RBP), reg!(RAX)) /* get length */
-        + movq(addr!(16, RBP), reg!(RSI)) /* get capacity */
-        + cmpq(reg!(RAX), reg!(RSI))
-        + jnz(reg::Label::from_str("push_has_capacity".to_string()))
-        + addq(reg!(RSI), reg!(RSI)) /* double capacity */
-        + imulq(addr!(24, RBP), reg!(RSI))
-        + movq(addr!(RBP), reg!(RDI))
-        + if custom_alloc {
-            // call of src-realloc
-            subq(immq(8), reg!(RSP))
-            + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), RAX)
-            + pushq(reg!(RAX))
-            + subq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RDI))
-            + subq(immq(32), reg!(RDI))
-            + pushq(reg!(RDI))
-            + pushq(reg!(RSI))
-            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "realloc"])))
-            + addq(immq(24), reg!(RSP))
-            + popq(RAX)
-            + addq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.to_string())), reg!(RAX))
-            + addq(immq(32), reg!(RAX))
-        } else { call(reg::Label::realloc()) }
-        + movq(reg!(RAX), addr!(RBP)) // store new pointer
-        + movq(addr!(8, RBP), reg!(RAX)) /* get length */
-        + movq(addr!(16, RBP), reg!(RSI)) /* get capacity */
-        + addq(reg!(RSI), reg!(RSI))
-        + label(reg::Label::from_str("push_has_capacity".to_string()))
-        //    Rbp pointer to 4-vector
-        //    Rsi current capacity
-        //    Rax length
-        + movq(addr!(24, RBP), reg!(RDI)) /* size_of elements */
-        + imulq(reg!(RDI), reg!(RAX))
-        + addq(addr!(RBP), reg!(RAX)) /* target of move */
-        + leaq(addr!(24, RSP), RCX) /* origin of move */
-        + label(reg::Label::from_str("push_copy_while_start".to_string()))
-        + testq(reg!(RDI), reg!(RDI))
-        + jz(reg::Label::from_str("push_copy_while_end".to_string()))
-        + movb(addr!(RCX), reg!(DL))
-        + movb(reg!(DL), addr!(RAX))
-        + decq(reg!(RDI))
-        + incq(reg!(RAX))
-        + incq(reg!(RCX))
-        + jmp(reg::Label::from_str("push_copy_while_start".to_string()))
-        + label(reg::Label::from_str("push_copy_while_end".to_string()))
-        + incq(addr!(8, RBP))
-        + popq(RBP)
-        + ret()
-    + label(reg::Label::panic())
-        + movq(reg!(R13), reg!(RSP))
-        + movq(reg!(R12), reg!(RDI))
-        + movq(immq(0), reg!(RAX))
-        + call(reg::Label::printf())
-        + popq(R13)
-        + popq(R12)
-        + popq(RBP)
-        + movq(immq(1), reg!(RAX))
-        + ret()
-}
-
-pub fn base(ctxt: &mut context::Context) -> file::File {
-    let heap_address = "heap_address".to_string();
-    let heap_size = 8 << 10;
-
-    let text_ss = label(reg::Label::from_str("main".to_string()))
-        + pushq(reg!(RBP))
-        + pushq(reg!(R12))
-        + pushq(reg!(R13))
-        + movq(reg!(RSP), reg!(R13))
-        + movq(immq(heap_size + 32), reg!(RDI)) // 8ko
-        + call(reg::Label::malloc())
-        + movq(reg!(RAX), reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())))
-        + movq(immq(heap_size / 4), reg!(RCX))
-        + movq(reg!(RCX), addr!(8, RAX))
-        + movq(reg!(RCX), addr!(16, RAX))
-        + movq(immq(4), addr!(24, RAX))
-        + movq(reg!(RAX), reg!(RCX))
-        + addq(immq(32), reg!(RCX))
-        + movq(reg!(RCX), addr!(RAX))
-        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), RAX)
-        + pushq(reg!(RAX))
-        + pushq(reg!(RAX))
-        + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "init"])))
-        + addq(immq(16), reg!(RSP))
-
-        + call(ctxt.fun_label(&PathUL::from_vec(vec!["crate", "main"])))
-        + movq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), reg!(RDI))
-        + call(reg::Label::free())
-        + popq(R13)
-        + popq(R12)
-        + popq(RBP)
-        + xorq(reg!(RAX), reg!(RAX))
-        + ret()
-        + default_vec_function(&heap_address, &ctxt);
-    let data_ss = data::dstring("my_string".to_string(), "%zd\\n".to_string())
-        + data::dstring(
-            "division_by_zero_str".to_string(),
-            "Division by zero\\n".to_string(),
-        )
-        + data::dstring("OoB_error".to_string(), "Index out of bound\\n".to_string())
-        + data::dquad(heap_address, vec![0]);
-
-    file::File {
-        globl: Some(reg::Label::from_str("main".to_string())),
-        text_ss,
-        data_ss,
-    }
-}
-
-pub fn bind(files: Vec<file::File>) -> file::File {
-    let mut text_ss = Text::Concat(Vec::new());
-    let mut data_ss = data::Data::empty();
-    let mut globl = None;
-
-    for file in files {
-        text_ss = text_ss + file.text_ss;
-        data_ss = data_ss + file.data_ss;
-        if globl.is_none() {
-            globl = file.globl
-        } else {
-            if file.globl.is_some() {
-                panic!("ICE {:?} {:?}", globl, file.globl);
-            }
-        }
+pub fn compile(file: llr::File, strings: HashMap<String, String>) -> file::File {
+    let mut ctxt = context::Context::new();
+    let file = to_asm(file, strings, &mut ctxt);
+    let base = base::base(&ctxt);
+    if file.globl.is_some() {
+        panic!("ICE {:?} {:?}", base.globl, file.globl);
     }
 
     file::File {
-        globl,
-        text_ss,
-        data_ss,
+        globl: base.globl,
+        text_ss: base.text_ss + file.text_ss,
+        data_ss: base.data_ss + file.data_ss,
     }
-}
-
-pub fn get_ctxt() -> context::Context {
-    context::Context::new()
 }

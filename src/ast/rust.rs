@@ -17,6 +17,7 @@ pub enum Open {
 pub enum Decl<DF = DeclFun> {
     Fun(DF),
     Struct(DeclStruct),
+    Enum(DeclEnum),
     Impl(DeclImpl),
     Const(DeclConst),
 }
@@ -32,6 +33,12 @@ pub struct DeclStruct {
     pub public: bool,
     pub name: common::Ident,
     pub args: Vec<(common::Ident, PreType)>,
+}
+
+pub struct DeclEnum {
+    pub public: bool,
+    pub name: common::Ident,
+    pub args: Vec<(common::Ident, Vec<PreType>)>,
 }
 
 pub struct DeclFun {
@@ -63,7 +70,7 @@ pub enum Types {
     Array(usize, Option<usize>),
     Bool,
     Int(Option<bool>, Option<common::Sizes>),
-    Enum(String),
+    Enum(PathUL<()>, Vec<usize>),
     Fun(Vec<usize>, usize),
     Struct(PathUL<()>, Vec<usize>),
     Ref(Option<bool>, usize),
@@ -147,8 +154,8 @@ impl Display for Types {
             Self::Array(_, Some(length)) => {
                 write!(f, "[_; {}]", length)
             }
-            Self::Enum(name) => {
-                write!(f, "{}", name)
+            Self::Enum(path, _) => {
+                write!(f, "{:?}", path)
             }
             Self::Tuple(args) => {
                 write!(f, "{{{} tuple}}", args.len())
@@ -221,9 +228,7 @@ impl TypeStorage {
 
     pub fn new_ref_unmarked(&mut self, type_id: usize) -> usize {
         match self.map.get(&type_id).unwrap() {
-            Types::Bool | Types::Enum(_) | Types::Unknown | Types::Int(_, _) | Types::Fun(_, _) => {
-                type_id
-            }
+            Types::Bool | Types::Unknown | Types::Int(_, _) | Types::Fun(_, _) => type_id,
             Types::SameAs(type_id) => self.new_ref_unmarked(*type_id),
             Types::Array(type_id, size) => {
                 let size = *size;
@@ -256,6 +261,14 @@ impl TypeStorage {
                     args2.push(self.new_ref_unmarked(type_id))
                 }
                 self.insert_type(Types::Struct(name, args2))
+            }
+            Types::Enum(name, args) => {
+                let mut args2 = Vec::new();
+                let name = name.clone();
+                for type_id in args.clone().into_iter() {
+                    args2.push(self.new_ref_unmarked(type_id))
+                }
+                self.insert_type(Types::Enum(name, args2))
             }
         }
     }
@@ -353,6 +366,18 @@ impl<T: std::fmt::Debug> std::fmt::Debug for Expr<T> {
     }
 }
 
+impl<T> Expr<T> {
+    pub fn to_bloc(self) -> Bloc<T> {
+        Bloc {
+            loc: self.loc,
+            content: vec![Instr {
+                loc: self.loc,
+                content: InstrInner::Expr(common::ComputedValue::Keep, self),
+            }],
+        }
+    }
+}
+
 impl<T> Expr<Option<T>> {
     pub fn unit() -> Self {
         Self {
@@ -373,35 +398,80 @@ impl<T> Expr<Option<T>> {
 
 #[derive(Debug, Clone)]
 pub enum ExprInner<T = Option<PreType>> {
-    While(Expr<T>, Bloc<T>),
-    Return(Option<Expr<T>>),
-    If(Expr<T>, Bloc<T>, Bloc<T>),
-    Bool(bool),
-    Int(u64, Option<(bool, common::Sizes)>),
-    VarPath(common::Path<()>),
-    Var(common::Ident),
-    Method(Expr<T>, common::Ident, Vec<Expr<T>>),
-    FunCall(Vec<T>, common::Ident, Vec<Expr<T>>),
-    FunCallPath(Vec<T>, common::Path<()>, Vec<Expr<T>>),
-    MacroCall(common::Ident, Vec<Expr<T>>),
+    Array(Vec<Expr<T>>),
     BinaryOp(common::BinOperator, Expr<T>, Expr<T>),
-    UnaryOp(common::UnaOperator, Expr<T>),
     Bloc(Bloc<T>),
-    Ref(bool, Expr<T>),
-    Deref(Expr<T>),
-    Tuple(Vec<Expr<T>>),
+    Bool(bool),
     BuildStruct(common::Ident, Vec<(common::Ident, Expr<T>)>),
     BuildStructPath(common::Path<()>, Vec<(common::Ident, Expr<T>)>),
-    Proj(Expr<T>, common::Projector),
-    String(String),
-    Array(Vec<Expr<T>>),
-    Parenthesis(Expr<T>),
-    Index(Expr<T>, Expr<T>),
     Coercion(Expr<T>, T),
+    Constructor(common::Path<()>, Vec<Expr<T>>),
+    Deref(Expr<T>),
+    FunCall(Vec<T>, common::Ident, Vec<Expr<T>>),
+    FunCallPath(Vec<T>, common::Path<()>, Vec<Expr<T>>),
+    If(Expr<T>, Bloc<T>, Bloc<T>),
+    Index(Expr<T>, Expr<T>),
+    Int(u64, Option<(bool, common::Sizes)>),
+    MacroCall(common::Ident, Vec<Expr<T>>),
+    Method(Expr<T>, common::Ident, Vec<Expr<T>>),
+    Parenthesis(Expr<T>),
+    PatternMatching(
+        Expr<T>,
+        Vec<Pattern<T>>,
+        Option<(bool, common::Ident, Bloc<T>)>,
+    ),
+    Proj(Expr<T>, common::Projector),
+    Ref(bool, Expr<T>),
+    Return(Option<Expr<T>>),
+    String(String),
+    Tuple(Vec<Expr<T>>),
+    UnaryOp(common::UnaOperator, Expr<T>),
+    Var(common::Ident),
+    VarPath(common::Path<()>),
+    While(Expr<T>, Bloc<T>),
 }
 
 impl<T> ExprInner<T> {
     pub fn unit() -> Self {
         Self::Tuple(Vec::new())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct Pattern<T = Option<PreType>> {
+    pub constructor: common::Path<()>,
+    pub arguments: Vec<(bool, common::Ident)>,
+    pub guard: Option<Expr<T>>,
+    pub bloc: Bloc<T>,
+}
+
+impl<T> Pattern<T> {
+    pub fn new(
+        constructor: common::Path<()>,
+        arguments: Vec<(bool, common::Ident)>,
+        guard: Option<Expr<T>>,
+        bloc: Bloc<T>,
+    ) -> Self {
+        Self {
+            constructor,
+            arguments,
+            guard,
+            bloc,
+        }
+    }
+
+    pub fn get_constructor(&self) -> &common::Path<()> {
+        &self.constructor
+    }
+
+    pub fn get_arguments(&self) -> &Vec<(bool, common::Ident)> {
+        &self.arguments
+    }
+
+    pub fn get_guard(&self) -> &Option<Expr<T>> {
+        &self.guard
+    }
+    pub fn get_bloc(&self) -> &Bloc<T> {
+        &self.bloc
     }
 }

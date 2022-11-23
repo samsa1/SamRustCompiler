@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 pub mod ast;
 mod backend;
+pub mod config;
 mod frontend;
 mod passes;
 mod std_file;
@@ -71,8 +72,9 @@ fn main() {
         std::process::exit(0)
     }
 
+    let code = passes::handle_enums::rewrite(checked_lifetime, &code_modint);
     // Make code linear
-    let code = passes::linear_programs::rewrite(checked_lifetime);
+    let code = passes::linear_programs::rewrite(code);
 
     // Compiling std
     let std = std_file::stdlib().unwrap();
@@ -82,6 +84,7 @@ fn main() {
     let std = passes::move_refs::rewrite(std);
     let (std_modint, std) =
         typing::type_inferencer(std, false, ast::common::PathUL::from_vec(vec!["crate"]));
+    let std = passes::handle_enums::rewrite(std, &std_modint);
     let std = passes::linear_programs::rewrite(std);
     let std = passes::change_crate_name::rewrite(std, "crate", "std");
 
@@ -102,10 +105,7 @@ fn main() {
     let llr_form = passes::concat_all::rewrite(llr_form);
 
     // Compile to asm
-    let mut ctxt = backend::get_ctxt();
-    let base = backend::base(&mut ctxt);
-    let asm = backend::to_asm(llr_form, strings, &mut ctxt);
-    let asm = backend::bind(vec![base, asm]);
+    let asm = backend::compile(llr_form, strings);
 
     // Printing asm
     let mut out_name = std::path::PathBuf::from(in_name);

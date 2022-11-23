@@ -128,6 +128,7 @@ impl PostType {
 pub enum PostTypeInner {
     BuiltIn(common::BuiltinType),
     Struct(common::PathUL<()>, Vec<PostType>),
+    Enum(common::PathUL<()>, Vec<PostType>),
     Box(Box<PostType>),
     Ref(bool, Box<PostType>),
     Tuple(Vec<PostType>),
@@ -138,19 +139,19 @@ pub enum PostTypeInner {
     String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bloc {
     pub content: Vec<Instr>,
     pub last_type: PostType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instr {
     Expr(common::ComputedValue, Expr),
     Binding(bool, common::Ident, Expr),
 }
 
-#[derive()]
+#[derive(Clone)]
 pub struct Expr {
     pub content: Box<ExprInner>,
     pub loc: common::Location,
@@ -173,28 +174,40 @@ impl std::fmt::Debug for Expr {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprInner {
-    If(Expr, Bloc, Bloc),
+    BinOp(common::TypedBinop, Expr, Expr),
+    Bloc(Bloc),
     Bool(bool),
-    Int(u64),
-    Var(common::Ident),
-    VarPath(common::PathUL<()>),
+    BuildStruct(common::PathUL<()>, Vec<(common::Ident, Expr)>),
+    Coercion(Expr, common::BuiltinType, common::BuiltinType),
+    Constructor(common::PathUL<()>, Vec<Expr>),
+    Deref(Expr),
     FunCall(common::Ident, Vec<Expr>),
     FunCallPath(common::PathUL<()>, Vec<Expr>),
-    Bloc(Bloc),
-    Ref(bool, Expr),
-    Deref(Expr),
-    Tuple(Vec<Expr>),
-    BuildStruct(common::PathUL<()>, Vec<(common::Ident, Expr)>),
+    Int(u64),
+    If(Expr, Bloc, Bloc),
+    PatternMatching(Expr, Vec<Pattern>, Option<(bool, common::Ident, Bloc)>),
     Proj(Expr, common::Projector),
-    Set(Expr, Expr),
     Print(String),
     PrintPtr(Expr),
-    String(String),
-    BinOp(common::TypedBinop, Expr, Expr),
-    UnaOp(common::TypedUnaop, Expr),
-    Coercion(Expr, common::BuiltinType, common::BuiltinType),
-    While(Expr, Bloc),
+    Ref(bool, Expr),
     Return(Option<Expr>),
+    Set(Expr, Expr),
+    String(String),
+    // usize is a padding at the end padding
+    Tuple(Vec<Expr>, usize),
+    UnaOp(common::TypedUnaop, Expr),
+    Var(common::Ident),
+    VarPath(common::PathUL<()>),
+    While(Expr, Bloc),
+}
+
+#[derive(Debug, Clone)]
+pub struct Pattern {
+    pub constructor_id: u64,
+    pub constructor: common::PathUL<()>,
+    pub arguments: Vec<(bool, common::Ident, PostType)>,
+    pub guard: Option<Expr>,
+    pub bloc: Bloc,
 }

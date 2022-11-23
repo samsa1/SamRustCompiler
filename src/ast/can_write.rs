@@ -258,6 +258,20 @@ impl CanWrite for Projector {
     }
 }
 
+impl<T: CanWrite> CanWrite for Pattern<T> {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        file.write_all(b"Pattern::new(")?;
+        self.get_constructor().write_in(file)?;
+        file.write_all(b",")?;
+        self.get_arguments().write_in(file)?;
+        file.write_all(b",")?;
+        self.get_guard().write_in(file)?;
+        file.write_all(b",")?;
+        self.get_bloc().write_in(file)?;
+        file.write_all(b")")
+    }
+}
+
 impl<T: CanWrite> CanWrite for ExprInner<T> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
@@ -301,6 +315,13 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
             }
             Self::Coercion(a1, a2) => {
                 file.write_all(b"ExprInner::Coercion(")?;
+                a1.write_in(file)?;
+                file.write_all(b", ")?;
+                a2.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::Constructor(a1, a2) => {
+                file.write_all(b"ExprInner::Constructor(")?;
                 a1.write_in(file)?;
                 file.write_all(b", ")?;
                 a2.write_in(file)?;
@@ -371,6 +392,15 @@ impl<T: CanWrite> CanWrite for ExprInner<T> {
             Self::Parenthesis(e) => {
                 file.write_all(b"ExprInner::Parenthesis(")?;
                 e.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::PatternMatching(expr, rows, fallthrough) => {
+                file.write_all(b"ExprInner::PatternMatching(")?;
+                expr.write_in(file)?;
+                file.write_all(b", ")?;
+                rows.write_in(file)?;
+                file.write_all(b", ")?;
+                fallthrough.write_in(file)?;
                 file.write_all(b")")
             }
             Self::Proj(a1, a2) => {
@@ -526,6 +556,12 @@ impl CanWrite for DeclStruct {
     }
 }
 
+impl CanWrite for DeclEnum {
+    fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
+        todo!()
+    }
+}
+
 impl<DF: CanWrite> CanWrite for Decl<DF> {
     fn write_in(&self, file: &mut std::fs::File) -> std::io::Result<()> {
         match self {
@@ -546,6 +582,11 @@ impl<DF: CanWrite> CanWrite for Decl<DF> {
             }
             Self::Const(dc) => {
                 file.write_all(b"Decl::Const(")?;
+                dc.write_in(file)?;
+                file.write_all(b")")
+            }
+            Self::Enum(dc) => {
+                file.write_all(b"Decl::Enum(")?;
                 dc.write_in(file)?;
                 file.write_all(b")")
             }
