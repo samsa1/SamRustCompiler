@@ -13,7 +13,7 @@ Cargo.lock
 /tests/benchmarks/*.s
 /tests/exec/*.s
 /tests/exec-fail/*.s
-
+/tests/dependancies/good/main.s
 
 a.out
 out
