@@ -127,6 +127,7 @@ fn rewrite_patt(
     local_ctxt.pop_layer();
 
     Pattern {
+        constructor: translate_path(patt.constructor, map),
         bloc,
         guard,
         ..patt

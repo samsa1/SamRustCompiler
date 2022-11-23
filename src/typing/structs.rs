@@ -441,7 +441,7 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                 let mut path2 = path.clone();
                 path2.pop();
                 let mut row_sizes = Vec::new();
-                for (constructor, types) in &enum_decl.args {
+                for (_, types) in &enum_decl.args {
                     let mut row_size = 0;
                     for typ in types.iter() {
                         row_size += compute_size(typ, &sizes, &mut path2);
