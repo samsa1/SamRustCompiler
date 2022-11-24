@@ -1,5 +1,5 @@
 use super::common::{self, PathUL};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
 pub struct File {
@@ -173,22 +173,26 @@ impl Display for Types {
 
 #[derive(Debug)]
 pub struct TypeStorage {
+    free_names: HashSet<String>,
     count: usize,
     map: HashMap<usize, Types>,
 }
 
-impl Default for TypeStorage {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl TypeStorage {
-    pub fn new() -> Self {
+    pub fn new(free: &Vec<String>) -> Self {
+        let mut free_names = HashSet::new();
+        for name in free {
+            assert!(free_names.insert(name.clone()));
+        }
         Self {
+            free_names,
             count: 0,
             map: HashMap::new(),
         }
+    }
+
+    pub fn get_frees(&self) -> &HashSet<String> {
+        &self.free_names
     }
 
     pub fn insert_unit(&mut self) -> usize {

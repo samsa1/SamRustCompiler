@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused)]
-
 use crate::ast::common::*;
 use crate::ast::rust::*;
 use std::collections::{HashMap, HashSet};
@@ -50,7 +47,7 @@ impl LocalContext {
     }
 }
 
-fn translate_path(mut path: Path<()>, map: &HashMap<String, Path<()>>) -> Path<()> {
+fn translate_path(path: Path<()>, map: &HashMap<String, Path<()>>) -> Path<()> {
     assert_ne!(path.get_content().len(), 0);
     match map.get(path.get_fst_id().unwrap()) {
         None => path,

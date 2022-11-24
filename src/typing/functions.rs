@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 use super::context;
 use super::context::GlobalContext;
@@ -12,15 +13,15 @@ use crate::frontend::Module;
 use std::str::FromStr;
 
 fn handle_fun(
-    ctxt: &GlobalContext,
+    ctxt: &mut GlobalContext,
     fun_decl: rr::DeclFun,
-    fun_type: &tr::PostType,
+    fun_path: &Path<()>,
     err_reporter: &ErrorReporter,
 ) -> tr::DeclFun {
-    let (args_typ, out_type) = match &fun_type.content {
-        tr::PostTypeInner::Fun(_, args, out) => (args.clone(), &**out),
-        _ => panic!("ICE"),
-    };
+    let fun_info = ctxt.get_fun(fun_path).unwrap();
+    let free = fun_info.get_free().clone();
+    let args_typ = fun_info.get_args().clone();
+    let out_type = fun_info.get_out().clone();
 
     let in_types: Vec<(Ident, bool, tr::PostType)> = fun_decl
         .args
@@ -35,6 +36,7 @@ fn handle_fun(
     let (content, types) = match inferencer::type_funs(
         &fun_decl.name,
         ctxt,
+        &free,
         &in_types2,
         &out_type,
         fun_decl.content.clone(),
@@ -48,18 +50,19 @@ fn handle_fun(
         content,
         ctxt,
         &mut local_ctxt,
-        out_type,
-        Some(out_type),
+        &out_type,
+        Some(&out_type),
         &types,
     ) {
         Ok(out) => out,
         Err(errs) => err_reporter.report(errs),
     };
-
+    ctxt.update_specialisation(fun_path, local_ctxt.extract_fun());
     tr::DeclFun {
         name: ctxt.get_path(fun_decl.name.get_content()),
         args: in_types,
-        output: out_type.clone(),
+        output: out_type,
+        free,
         content,
         id_counter: fun_decl.id_counter,
     }
@@ -74,27 +77,39 @@ pub fn add_fun_types(
     for decl in module.content.content.iter() {
         match decl {
             rr::Decl::Fun(fun_decl) => {
+                let mut frees = HashSet::new();
+                for id in &fun_decl.generics {
+                    if !frees.insert(id.get_content().to_string()) {
+                        todo!()
+                    }
+                }
                 let args: Option<Vec<tr::PostType>> = fun_decl
                     .args
                     .iter()
-                    .map(|(_, _, typ)| types::translate_typ(typ.clone(), &ctxt))
+                    .map(|(_, _, typ)| types::translate_typ(typ.clone(), &ctxt, &frees))
                     .collect();
                 let args = match args {
                     Some(a) => a,
                     None => todo!(),
                 };
-                let output = match types::translate_typ(fun_decl.output.clone(), &ctxt) {
+                let output = match types::translate_typ(fun_decl.output.clone(), &ctxt, &frees) {
                     Some(out) => out,
                     None => todo!(),
                 };
-                let fun_typ = tr::PostType {
-                    content: tr::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
-                };
+                // let fun_typ = tr::PostType {
+                //     content: tr::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
+                // };
                 if ctxt
                     .impl_fun(
                         fun_decl.name.get_content().to_string(),
                         fun_decl.public,
-                        fun_typ,
+                        fun_decl
+                            .generics
+                            .iter()
+                            .map(|id| id.get_content().to_string())
+                            .collect(),
+                        args,
+                        output,
                     )
                     .is_some()
                 {
@@ -103,52 +118,55 @@ pub fn add_fun_types(
                 };
             }
             rr::Decl::Impl(impl_decl) => {
+                let frees = HashSet::new();
                 for fun_decl in &impl_decl.content {
-                    let args: Option<Vec<tr::PostType>> = match fun_decl.self_arg {
-                        None => fun_decl
-                            .args
-                            .iter()
-                            .map(|(_, _, typ)| types::translate_typ(typ.clone(), &ctxt))
-                            .collect(),
-                        Some(b) => {
-                            let typ = rr::PreType {
-                                content: rr::PreTypeInner::Ident(impl_decl.name.clone()),
-                            };
-                            let typ = if let Some(b) = b {
-                                rr::PreType {
-                                    content: rr::PreTypeInner::Ref(b, Box::new(typ)),
-                                }
-                            } else {
-                                typ
-                            };
-                            let mut args = vec![types::translate_typ(typ, &ctxt)];
-                            for expr in fun_decl
+                    let args: Option<Vec<tr::PostType>> =
+                        match fun_decl.self_arg {
+                            None => fun_decl
                                 .args
                                 .iter()
-                                .map(|(_, _, typ)| types::translate_typ(typ.clone(), &ctxt))
-                            {
-                                args.push(expr)
+                                .map(|(_, _, typ)| types::translate_typ(typ.clone(), &ctxt, &frees))
+                                .collect(),
+                            Some(b) => {
+                                let typ = rr::PreType {
+                                    content: rr::PreTypeInner::Ident(impl_decl.name.clone()),
+                                };
+                                let typ = if let Some(b) = b {
+                                    rr::PreType {
+                                        content: rr::PreTypeInner::Ref(b, Box::new(typ)),
+                                    }
+                                } else {
+                                    typ
+                                };
+                                let mut args = vec![types::translate_typ(typ, &ctxt, &frees)];
+                                for expr in fun_decl.args.iter().map(|(_, _, typ)| {
+                                    types::translate_typ(typ.clone(), &ctxt, &frees)
+                                }) {
+                                    args.push(expr)
+                                }
+                                args.into_iter().collect()
                             }
-                            args.into_iter().collect()
-                        }
-                    };
+                        };
                     let args = match args {
                         Some(a) => a,
                         None => todo!(),
                     };
-                    let output = match types::translate_typ(fun_decl.output.clone(), &ctxt) {
+                    let output = match types::translate_typ(fun_decl.output.clone(), &ctxt, &frees)
+                    {
                         Some(out) => out,
                         None => todo!(),
                     };
-                    let fun_typ = tr::PostType {
-                        content: tr::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
-                    };
+                    // let fun_typ = tr::PostType {
+                    //     content: tr::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
+                    // };
                     if ctxt
                         .impl_fun_path(
                             PathUL::from_vec(vec![impl_decl.name.get_content()]),
                             fun_decl.name.get_content().to_string(),
                             fun_decl.public,
-                            fun_typ,
+                            Vec::new(),
+                            args,
+                            output,
                         )
                         .is_some()
                     {
@@ -173,16 +191,18 @@ fn translate_funs(
     modint: ModuleInterface,
     path: PathUL<()>,
 ) -> (ModuleInterface, Module<tr::File>) {
-    let ctxt = GlobalContext::new(path.clone(), modint);
+    let mut ctxt = GlobalContext::new(path.clone(), modint);
     let mut funs = Vec::new();
     for decl in module.content.content.into_iter() {
         match decl {
             rr::Decl::Fun(ds) => {
-                let fun_type = ctxt.get_top_fun(ds.name.get_content()).unwrap();
+                let mut fun_path = path.add_loc();
+                fun_path.push(NamePath::Name(ds.name.clone()));
+                //                let fun_info = ctxt.get_top_fun(ds.name.get_content()).unwrap();
                 funs.push(handle_fun(
-                    &ctxt,
+                    &mut ctxt,
                     ds,
-                    fun_type,
+                    &fun_path,
                     &module.content.err_reporter,
                 ))
             }
@@ -207,16 +227,12 @@ fn translate_funs(
                             fun_decl.self_arg = None;
                         }
                     };
-                    let mut path = path.add_loc();
-                    path.push(NamePath::Name(impl_decl.name.clone()));
-                    path.push(NamePath::Name(fun_decl.name.clone()));
-                    println!("{:?}", path);
-                    let mut fun_decl = handle_fun(
-                        &ctxt,
-                        fun_decl,
-                        ctxt.get_fun(&path).unwrap(),
-                        &module.content.err_reporter,
-                    );
+                    let mut fun_path = path.add_loc();
+                    fun_path.push(NamePath::Name(impl_decl.name.clone()));
+                    fun_path.push(NamePath::Name(fun_decl.name.clone()));
+                    println!("{:?}", fun_path);
+                    let mut fun_decl =
+                        handle_fun(&mut ctxt, fun_decl, &fun_path, &module.content.err_reporter);
                     let out = fun_decl.name.pop();
                     fun_decl
                         .name

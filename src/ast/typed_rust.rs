@@ -20,6 +20,7 @@ impl File {
 
 #[derive(Debug)]
 pub struct DeclFun {
+    pub free: Vec<String>,
     pub name: common::PathUL<()>,
     pub args: Vec<(common::Ident, bool, PostType)>,
     pub output: PostType,

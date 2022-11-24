@@ -215,6 +215,69 @@ impl Const {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct FunInfo {
+    is_pub: bool,
+    free_types: Vec<String>,
+    args: Vec<PostType>,
+    out_type: PostType,
+    specialisations: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
+    specialised: HashMap<Vec<PostType>, usize>,
+}
+
+impl FunInfo {
+    fn new(is_pub: bool, free_types: Vec<String>, args: Vec<PostType>, out_type: PostType) -> Self {
+        Self {
+            is_pub,
+            free_types,
+            args,
+            out_type,
+            specialisations: HashMap::new(),
+            specialised: HashMap::new(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn get_pub(&self) -> bool {
+        self.is_pub
+    }
+
+    pub fn get_typ(&self) -> (&Vec<String>, &Vec<PostType>, &PostType) {
+        (&self.free_types, &self.args, &self.out_type)
+    }
+
+    pub fn get_free(&self) -> &Vec<String> {
+        &self.free_types
+    }
+
+    pub fn get_args(&self) -> &Vec<PostType> {
+        &self.args
+    }
+
+    pub fn get_out(&self) -> &PostType {
+        &self.out_type
+    }
+
+    pub fn set_specialisation(
+        &mut self,
+        specialisations: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
+    ) {
+        assert!(self.specialisations.is_empty());
+        self.specialisations = specialisations
+    }
+
+    pub fn get_id(&mut self, args: Vec<PostType>) -> (bool, usize) {
+        match self.specialised.get(&args) {
+            Some(id) => (false, *id),
+            None => {
+                let v = self.specialised.len();
+                self.specialised.insert(args, v);
+                (self.specialisations.is_empty(), v)
+            }
+        }
+    }
+}
+
 impl std::fmt::Debug for ModuleInterface {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ModuleInterface")
@@ -229,7 +292,7 @@ pub struct ModuleInterface {
     pub enums: HashMap<String, EnumInfo>,
     implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, PathUL<()>>>,
-    functions: HashMap<String, (bool, PostType)>,
+    functions: HashMap<String, FunInfo>,
     pub submodules: HashMap<String, (bool, ModuleInterface)>,
     sizes: HashMap<String, usize>,
     constants: HashMap<String, (bool, Const)>,
@@ -271,30 +334,48 @@ impl ModuleInterface {
         let mut_ref_vec_type = PostType {
             content: PostTypeInner::Ref(true, Box::new(vec_type.clone())),
         };
-        let fun_typ = PostType {
-            content: PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type)),
-        };
+        // let fun_typ = PostType {
+        //     content: PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type)),
+        // };
 
         let mut vec_mod = ModuleInterface::empty();
 
-        vec_mod.impl_fun("new".to_string(), true, fun_typ);
-        let fun_typ = PostType {
-            content: PostTypeInner::Fun(
-                vec!["T".to_string()],
-                vec![ref_vec_type],
-                Box::new(PostType::usize()),
-            ),
-        };
-        vec_mod.impl_fun("len".to_string(), true, fun_typ);
+        vec_mod.impl_fun(
+            "new".to_string(),
+            true,
+            vec!["T".to_string()],
+            vec![],
+            vec_type,
+        );
+        // let fun_typ = PostType {
+        //     content: PostTypeInner::Fun(
+        //         vec!["T".to_string()],
+        //         vec![ref_vec_type],
+        //         Box::new(PostType::usize()),
+        //     ),
+        // };
+        vec_mod.impl_fun(
+            "len".to_string(),
+            true,
+            vec!["T".to_string()],
+            vec![ref_vec_type],
+            PostType::usize(),
+        );
 
-        let fun_typ = PostType {
-            content: PostTypeInner::Fun(
-                vec!["T".to_string()],
-                vec![mut_ref_vec_type, free_type],
-                Box::new(PostType::unit()),
-            ),
-        };
-        vec_mod.impl_fun("push".to_string(), true, fun_typ);
+        // let fun_typ = PostType {
+        //     content: PostTypeInner::Fun(
+        //         vec!["T".to_string()],
+        //         vec![mut_ref_vec_type, free_type],
+        //         Box::new(PostType::unit()),
+        //     ),
+        // };
+        vec_mod.impl_fun(
+            "push".to_string(),
+            true,
+            vec!["T".to_string()],
+            vec![mut_ref_vec_type, free_type],
+            PostType::unit(),
+        );
 
         let mut vec_upper_mod = ModuleInterface::empty();
         vec_upper_mod.insert("Vec".to_string(), true, vec_mod);
@@ -450,34 +531,55 @@ impl ModuleInterface {
         &self,
         path: &Vec<NamePath<(), Ident>>,
         pos: usize,
-    ) -> Option<(bool, &PostType)> {
-        println!("{} {:?} {:?}", pos, path, self.submodules);
+    ) -> Option<(bool, &FunInfo)> {
         if pos == path.len() - 1 {
             match &path[pos] {
-                NamePath::Name(name) => {
-                    self.functions.get(name.get_content()).map(|(b, t)| (*b, t))
-                }
+                NamePath::Name(name) => self
+                    .functions
+                    .get(name.get_content())
+                    .map(|fun_info| (true, fun_info)),
                 NamePath::Specialisation(_) => None,
             }
         } else {
             match &path[pos] {
                 NamePath::Name(name) => match self.submodules.get(name.get_content()) {
-                    None => {
-                        println!("no submodule {name:?}");
-                        None
-                    }
+                    None => None,
                     Some((b1, sb)) => sb
                         .get_fun_inner(path, pos + 1)
-                        .map(|(b2, i)| (b2 && *b1, i)),
+                        .map(|(b2, fun_info)| (b2 && *b1, fun_info)),
                 },
                 _ => todo!(),
             }
         }
     }
 
-    pub fn get_fun(&self, path: &Path<()>) -> Option<(bool, &PostType)> {
-        println!("{:?}", self);
+    pub fn get_fun(&self, path: &Path<()>) -> Option<(bool, &FunInfo)> {
         self.get_fun_inner(path.get_content(), 0)
+    }
+
+    fn get_mut_fun_inner(
+        &mut self,
+        path: &Vec<NamePath<(), Ident>>,
+        pos: usize,
+    ) -> Option<&mut FunInfo> {
+        if pos == path.len() - 1 {
+            match &path[pos] {
+                NamePath::Name(name) => self.functions.get_mut(name.get_content()),
+                NamePath::Specialisation(_) => None,
+            }
+        } else {
+            match &path[pos] {
+                NamePath::Name(name) => match self.submodules.get_mut(name.get_content()) {
+                    None => None,
+                    Some((_, sb)) => sb.get_mut_fun_inner(path, pos + 1),
+                },
+                _ => todo!(),
+            }
+        }
+    }
+
+    pub fn get_mut_fun(&mut self, path: &Path<()>) -> Option<&mut FunInfo> {
+        self.get_mut_fun_inner(path.get_content(), 0)
     }
 
     fn get_const_inner(
@@ -739,9 +841,14 @@ impl ModuleInterface {
         &mut self,
         fun_name: String,
         public: bool,
-        typ: PostType,
-    ) -> Option<(bool, PostType)> {
-        self.functions.insert(fun_name, (public, typ))
+        free_types: Vec<String>,
+        args_types: Vec<PostType>,
+        out_type: PostType,
+    ) -> Option<FunInfo> {
+        self.functions.insert(
+            fun_name,
+            FunInfo::new(public, free_types, args_types, out_type),
+        )
     }
 
     pub fn insert(
@@ -817,12 +924,14 @@ impl GlobalContext {
         &mut self,
         fun_name: String,
         public: bool,
-        typ: PostType,
-    ) -> Option<(bool, PostType)> {
+        free_types: Vec<String>,
+        args_types: Vec<PostType>,
+        out_type: PostType,
+    ) -> Option<FunInfo> {
         self.modules
             .get_mut_module(&self.path)?
             .1
-            .impl_fun(fun_name, public, typ)
+            .impl_fun(fun_name, public, free_types, args_types, out_type)
     }
 
     pub fn impl_fun_path(
@@ -830,8 +939,10 @@ impl GlobalContext {
         fun_path: PathUL<()>,
         fun_name: String,
         public: bool,
-        typ: PostType,
-    ) -> Option<(bool, PostType)> {
+        free_types: Vec<String>,
+        args_types: Vec<PostType>,
+        out_type: PostType,
+    ) -> Option<FunInfo> {
         self.modules
             .get_mut_module(&self.path)
             .unwrap()
@@ -839,7 +950,18 @@ impl GlobalContext {
             .get_mut_module(&fun_path)
             .unwrap()
             .1
-            .impl_fun(fun_name, public, typ)
+            .impl_fun(fun_name, public, free_types, args_types, out_type)
+    }
+
+    pub fn update_specialisation(
+        &mut self,
+        path: &Path<()>,
+        specialisations: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
+    ) {
+        self.modules
+            .get_mut_fun(path)
+            .unwrap()
+            .set_specialisation(specialisations)
     }
 
     pub fn get_struct(&self, name: &str) -> Option<&StructInfo> {
@@ -895,20 +1017,15 @@ impl GlobalContext {
         Some(path)
     }
 
-    pub fn get_fun(&self, path: &Path<()>) -> Option<&PostType> {
+    pub fn get_fun(&self, path: &Path<()>) -> Option<&FunInfo> {
         match self.modules.get_fun(path) {
-            Some((_, f)) => Some(f),
+            Some((_, fun_info)) => Some(fun_info),
             _ => None,
         }
     }
 
-    pub fn get_top_fun(&self, name: &str) -> Option<&PostType> {
-        self.modules
-            .get_module(&self.path)?
-            .1
-            .functions
-            .get(name)
-            .map(|(_, f)| f)
+    pub fn get_top_fun(&self, name: &str) -> Option<&FunInfo> {
+        self.modules.get_module(&self.path)?.1.functions.get(name)
     }
 
     pub fn get_const_val(&self, path: &PathUL<()>) -> Option<&Const> {
@@ -965,6 +1082,7 @@ impl GlobalContext {
 #[derive(Clone, Debug)]
 pub struct LocalContext {
     vars: Vec<HashMap<String, (bool, PostType)>>,
+    fun_specialisation: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
 }
 
 impl LocalContext {
@@ -978,6 +1096,7 @@ impl LocalContext {
 
         Self {
             vars: vec![in_types2],
+            fun_specialisation: HashMap::new(),
         }
     }
 
@@ -998,6 +1117,19 @@ impl LocalContext {
         None
     }
 
+    pub fn insert_fun(&mut self, path: PathUL<()>, type_vec: Vec<PostType>) {
+        match self.fun_specialisation.get_mut(&path) {
+            None => {
+                let mut set = HashSet::new();
+                set.insert(type_vec);
+                assert!(self.fun_specialisation.insert(path, set).is_none())
+            }
+            Some(set) => {
+                set.insert(type_vec);
+            }
+        }
+    }
+
     pub fn add_var(&mut self, ident: &Ident, mutable: bool, typ: &PostType) {
         if let Some(last) = self.vars.last_mut() {
             last.insert(ident.get_content().to_string(), (mutable, typ.clone()));
@@ -1012,5 +1144,9 @@ impl LocalContext {
         } else {
             panic!("should never happend")
         }
+    }
+
+    pub fn extract_fun(self) -> HashMap<PathUL<()>, HashSet<Vec<PostType>>> {
+        self.fun_specialisation
     }
 }

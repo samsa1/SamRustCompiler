@@ -9,6 +9,7 @@ use crate::ast::rust as rr;
 use crate::ast::typed_rust as tr;
 use crate::frontend::Module;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub enum Val {
@@ -253,7 +254,8 @@ pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> Mod
     for (mut path, const_decl, err_reporter) in constants.into_iter() {
         path.pop();
         let mut ctxt = GlobalContext::new(path, modint);
-        let expected_typ = match super::types::translate_typ(const_decl.typ, &ctxt) {
+        let expected_typ = match super::types::translate_typ(const_decl.typ, &ctxt, &HashSet::new())
+        {
             None => todo!(),
             Some(t) => t,
         };
