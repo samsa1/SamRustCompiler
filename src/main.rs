@@ -97,10 +97,11 @@ fn main() {
     modint.insert("crate".to_string(), true, code_modint);
 
     let (code, modint) = passes::handle_generics::rewrite(code, modint);
+    let code = passes::to_builtin_ops::rewrite(code);
 
-    let code = passes::handle_enums::rewrite(code, &modint);
     // Make code linear
     let code = passes::linear_programs::rewrite(code);
+    let code = passes::handle_enums::rewrite(code, &modint);
 
     // Transform the typed modules to a single llr File
     let (llr_form, strings, vec_info) = to_llr::rewrite(code, modint, "file".to_string());

@@ -121,6 +121,9 @@ peg::parser! {
             { Open::Mod(p.is_some(), n, r) }
       }
 
+      rule path_ws() -> Path<()> =
+        space() p:path() space() { p }
+
       rule path() -> Path<()> = precedence!{
         n:name() "::" p:path_tl() {
             let (end, mut path_rev) = p;
@@ -163,8 +166,15 @@ peg::parser! {
           space()                     { Vec::new() }
       }
 
-      rule generics() -> Vec<Ident> =
-        "<" l:(name_ws() ++ ",") ">" space() { l }
+      rule traits_sum() -> Vec<Path<()>> =
+        ":" v:(path_ws() ** "+") { v }
+
+
+      rule generic_decl() -> (Ident, Vec<Path<()>>) =
+        space() n:name() space() traits:traits_sum()? { (n, traits.unwrap_or(Vec::new())) }
+
+      rule generics() -> Vec<(Ident, Vec<Path<()>>)> =
+        "<" l:(generic_decl() ** ",") space() ">" space() { l }
 
       rule decl_fun() -> DeclFun =
           p:("pub" spaces())?

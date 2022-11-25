@@ -275,7 +275,9 @@ impl DataStruct {
 
 fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
     match *top_expr.content {
-        tr::ExprInner::PatternMatching(_, _, _) => todo!(),
+        tr::ExprInner::PatternMatching(_, _, _) | tr::ExprInner::TraitFun(_, _, _, _) => {
+            panic!("Case should be handled by previous passes")
+        }
 
         tr::ExprInner::Bloc(bloc) => llr::Expr {
             content: Box::new(llr::ExprInner::Bloc(rewrite_bloc(bloc, names_info))),

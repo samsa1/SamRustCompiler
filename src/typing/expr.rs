@@ -1,4 +1,4 @@
-use super::context::{self, LocalContext};
+use super::context::{self, LocalContext, TraitEL};
 use super::errors::TypeError;
 use super::types::*;
 use crate::ast::common::*;
@@ -48,19 +48,20 @@ fn get_binop_fun_name(
     typ1: &typed_rust::PostType,
     typ2: &typed_rust::PostType,
     loc: Location,
-) -> Result<PathUL<()>, Vec<TypeError>> {
-    let (name, fun_suffix) = binop.get_trait_name();
-    let name = String::from(name);
-    let trait_name = context::Trait::Parametrized(name, None);
+) -> Result<(PathUL<()>, String), Vec<TypeError>> {
+    let (trait_name, fun_suffix) = binop.get_trait_name();
+    let trait_name = PathUL::from_vec(vec!["std", "ops", trait_name]);
     if !are_compatible(typ1, typ2) {
         todo!()
     }
-    match ctxt.has_trait(typ1, &trait_name) {
-        None => Err(vec![TypeError::does_not_impl_trait(loc, typ1, trait_name)]),
-        Some(mut path) => {
-            path.push(NamePath::Name(fun_suffix.to_string()));
-            Ok(path)
-        }
+    match ctxt.has_trait(&trait_name, typ1) {
+        None => panic!("ICE"),
+        Some(false) => Err(vec![TypeError::does_not_impl_trait(
+            loc,
+            typ1.clone(),
+            trait_name,
+        )]),
+        Some(true) => Ok((trait_name, fun_suffix.to_string())),
     }
 }
 
@@ -69,82 +70,17 @@ fn get_unaop_fun_name(
     unaop: UnaOperator,
     typ1: &typed_rust::PostType,
     loc: Location,
-) -> Result<PathUL<()>, Vec<TypeError>> {
-    let (name, fun_suffix) = unaop.get_trait_name();
-    let name = String::from(name);
-    let trait_name = context::Trait::Name(name);
-    match ctxt.has_trait(typ1, &trait_name) {
-        None => Err(vec![TypeError::does_not_impl_trait(loc, typ1, trait_name)]),
-        Some(mut path) => {
-            path.push(NamePath::Name(fun_suffix.to_string()));
-            Ok(path)
-        }
-    }
-}
-
-enum IsTypeBinop {
-    BuiltIn(TypedBinop),
-    Land,
-    Lor,
-    NotBuiltIn,
-}
-
-fn to_typed_binop(binop: BinOperator, typ: &PostTypeInner) -> IsTypeBinop {
-    match typ {
-        PostTypeInner::BuiltIn(BuiltinType::Bool) => match binop {
-            BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(Sizes::S8)),
-            BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Eq(Sizes::S8)),
-
-            BinOperator::And => IsTypeBinop::Land,
-            BinOperator::Or => IsTypeBinop::Lor,
-
-            BinOperator::Lower => IsTypeBinop::BuiltIn(TypedBinop::Lower(false, Sizes::S8)),
-            BinOperator::LowerEq => IsTypeBinop::BuiltIn(TypedBinop::LowerEq(false, Sizes::S8)),
-            BinOperator::Greater => IsTypeBinop::BuiltIn(TypedBinop::Greater(false, Sizes::S8)),
-            BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(false, Sizes::S8)),
-
-            BinOperator::Set => panic!("ICE"),
-            _ => IsTypeBinop::NotBuiltIn,
-        },
-        PostTypeInner::BuiltIn(BuiltinType::Int(signed, size)) => match binop {
-            BinOperator::Add => IsTypeBinop::BuiltIn(TypedBinop::Add(*size)),
-            BinOperator::Sub => IsTypeBinop::BuiltIn(TypedBinop::Sub(*size)),
-            BinOperator::Mod => IsTypeBinop::BuiltIn(TypedBinop::Mod(*signed, *size)),
-            BinOperator::Mul => IsTypeBinop::BuiltIn(TypedBinop::Mul(*signed, *size)),
-            BinOperator::Div => IsTypeBinop::BuiltIn(TypedBinop::Div(*signed, *size)),
-
-            BinOperator::BitAnd => IsTypeBinop::BuiltIn(TypedBinop::And(*size)),
-            BinOperator::BitOr => IsTypeBinop::BuiltIn(TypedBinop::Or(*size)),
-
-            BinOperator::Shl => IsTypeBinop::BuiltIn(TypedBinop::Shl(*size)),
-            BinOperator::Shr => IsTypeBinop::BuiltIn(TypedBinop::Shr(*size)),
-
-            BinOperator::Eq => IsTypeBinop::BuiltIn(TypedBinop::Eq(*size)),
-            BinOperator::Ne => IsTypeBinop::BuiltIn(TypedBinop::Neq(*size)),
-
-            BinOperator::Lower => IsTypeBinop::BuiltIn(TypedBinop::Lower(*signed, *size)),
-            BinOperator::LowerEq => IsTypeBinop::BuiltIn(TypedBinop::LowerEq(*signed, *size)),
-            BinOperator::Greater => IsTypeBinop::BuiltIn(TypedBinop::Greater(*signed, *size)),
-            BinOperator::GreaterEq => IsTypeBinop::BuiltIn(TypedBinop::GreaterEq(*signed, *size)),
-
-            BinOperator::Set => panic!("ICE"),
-            _ => IsTypeBinop::NotBuiltIn,
-        },
-        _ => IsTypeBinop::NotBuiltIn,
-    }
-}
-
-fn to_typed_unaop(unaop: UnaOperator, typ: &PostTypeInner) -> Option<TypedUnaop> {
-    match typ {
-        PostTypeInner::BuiltIn(BuiltinType::Bool) => match unaop {
-            UnaOperator::Neg => None,
-            UnaOperator::Not => Some(TypedUnaop::Not(Sizes::S8)),
-        },
-        PostTypeInner::BuiltIn(BuiltinType::Int(_, size)) => match unaop {
-            UnaOperator::Neg => Some(TypedUnaop::Neg(*size)),
-            UnaOperator::Not => Some(TypedUnaop::Not(*size)),
-        },
-        _ => None,
+) -> Result<(PathUL<()>, String), Vec<TypeError>> {
+    let (trait_name, fun_suffix) = unaop.get_trait_name();
+    let trait_name = PathUL::from_vec(vec!["std", "ops", trait_name]);
+    match ctxt.has_trait(&trait_name, typ1) {
+        None => panic!("ICE"),
+        Some(false) => Err(vec![TypeError::does_not_impl_trait(
+            loc,
+            typ1.clone(),
+            trait_name,
+        )]),
+        Some(true) => Ok((trait_name, fun_suffix.to_string())),
     }
 }
 
@@ -419,7 +355,11 @@ pub fn type_checker(
                     false,
                     PostType {
                         content: PostTypeInner::Fun(
-                            fun_info.get_free().clone(),
+                            fun_info
+                                .get_free()
+                                .iter()
+                                .map(|(id, _)| id.clone())
+                                .collect(),
                             fun_info.get_args().clone(),
                             Box::new(fun_info.get_out().clone()),
                         ),
@@ -521,91 +461,51 @@ pub fn type_checker(
         rust::ExprInner::BinaryOp(binop, e1, e2) => {
             let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info)?.1;
             let e2 = type_checker(ctxt, e2, loc_ctxt, out, None, typing_info)?.1;
-            let fun_name_cleaned = get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed, e1.loc)?;
-            let fun_name = fun_name_cleaned.add_loc();
-            if let Some(fun_info) = ctxt.get_fun(&fun_name) {
-                let out_type = fun_info.get_out();
-                match to_typed_binop(binop, &e1.typed.content) {
-                    IsTypeBinop::Land => {
-                        let expr_false = typed_rust::Expr {
-                            content: Box::new(typed_rust::ExprInner::Bool(false)),
-                            loc: Location::default(),
-                            typed: typed_rust::PostType::bool(),
-                        };
-                        let bloc_false = typed_rust::Bloc {
-                            content: vec![typed_rust::Instr::Expr(ComputedValue::Keep, expr_false)],
-                            last_type: typed_rust::PostType::bool(),
-                        };
-                        let bloc_e2 = typed_rust::Bloc {
-                            content: vec![typed_rust::Instr::Expr(ComputedValue::Keep, e2)],
-                            last_type: typed_rust::PostType::bool(),
-                        };
-                        (
-                            false,
-                            out_type.clone(),
-                            typed_rust::ExprInner::If(e1, bloc_e2, bloc_false),
-                        )
-                    }
-                    IsTypeBinop::Lor => {
-                        let expr_true = typed_rust::Expr {
-                            content: Box::new(typed_rust::ExprInner::Bool(true)),
-                            loc: Location::default(),
-                            typed: typed_rust::PostType::bool(),
-                        };
-                        let bloc_true = typed_rust::Bloc {
-                            content: vec![typed_rust::Instr::Expr(ComputedValue::Keep, expr_true)],
-                            last_type: typed_rust::PostType::bool(),
-                        };
-                        let bloc_e2 = typed_rust::Bloc {
-                            content: vec![typed_rust::Instr::Expr(ComputedValue::Keep, e2)],
-                            last_type: typed_rust::PostType::bool(),
-                        };
-                        (
-                            false,
-                            out_type.clone(),
-                            typed_rust::ExprInner::If(e1, bloc_true, bloc_e2),
-                        )
-                    }
-                    IsTypeBinop::BuiltIn(bin) => (
+            let (trait_name, fun_name) =
+                get_binop_fun_name(ctxt, binop, &e1.typed, &e2.typed, e1.loc)?;
+            let trait_info = ctxt.get_trait(&trait_name).unwrap();
+            println!("{:?} {:?} {:?}", trait_name, trait_info, fun_name);
+            match trait_info.get_interface().get(&fun_name).unwrap() {
+                TraitEL::Fun(_, out) => {
+                    let mut hash_map = HashMap::new();
+                    hash_map.insert("Self".to_string(), e1.typed.clone());
+                    let out = substitute(out.clone(), &hash_map);
+                    (
                         false,
-                        out_type.clone(),
-                        typed_rust::ExprInner::BinOp(bin, e1, e2),
-                    ),
-                    IsTypeBinop::NotBuiltIn => (
-                        false,
-                        out_type.clone(),
-                        typed_rust::ExprInner::FunCallPath(
-                            Vec::new(),
-                            fun_name_cleaned,
+                        out,
+                        typed_rust::ExprInner::TraitFun(
+                            trait_name,
+                            e1.typed.clone(),
+                            fun_name,
                             vec![e1, e2],
                         ),
-                    ),
+                    )
                 }
-            } else {
-                panic!("should not happen {:?}", fun_name);
+                _ => panic!("ICE"),
             }
         }
 
         rust::ExprInner::UnaryOp(unaop, e1) => {
             let e1 = type_checker(ctxt, e1, loc_ctxt, out, None, typing_info)?.1;
-            let fun_name_cleaned = get_unaop_fun_name(ctxt, unaop, &e1.typed, e1.loc)?;
-            let fun_name = fun_name_cleaned.add_loc();
-            if let Some(fun_info) = ctxt.get_fun(&fun_name) {
-                let out_type = fun_info.get_out();
-                match to_typed_unaop(unaop, &e1.typed.content) {
-                    Some(una) => (
+            let (trait_name, fun_name) = get_unaop_fun_name(ctxt, unaop, &e1.typed, e1.loc)?;
+            let trait_info = ctxt.get_trait(&trait_name).unwrap();
+            match trait_info.get_interface().get(&fun_name).unwrap() {
+                TraitEL::Fun(_, out) => {
+                    let mut hash_map = HashMap::new();
+                    hash_map.insert("Self".to_string(), e1.typed.clone());
+                    let out = substitute(out.clone(), &hash_map);
+                    (
                         false,
-                        out_type.clone(),
-                        typed_rust::ExprInner::UnaOp(una, e1),
-                    ),
-                    None => (
-                        false,
-                        out_type.clone(),
-                        typed_rust::ExprInner::FunCallPath(Vec::new(), fun_name_cleaned, vec![e1]),
-                    ),
+                        out,
+                        typed_rust::ExprInner::TraitFun(
+                            trait_name,
+                            e1.typed.clone(),
+                            fun_name,
+                            vec![e1],
+                        ),
+                    )
                 }
-            } else {
-                panic!("should not happen {:?}", fun_name);
+                _ => panic!("ICE"),
             }
         }
 
@@ -657,8 +557,17 @@ pub fn type_checker(
             assert_eq!(specialisation.len(), freetypes.len());
             let mut hashmap = HashMap::new();
             let mut free_types_vec = Vec::new();
-            for (name, type_id) in freetypes.iter().zip(specialisation.into_iter()) {
+            for ((name, traits), type_id) in freetypes.iter().zip(specialisation.into_iter()) {
                 let typ = build_type(typing_info, type_id).unwrap();
+                for trait_name in traits {
+                    if !ctxt.has_trait(trait_name, &typ).unwrap() {
+                        return Err(vec![TypeError::does_not_impl_trait(
+                            expr.loc,
+                            typ,
+                            trait_name.clone(),
+                        )]);
+                    }
+                }
                 free_types_vec.push(typ.clone());
                 hashmap.insert(name.to_string(), typ);
             }

@@ -19,7 +19,11 @@ fn handle_fun(
     err_reporter: &ErrorReporter,
 ) -> tr::DeclFun {
     let fun_info = ctxt.get_fun(fun_path).unwrap();
-    let free = fun_info.get_free().clone();
+    let free = fun_info
+        .get_free()
+        .iter()
+        .map(|(id, _)| id.clone())
+        .collect();
     let args_typ = fun_info.get_args().clone();
     let out_type = fun_info.get_out().clone();
 
@@ -33,6 +37,19 @@ fn handle_fun(
         .iter()
         .map(|(id, b, typ)| (id.get_content().to_string(), *b, typ))
         .collect();
+
+    let mut used_traits = Vec::new();
+    for (id, traits) in fun_info.get_free().clone() {
+        for trait_path in traits {
+            match ctxt.impl_trait_free(&trait_path, id.clone()) {
+                Some(true) => (),
+                Some(false) => todo!(),
+                None => todo!(),
+            }
+            used_traits.push(trait_path)
+        }
+    }
+
     let (content, types) = match inferencer::type_funs(
         &fun_decl.name,
         ctxt,
@@ -58,6 +75,10 @@ fn handle_fun(
         Err(errs) => err_reporter.report(errs),
     };
     ctxt.update_dependancies(fun_path, local_ctxt.extract_fun());
+    for trait_path in used_traits {
+        ctxt.clean_trait_free(&trait_path).unwrap()
+    }
+
     tr::DeclFun {
         name: ctxt.get_path(fun_decl.name.get_content()),
         args: in_types,
@@ -78,9 +99,10 @@ pub fn add_fun_types(
         match decl {
             rr::Decl::Fun(fun_decl) => {
                 let mut frees = HashSet::new();
-                for id in &fun_decl.generics {
+                for (id, _) in &fun_decl.generics {
                     if !frees.insert(id.get_content().to_string()) {
-                        todo!()
+                        println!("Need to write error message 7");
+                        std::process::exit(1)
                     }
                 }
                 let args: Option<Vec<tr::PostType>> = fun_decl
@@ -96,18 +118,27 @@ pub fn add_fun_types(
                     Some(out) => out,
                     None => todo!(),
                 };
-                // let fun_typ = tr::PostType {
-                //     content: tr::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
-                // };
+                let mut free_types = Vec::new();
+                for (id, raw_traits) in &fun_decl.generics {
+                    let mut traits = Vec::new();
+                    for trait_path in raw_traits {
+                        let cleaned = trait_path.cleaned();
+                        if let Some(_) = ctxt.get_trait(&cleaned) {
+                            traits.push(cleaned);
+                        } else {
+                            println!("{:?}", cleaned);
+                            println!("Need to write error message 6");
+                            std::process::exit(1)
+                        }
+                    }
+                    free_types.push((id.get_content().to_string(), traits))
+                }
+
                 if ctxt
                     .impl_fun(
                         fun_decl.name.get_content().to_string(),
                         fun_decl.public,
-                        fun_decl
-                            .generics
-                            .iter()
-                            .map(|id| id.get_content().to_string())
-                            .collect(),
+                        free_types,
                         args,
                         output,
                     )

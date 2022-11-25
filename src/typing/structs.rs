@@ -1,8 +1,8 @@
-use super::context::{GlobalContext, ModuleInterface, Trait};
+use super::context::{GlobalContext, ModuleInterface};
 use super::types::{compute_size, translate_typ};
 use crate::ast::rust::{Decl, DeclEnum, DeclStruct};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
-use crate::ast::{common::*, rust, typed_rust};
+use crate::ast::{common::*, rust};
 use crate::frontend::Module;
 use std::collections::{HashMap, HashSet};
 
@@ -20,19 +20,11 @@ const DEFAULT_TYPES: [(&str, BuiltinType); 11] = [
     ("bool", BuiltinType::Bool),
 ];
 
-const DEFAULT_TRAITS_ARITH: [(&str, &str); 9] = [
-    ("Add", "add"),
-    ("Div", "div"),
-    ("Sub", "sub"),
-    ("Mul", "mul"),
-    ("Mod", "mod"),
-    ("BitAnd", "bit_and"),
-    ("BitOr", "bit_or"),
-    ("Shl", "shl"),
-    ("Shr", "shr"),
+const DEFAULT_TRAITS_ARITH: [&str; 9] = [
+    "Add", "Div", "Sub", "Mul", "Mod", "BitAnd", "BitOr", "Shl", "Shr",
 ];
 
-const DEFAULT_TRAITS_LOGIC: [(&str, &str); 2] = [("And", "and"), ("Or", "or")];
+const DEFAULT_TRAITS_LOGIC: [&str; 2] = ["And", "Or"];
 
 pub enum Sum<T1, T2> {
     Fst(T1),
@@ -253,72 +245,35 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
         let typ = PostType {
             content: PostTypeInner::BuiltIn(raw_type),
         };
-        let mut sub_modules = ModuleInterface::empty();
 
         if raw_type.is_bool() {
-            for (logic_trait, logic_fun) in DEFAULT_TRAITS_LOGIC {
-                sizes.impl_trait(&typ, Trait::Parametrized(logic_trait.to_string(), None));
-                sub_modules.impl_fun(
-                    logic_fun.to_string(),
-                    true,
-                    vec![],
-                    vec![typ.clone(), typ.clone()],
+            for logic_trait in DEFAULT_TRAITS_LOGIC {
+                sizes.impl_trait(
+                    &PathUL::from_vec(vec!["std", "ops", logic_trait]),
                     typ.clone(),
                 );
             }
-            sizes.impl_trait(&typ, Trait::Name("Not".to_string()));
-            sub_modules.impl_fun(
-                "not".to_string(),
-                true,
-                vec![],
-                vec![typ.clone()],
-                typ.clone(),
-            );
+            sizes.impl_trait(&PathUL::from_vec(vec!["std", "ops", "Not"]), typ.clone());
         }
 
         if raw_type.is_int() {
-            for (arith_trait, arith_fun) in DEFAULT_TRAITS_ARITH {
-                sizes.impl_trait(&typ, Trait::Parametrized(arith_trait.to_string(), None));
-                sub_modules.impl_fun(
-                    arith_fun.to_string(),
-                    true,
-                    vec![],
-                    vec![typ.clone(), typ.clone()],
+            for arith_trait in DEFAULT_TRAITS_ARITH {
+                sizes.impl_trait(
+                    &PathUL::from_vec(vec!["std", "ops", arith_trait]),
                     typ.clone(),
                 );
             }
-            sizes.impl_trait(&typ, Trait::Parametrized("PartialOrd".to_string(), None));
-            for tail in ["le", "lo", "gr", "ge"] {
-                sub_modules.impl_fun(
-                    tail.to_string(),
-                    true,
-                    vec![],
-                    vec![typ.clone(), typ.clone()],
-                    typed_rust::PostType::bool(),
-                );
-            }
-            sizes.impl_trait(&typ, Trait::Name("Neg".to_string()));
-            sub_modules.impl_fun(
-                "neg".to_string(),
-                true,
-                vec![],
-                vec![typ.clone()],
+            sizes.impl_trait(
+                &PathUL::from_vec(vec!["std", "ops", "PartialOrd"]),
                 typ.clone(),
             );
+            sizes.impl_trait(&PathUL::from_vec(vec!["std", "ops", "Neg"]), typ.clone());
         };
-        sizes.impl_trait(&typ, Trait::Name("Copy".to_string()));
-        sizes.impl_trait(&typ, Trait::Name("Clone".to_string()));
-        sizes.impl_trait(&typ, Trait::Parametrized("PartialEq".to_string(), None));
-        for tail in ["eq", "ne"] {
-            sub_modules.impl_fun(
-                tail.to_string(),
-                true,
-                vec![],
-                vec![typ.clone(), typ.clone()],
-                typed_rust::PostType::bool(),
-            );
-        }
-        sizes.insert(name.to_string(), true, sub_modules);
+        sizes.impl_trait(
+            &PathUL::from_vec(vec!["std", "ops", "PartialEq"]),
+            typ.clone(),
+        );
+        sizes.impl_trait(&PathUL::from_vec(vec!["std", "marker", "Copy"]), typ);
         set.insert(name.to_string());
     }
 

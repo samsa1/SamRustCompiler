@@ -165,6 +165,18 @@ fn rewrite_expr(top_expr: Expr, name1: &str, name2: &str) -> Expr {
             )),
             ..top_expr
         },
+        ExprInner::TraitFun(path, typ, fun_name, exprs) => Expr {
+            content: Box::new(ExprInner::TraitFun(
+                path.rewrite_base(name1, name2),
+                rewrite_type(typ, name1, name2),
+                fun_name,
+                exprs
+                    .into_iter()
+                    .map(|expr| rewrite_expr(expr, name1, name2))
+                    .collect(),
+            )),
+            ..top_expr
+        },
     }
 }
 

@@ -139,6 +139,7 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
                 (val1, val2) => panic!("Not handled {:?} {:?} {:?}", bin, val1, val2),
             }
         }
+        tr::ExprInner::TraitFun(_, _, _, _) => todo!(),
         tr::ExprInner::Bloc(_) => todo!(),
         tr::ExprInner::Bool(b) => Val::Bool(b),
         tr::ExprInner::Int(i) => match expr.typed.content {
@@ -268,6 +269,7 @@ pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> Mod
             Ok(e) => e,
             Err(errs) => err_reporter.report(errs),
         };
+        let expr = crate::passes::to_builtin_ops::rewrite_expr(expr);
         let value = compute_const(expr, &ctxt);
         ctxt.add_const(
             const_decl.name.get_content().to_string(),

@@ -1,4 +1,3 @@
-use super::context::Trait;
 use crate::ast::common::{ErrorReporter, Ident, Location, Path, PathUL, Sizes};
 use crate::ast::rust::Types;
 use crate::ast::typed_rust::{PostType, PostTypeInner};
@@ -26,7 +25,7 @@ enum TypeErrorInfo {
     ExpectedSigned,
     ExpectedUnsigned,
     IncompatibleSizes(Sizes, Sizes),
-    DoesNotImpTrait(PostType, Trait),
+    DoesNotImpTrait(PostType, PathUL<()>),
     OutOfBoundTuple(usize, usize),
     WrongMutability(bool, bool),
     SelfRefConst(String),
@@ -281,10 +280,10 @@ impl TypeError {
         }
     }
 
-    pub fn does_not_impl_trait(loc: Location, typ: &PostType, trait_name: Trait) -> Self {
+    pub fn does_not_impl_trait(loc: Location, typ: PostType, trait_name: PathUL<()>) -> Self {
         Self {
             loc,
-            info: TypeErrorInfo::DoesNotImpTrait(typ.clone(), trait_name),
+            info: TypeErrorInfo::DoesNotImpTrait(typ, trait_name),
         }
     }
 

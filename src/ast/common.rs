@@ -201,6 +201,24 @@ impl<T> PathUL<T, String> {
         true
     }
 
+    pub fn is_op(&self) -> Option<&str> {
+        if self.name.len() != 3 {
+            return None;
+        }
+        match &self.name[0] {
+            NamePath::Name(id) if id == "std" => (),
+            _ => return None,
+        }
+        match &self.name[1] {
+            NamePath::Name(id) if id == "ops" => (),
+            _ => return None,
+        }
+        match &self.name[2] {
+            NamePath::Name(id) => Some(id),
+            _ => None,
+        }
+    }
+
     pub fn rewrite_base(mut self, name1: &str, name2: &str) -> Self {
         match &self.name[0] {
             NamePath::Name(name) if name == name1 => {

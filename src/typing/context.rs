@@ -3,39 +3,77 @@ use crate::ast::common::{Ident, Location, NamePath, Path, PathUL, TypedUnaop};
 use crate::ast::typed_rust::{Expr, ExprInner, PostType, PostTypeInner};
 use crate::frontend::Module;
 use std::collections::{HashMap, HashSet};
-use std::hash::Hash;
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-struct TraitInner {
-    content: Trait,
+#[derive(Clone, Debug)]
+pub enum TraitEL {
+    Fun(Vec<PostType>, PostType),
+    Const(PostType),
 }
 
-impl TraitInner {
-    pub fn implements(&self, t: &Trait) -> bool {
-        self.content.implements(t)
-    }
+#[derive(Clone, Debug)]
+pub struct TraitInterface {
+    elements: HashMap<String, (bool, TraitEL)>,
 }
 
-#[derive(Debug, PartialEq, Eq, Hash, Clone)]
-pub enum Trait {
-    Name(String),
-    Parametrized(String, Option<PostType>),
-}
-
-impl Trait {
-    pub fn implements(&self, t: &Self) -> bool {
-        match (self, t) {
-            (Self::Name(s), Self::Name(t)) => s == t,
-            (Self::Parametrized(s, None), Self::Parametrized(t, _)) => s == t,
-            (Self::Parametrized(s, Some(s1)), Self::Parametrized(t, Some(s2))) => {
-                s == t && super::types::are_compatible(s1, s2)
-            }
-            _ => false,
+impl TraitInterface {
+    pub fn new(elements: Vec<(String, TraitEL)>) -> Self {
+        Self {
+            elements: elements
+                .into_iter()
+                .map(|(s, el)| (s, (false, el)))
+                .collect(),
         }
     }
 
-    pub fn clone_trait() -> Self {
-        Self::Name("Clone".to_string())
+    pub fn get(&self, name: &str) -> Option<&TraitEL> {
+        self.elements.get(name).map(|(_, el)| el)
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct TraitInfo {
+    interface: TraitInterface,
+    implemented: HashMap<PostType, usize>,
+    free_types: HashSet<String>,
+}
+
+impl TraitInfo {
+    pub fn new(interface: TraitInterface) -> Self {
+        Self {
+            interface,
+            implemented: HashMap::new(),
+            free_types: HashSet::new(),
+        }
+    }
+
+    pub fn get_interface(&self) -> &TraitInterface {
+        &self.interface
+    }
+
+    pub fn impl_for(&mut self, typ: PostType) -> Option<usize> {
+        if self.implemented.contains_key(&typ) {
+            self.implemented.get(&typ).map(|i| *i)
+        } else {
+            let id = self.implemented.len();
+            assert!(self.implemented.insert(typ, id).is_none());
+            Some(id)
+        }
+    }
+
+    // true iff was not already implemented
+    pub fn impl_for_free(&mut self, name: String) -> bool {
+        self.free_types.insert(name)
+    }
+
+    pub fn clean_free_impl(&mut self) {
+        self.free_types = HashSet::new();
+    }
+
+    fn implemented_for(&self, typ: &PostType) -> bool {
+        match &typ.content {
+            PostTypeInner::FreeType(str) => self.free_types.contains(str),
+            _ => self.implemented.contains_key(typ),
+        }
     }
 }
 
@@ -259,7 +297,7 @@ impl Const {
 #[derive(Clone, Debug)]
 pub struct FunInfo {
     is_pub: bool,
-    free_types: Vec<String>,
+    free_types: Vec<(String, Vec<PathUL<()>>)>,
     args: Vec<PostType>,
     out_type: PostType,
     dependancies: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
@@ -267,7 +305,12 @@ pub struct FunInfo {
 }
 
 impl FunInfo {
-    fn new(is_pub: bool, free_types: Vec<String>, args: Vec<PostType>, out_type: PostType) -> Self {
+    fn new(
+        is_pub: bool,
+        free_types: Vec<(String, Vec<PathUL<()>>)>,
+        args: Vec<PostType>,
+        out_type: PostType,
+    ) -> Self {
         Self {
             is_pub,
             free_types,
@@ -283,11 +326,11 @@ impl FunInfo {
         self.is_pub
     }
 
-    pub fn get_typ(&self) -> (&Vec<String>, &Vec<PostType>, &PostType) {
+    pub fn get_typ(&self) -> (&Vec<(String, Vec<PathUL<()>>)>, &Vec<PostType>, &PostType) {
         (&self.free_types, &self.args, &self.out_type)
     }
 
-    pub fn get_free(&self) -> &Vec<String> {
+    pub fn get_free(&self) -> &Vec<(String, Vec<PathUL<()>>)> {
         &self.free_types
     }
 
@@ -385,7 +428,8 @@ impl std::fmt::Debug for ModuleInterface {
 pub struct ModuleInterface {
     pub structs: HashMap<String, StructInfo>,
     pub enums: HashMap<String, EnumInfo>,
-    implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
+    pub traits: HashMap<String, TraitInfo>,
+    //    implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, PathUL<()>>>,
     functions: HashMap<String, FunInfo>,
     pub submodules: HashMap<String, (bool, ModuleInterface)>,
@@ -403,7 +447,7 @@ impl ModuleInterface {
         Self {
             structs: HashMap::new(),
             enums: HashMap::new(),
-            implemented_traits: HashMap::new(),
+            traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
             submodules,
@@ -438,36 +482,21 @@ impl ModuleInterface {
         vec_mod.impl_fun(
             "new".to_string(),
             true,
-            vec!["T".to_string()],
+            vec![("T".to_string(), Vec::new())],
             vec![],
             vec_type,
         );
-        // let fun_typ = PostType {
-        //     content: PostTypeInner::Fun(
-        //         vec!["T".to_string()],
-        //         vec![ref_vec_type],
-        //         Box::new(PostType::usize()),
-        //     ),
-        // };
         vec_mod.impl_fun(
             "len".to_string(),
             true,
-            vec!["T".to_string()],
+            vec![("T".to_string(), Vec::new())],
             vec![ref_vec_type],
             PostType::usize(),
         );
-
-        // let fun_typ = PostType {
-        //     content: PostTypeInner::Fun(
-        //         vec!["T".to_string()],
-        //         vec![mut_ref_vec_type, free_type],
-        //         Box::new(PostType::unit()),
-        //     ),
-        // };
         vec_mod.impl_fun(
             "push".to_string(),
             true,
-            vec!["T".to_string()],
+            vec![("T".to_string(), Vec::new())],
             vec![mut_ref_vec_type, free_type],
             PostType::unit(),
         );
@@ -485,13 +514,206 @@ impl ModuleInterface {
             PathUL::from_vec(vec!["Vec", "push"]),
         );
 
+        let mut ops_mod = ModuleInterface::empty();
+        let elements = vec![(
+            "not".to_string(),
+            TraitEL::Fun(vec![PostType::free("Self")], PostType::bool()),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Not".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "neg".to_string(),
+            TraitEL::Fun(vec![PostType::free("Self")], PostType::free("Self")),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Neg".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "add".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Add".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "sub".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Sub".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "mul".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Mul".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "mod".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Mod".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "div".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Div".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "shl".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Shl".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "shr".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Shr".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "bit_and".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("BitAnd".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "bit_or".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("BitOr".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "and".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("And".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![(
+            "or".to_string(),
+            TraitEL::Fun(
+                vec![PostType::free("Self"), PostType::free("Self")],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("Or".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![
+            (
+                "eq".to_string(),
+                TraitEL::Fun(
+                    vec![PostType::free("Self"), PostType::free("Self")],
+                    PostType::bool(),
+                ),
+            ),
+            (
+                "ne".to_string(),
+                TraitEL::Fun(
+                    vec![PostType::free("Self"), PostType::free("Self")],
+                    PostType::bool(),
+                ),
+            ),
+        ];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("PartialEq".to_string(), TraitInfo::new(interface));
+
+        let elements = vec![
+            (
+                "gr".to_string(),
+                TraitEL::Fun(
+                    vec![PostType::free("Self"), PostType::free("Self")],
+                    PostType::bool(),
+                ),
+            ),
+            (
+                "ge".to_string(),
+                TraitEL::Fun(
+                    vec![PostType::free("Self"), PostType::free("Self")],
+                    PostType::bool(),
+                ),
+            ),
+            (
+                "lo".to_string(),
+                TraitEL::Fun(
+                    vec![PostType::free("Self"), PostType::free("Self")],
+                    PostType::bool(),
+                ),
+            ),
+            (
+                "le".to_string(),
+                TraitEL::Fun(
+                    vec![PostType::free("Self"), PostType::free("Self")],
+                    PostType::bool(),
+                ),
+            ),
+        ];
+        let interface = TraitInterface::new(elements);
+        ops_mod.new_trait("PartialOrd".to_string(), TraitInfo::new(interface));
+
+        let mut marker_mod = ModuleInterface::empty();
+        let elements = vec![(
+            "copy".to_string(),
+            TraitEL::Fun(
+                vec![PostType {
+                    content: PostTypeInner::Ref(false, Box::new(PostType::free("Self"))),
+                }],
+                PostType::free("Self"),
+            ),
+        )];
+        let interface = TraitInterface::new(elements);
+        marker_mod.new_trait("Copy".to_string(), TraitInfo::new(interface));
+
         let mut std_mod = ModuleInterface::empty();
         std_mod.insert("vec".to_string(), true, vec_upper_mod);
+        std_mod.insert("ops".to_string(), true, ops_mod);
+        std_mod.insert("marker".to_string(), true, marker_mod);
+
         submodules.insert("std".to_string(), (true, std_mod));
         Self {
             structs: HashMap::new(),
             enums: HashMap::new(),
-            implemented_traits: HashMap::new(),
+            traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
             submodules,
@@ -504,7 +726,7 @@ impl ModuleInterface {
         Self {
             structs: HashMap::new(),
             enums: HashMap::new(),
-            implemented_traits: HashMap::new(),
+            traits: HashMap::new(),
             methods: HashMap::new(),
             functions: HashMap::new(),
             submodules: HashMap::new(),
@@ -530,7 +752,7 @@ impl ModuleInterface {
                 .into_iter()
                 .map(|(n, si)| (n, si.change_crate_to(id)))
                 .collect(),
-            implemented_traits: HashMap::new(),
+            traits: HashMap::new(),
             methods: self
                 .methods
                 .into_iter()
@@ -621,26 +843,63 @@ impl ModuleInterface {
         self.get_enum_inner(path.get_content(), 0, take_last)
     }
 
-    fn get_traits_inner(
+    fn get_trait_inner(
         &self,
         path: &Vec<NamePath<(), String>>,
         pos: usize,
-        maxi: usize,
-        typ: &PostType,
-    ) -> Option<(bool, &HashSet<TraitInner>)> {
-        if pos == maxi {
-            self.implemented_traits.get(typ).map(|el| (true, el))
+    ) -> Option<(bool, &TraitInfo)> {
+        if pos == path.len() - 1 {
+            match &path[pos] {
+                NamePath::Name(name) => self.traits.get(name).map(|fun_info| (true, fun_info)),
+                NamePath::Specialisation(_) => None,
+            }
         } else {
             match &path[pos] {
                 NamePath::Name(name) => match self.submodules.get(name) {
                     None => None,
-                    Some((b, sb)) => sb
-                        .get_traits_inner(path, pos + 1, maxi, typ)
-                        .map(|(b2, i)| (b2 && *b, i)),
+                    Some((b1, sb)) => sb
+                        .get_trait_inner(path, pos + 1)
+                        .map(|(b2, fun_info)| (b2 && *b1, fun_info)),
                 },
-                _ => None,
+                _ => todo!(),
             }
         }
+    }
+
+    pub fn get_trait(&self, path: &PathUL<()>) -> Option<(bool, &TraitInfo)> {
+        self.get_trait_inner(path.get_content(), 0)
+    }
+
+    fn get_mut_trait_inner(
+        &mut self,
+        path: &Vec<NamePath<(), String>>,
+        pos: usize,
+    ) -> Option<(bool, &mut TraitInfo)> {
+        if pos == path.len() - 1 {
+            match &path[pos] {
+                NamePath::Name(name) => self.traits.get_mut(name).map(|fun_info| (true, fun_info)),
+                NamePath::Specialisation(_) => None,
+            }
+        } else {
+            match &path[pos] {
+                NamePath::Name(name) => match self.submodules.get_mut(name) {
+                    None => None,
+                    Some((b1, sb)) => sb
+                        .get_mut_trait_inner(path, pos + 1)
+                        .map(|(b2, fun_info)| (b2 && *b1, fun_info)),
+                },
+                _ => todo!(),
+            }
+        }
+    }
+
+    pub fn get_mut_trait(&mut self, path: &PathUL<()>) -> Option<(bool, &mut TraitInfo)> {
+        self.get_mut_trait_inner(path.get_content(), 0)
+    }
+
+    pub fn impl_trait(&mut self, path: &PathUL<()>, typ: PostType) -> Option<Option<usize>> {
+        self.get_mut_trait(path)
+            .map(|(_, trait_info)| trait_info.impl_for(typ))
     }
 
     fn get_fun_inner(
@@ -925,15 +1184,8 @@ impl ModuleInterface {
         self.insert_enum_inner(path.get_content(), 0, EnumInfo::new(size, is_pub, rows))
     }
 
-    pub fn impl_trait(&mut self, typ: &PostType, t: Trait) -> bool {
-        match self.implemented_traits.get_mut(typ) {
-            None => {
-                let mut set = HashSet::new();
-                set.insert(TraitInner { content: t });
-                self.implemented_traits.insert(typ.clone(), set).is_none()
-            }
-            Some(set) => set.insert(TraitInner { content: t }),
-        }
+    pub fn new_trait(&mut self, name: String, trait_info: TraitInfo) -> Option<TraitInfo> {
+        self.traits.insert(name, trait_info)
     }
 
     pub fn impl_method(
@@ -957,7 +1209,7 @@ impl ModuleInterface {
         &mut self,
         fun_name: String,
         public: bool,
-        free_types: Vec<String>,
+        free_types: Vec<(String, Vec<PathUL<()>>)>,
         args_types: Vec<PostType>,
         out_type: PostType,
     ) -> Option<FunInfo> {
@@ -992,41 +1244,31 @@ impl GlobalContext {
         self.modules
     }
 
-    pub fn has_trait(&self, typ: &PostType, t: &Trait) -> Option<PathUL<()>> {
-        match &typ.content {
-            PostTypeInner::Struct(path, _) => {
-                let typ = match &path.get_content()[path.get_content().len() - 1] {
-                    NamePath::Name(s) => PostType {
-                        content: PostTypeInner::Struct(
-                            PathUL::new(vec![NamePath::Name(s.clone())]),
-                            Vec::new(),
-                        ),
-                    },
-                    _ => todo!(),
-                };
-                let (_, trait_set) = self.modules.get_traits_inner(
-                    path.get_content(),
-                    0,
-                    path.get_content().len() - 1,
-                    &typ,
-                )?;
-                for traits in trait_set {
-                    if traits.implements(t) {
-                        return Some(path.clone());
-                    }
-                }
-                None
-            }
-            PostTypeInner::BuiltIn(bi) => {
-                let (_, trait_set) = self.modules.get_traits_inner(&Vec::new(), 0, 0, typ)?;
-                for traits in trait_set {
-                    if traits.implements(t) {
-                        return Some(PathUL::from_vec(vec![bi.to_str()]));
-                    }
-                }
-                None
-            }
-            _ => None,
+    pub fn has_trait(&self, trait_name: &PathUL<()>, typ: &PostType) -> Option<bool> {
+        match self.modules.get_trait(trait_name) {
+            Some((_, trait_info)) => Some(trait_info.implemented_for(typ)),
+            None => None,
+        }
+    }
+
+    pub fn get_trait(&self, trait_name: &PathUL<()>) -> Option<&TraitInfo> {
+        match self.modules.get_trait(trait_name) {
+            Some((_, trait_info)) => Some(trait_info),
+            None => None,
+        }
+    }
+
+    pub fn impl_trait_free(&mut self, trait_path: &PathUL<()>, name: String) -> Option<bool> {
+        match self.modules.get_mut_trait(trait_path) {
+            Some((_, trait_info)) => Some(trait_info.impl_for_free(name)),
+            None => None,
+        }
+    }
+
+    pub fn clean_trait_free(&mut self, trait_path: &PathUL<()>) -> Option<()> {
+        match self.modules.get_mut_trait(trait_path) {
+            Some((_, trait_info)) => Some(trait_info.clean_free_impl()),
+            None => None,
         }
     }
 
@@ -1040,7 +1282,7 @@ impl GlobalContext {
         &mut self,
         fun_name: String,
         public: bool,
-        free_types: Vec<String>,
+        free_types: Vec<(String, Vec<PathUL<()>>)>,
         args_types: Vec<PostType>,
         out_type: PostType,
     ) -> Option<FunInfo> {
@@ -1055,7 +1297,7 @@ impl GlobalContext {
         fun_path: PathUL<()>,
         fun_name: String,
         public: bool,
-        free_types: Vec<String>,
+        free_types: Vec<(String, Vec<PathUL<()>>)>,
         args_types: Vec<PostType>,
         out_type: PostType,
     ) -> Option<FunInfo> {

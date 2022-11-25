@@ -49,7 +49,7 @@ The reason is that currently the compiler does not use the information from the 
 
 ### Other Missing features
 
-- Parametrized types
+- Parametrized types for types
 - We assume everything is public
 - The `String` type
 - Incremental compilation
@@ -69,9 +69,10 @@ Handled features include :
 - Name spaces and submodules (every thing is public)
 - Classes
 - Implementations and methods
-- Limited pattern matching (typing finished, backend under development)
+- Limited pattern matching (nested pattern and guards not handled)
 - Custom allocator written in rust (heap of 8k bytes that is never freed, allocator interface is not type-checked)
 - A backend that works for Linux and MacOS x86_64 (other backend are not developed due to a lack of hardware).
+- Generics for functions (with traits : see [tests/exec/generic_arith.rs](https://github.com/samsa1/SamRustCompiler/blob/main/tests/exec/generic_arith.rs))
 
 ## Usage :
 
@@ -89,7 +90,6 @@ You should use `make clean` to clean the `std_file.rs` inside the compiler and f
 
 - More complex pattern matching
 - Floating point arithmetic
-- Functions parametrized by types
 - Parametrized types
 - New backends and directly producing binary
 - More complex printing
