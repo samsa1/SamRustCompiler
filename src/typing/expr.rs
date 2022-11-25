@@ -56,7 +56,11 @@ fn get_binop_fun_name(
     }
     match ctxt.has_trait(&trait_name, typ1) {
         None => panic!("ICE"),
-        Some(false) => Err(vec![TypeError::does_not_impl_trait(loc, typ1, trait_name)]),
+        Some(false) => Err(vec![TypeError::does_not_impl_trait(
+            loc,
+            typ1.clone(),
+            trait_name,
+        )]),
         Some(true) => Ok((trait_name, fun_suffix.to_string())),
     }
 }
@@ -71,7 +75,11 @@ fn get_unaop_fun_name(
     let trait_name = PathUL::from_vec(vec!["std", "ops", trait_name]);
     match ctxt.has_trait(&trait_name, typ1) {
         None => panic!("ICE"),
-        Some(false) => Err(vec![TypeError::does_not_impl_trait(loc, typ1, trait_name)]),
+        Some(false) => Err(vec![TypeError::does_not_impl_trait(
+            loc,
+            typ1.clone(),
+            trait_name,
+        )]),
         Some(true) => Ok((trait_name, fun_suffix.to_string())),
     }
 }
@@ -347,7 +355,11 @@ pub fn type_checker(
                     false,
                     PostType {
                         content: PostTypeInner::Fun(
-                            fun_info.get_free().clone(),
+                            fun_info
+                                .get_free()
+                                .iter()
+                                .map(|(id, _)| id.clone())
+                                .collect(),
                             fun_info.get_args().clone(),
                             Box::new(fun_info.get_out().clone()),
                         ),
@@ -545,8 +557,17 @@ pub fn type_checker(
             assert_eq!(specialisation.len(), freetypes.len());
             let mut hashmap = HashMap::new();
             let mut free_types_vec = Vec::new();
-            for (name, type_id) in freetypes.iter().zip(specialisation.into_iter()) {
+            for ((name, traits), type_id) in freetypes.iter().zip(specialisation.into_iter()) {
                 let typ = build_type(typing_info, type_id).unwrap();
+                for trait_name in traits {
+                    if !ctxt.has_trait(trait_name, &typ).unwrap() {
+                        return Err(vec![TypeError::does_not_impl_trait(
+                            expr.loc,
+                            typ,
+                            trait_name.clone(),
+                        )]);
+                    }
+                }
                 free_types_vec.push(typ.clone());
                 hashmap.insert(name.to_string(), typ);
             }

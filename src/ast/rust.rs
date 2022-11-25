@@ -46,7 +46,7 @@ pub struct DeclFun {
     pub name: common::Ident,
     pub self_arg: Option<Option<bool>>,
     pub args: Vec<(common::Ident, bool, PreType)>,
-    pub generics: Vec<common::Ident>,
+    pub generics: Vec<(common::Ident, Vec<common::Path<()>>)>,
     pub output: PreType,
     pub content: Bloc,
     pub id_counter: common::IdCounter,

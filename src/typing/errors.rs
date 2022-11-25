@@ -280,10 +280,10 @@ impl TypeError {
         }
     }
 
-    pub fn does_not_impl_trait(loc: Location, typ: &PostType, trait_name: PathUL<()>) -> Self {
+    pub fn does_not_impl_trait(loc: Location, typ: PostType, trait_name: PathUL<()>) -> Self {
         Self {
             loc,
-            info: TypeErrorInfo::DoesNotImpTrait(typ.clone(), trait_name),
+            info: TypeErrorInfo::DoesNotImpTrait(typ, trait_name),
         }
     }
 

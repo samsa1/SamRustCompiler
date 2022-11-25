@@ -869,7 +869,7 @@ fn type_expr(
                         if args.len() == exprs.len() {
                             let mut free_types = HashMap::new();
                             let mut vec_types = Vec::new();
-                            for name in free.iter() {
+                            for (name, _) in free.iter() {
                                 let type_id = types.insert_type(Types::unknown());
                                 vec_types.push(type_id);
                                 free_types.insert(name.clone(), type_id);
@@ -953,7 +953,7 @@ fn type_expr(
                     if args.len() == exprs.len() {
                         let mut free_types = HashMap::new();
                         let mut vec_types = Vec::new();
-                        for name in free.iter() {
+                        for (name, _) in free.iter() {
                             let type_id = types.insert_type(Types::unknown());
                             vec_types.push(type_id);
                             free_types.insert(name.clone(), type_id);
@@ -1219,7 +1219,7 @@ fn type_expr(
                     assert_eq!(frees.len(), params.len());
                     let params = params.clone();
                     let mut free_types = HashMap::new();
-                    for (name, id) in frees.iter().zip(params.iter()) {
+                    for ((name, _), id) in frees.iter().zip(params.iter()) {
                         assert!(free_types.insert(name.to_string(), *id).is_none());
                     }
                     let mut args = args.iter();
@@ -1554,7 +1554,7 @@ fn type_expr(
                     (Some(fun_info), None) => {
                         let (free, args, out_type) = fun_info.get_typ();
                         let mut free_types2 = HashMap::new();
-                        for name in free.iter() {
+                        for (name, _) in free.iter() {
                             free_types2
                                 .insert(name.to_string(), types.insert_type(Types::unknown()));
                         }

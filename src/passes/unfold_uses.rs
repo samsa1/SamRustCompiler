@@ -307,6 +307,19 @@ fn rewrite_bloc(
 fn rewrite_decl(decl: Decl, map: &mut HashMap<String, Path<()>>, path: &Path<()>) -> Decl {
     match decl {
         Decl::Fun(decl_fun) => Decl::Fun(DeclFun {
+            generics: decl_fun
+                .generics
+                .into_iter()
+                .map(|(id, traits)| {
+                    (
+                        id,
+                        traits
+                            .into_iter()
+                            .map(|path| translate_path(path, map))
+                            .collect(),
+                    )
+                })
+                .collect(),
             content: rewrite_bloc(
                 decl_fun.content,
                 &mut LocalContext::from_args(&decl_fun.args),
@@ -318,7 +331,10 @@ fn rewrite_decl(decl: Decl, map: &mut HashMap<String, Path<()>>, path: &Path<()>
                 .map(|(id, b, typ)| (id, b, translate_type(typ, map)))
                 .collect(),
             output: translate_type(decl_fun.output, map),
-            ..decl_fun
+            public: decl_fun.public,
+            name: decl_fun.name,
+            self_arg: decl_fun.self_arg,
+            id_counter: decl_fun.id_counter,
         }),
         Decl::Enum(decl_enum) => Decl::Enum(DeclEnum {
             args: decl_enum
@@ -397,6 +413,14 @@ fn contains(map: &HashMap<String, Path<()>>, path: &Path<()>) -> bool {
 fn rewrite_file(file: File, path: &Path<()>) -> File {
     let mut map = HashMap::new();
     map.insert("Vec".to_string(), Path::from_vec(vec!["std", "vec", "Vec"]));
+    map.insert(
+        "PartialEq".to_string(),
+        Path::from_vec(vec!["std", "ops", "PartialEq"]),
+    );
+    map.insert(
+        "Copy".to_string(),
+        Path::from_vec(vec!["std", "marker", "Copy"]),
+    );
 
     for open_decl in file.dep.into_iter() {
         match open_decl {

@@ -31,7 +31,7 @@ fn rewrite_modint(mut modint: ModuleInterface) -> ModuleInterface {
         let infos = modint.get_fun(&path.add_loc()).unwrap().1;
         let mut hash_map = HashMap::new();
         assert_eq!(types.len(), infos.get_free().len());
-        for (name, typ) in infos.get_free().iter().zip(types.into_iter()) {
+        for ((name, _), typ) in infos.get_free().iter().zip(types.into_iter()) {
             assert!(hash_map.insert(name.to_string(), typ).is_none())
         }
         for (path, set) in infos.get_dependancies().clone() {

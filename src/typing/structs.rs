@@ -269,7 +269,11 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
             );
             sizes.impl_trait(&PathUL::from_vec(vec!["std", "ops", "Neg"]), typ.clone());
         };
-        sizes.impl_trait(&PathUL::from_vec(vec!["std", "ops", "PartialEq"]), typ);
+        sizes.impl_trait(
+            &PathUL::from_vec(vec!["std", "ops", "PartialEq"]),
+            typ.clone(),
+        );
+        sizes.impl_trait(&PathUL::from_vec(vec!["std", "marker", "Copy"]), typ);
         set.insert(name.to_string());
     }
 
