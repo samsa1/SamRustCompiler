@@ -230,6 +230,7 @@ fn rewrite_expr(expr: Expr, context: &ModuleInterface) -> Expr {
         ExprInner::While(expr, bloc) => {
             ExprInner::While(rewrite_expr(expr, context), rewrite_bloc(bloc, context))
         }
+        ExprInner::TraitFun(_, _, _, _) => panic!("Should be handled before hand"),
     };
     Expr {
         content: Box::new(expr_inner),

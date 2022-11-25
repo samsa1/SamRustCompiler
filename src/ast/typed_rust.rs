@@ -60,6 +60,12 @@ impl PostType {
         }
     }
 
+    pub fn free(f: &str) -> Self {
+        Self {
+            content: PostTypeInner::FreeType(f.to_string()),
+        }
+    }
+
     pub const fn i32() -> Self {
         Self {
             content: PostTypeInner::BuiltIn(common::BuiltinType::Int(true, common::Sizes::S32)),
@@ -196,6 +202,7 @@ pub enum ExprInner {
     Return(Option<Expr>),
     Set(Expr, Expr),
     String(String),
+    TraitFun(common::PathUL<()>, PostType, String, Vec<Expr>),
     // usize is a padding at the end padding
     Tuple(Vec<Expr>, usize),
     UnaOp(common::TypedUnaop, Expr),

@@ -192,6 +192,15 @@ fn rewrite_expr(
             rewrite_expr(expr, hashmap, modint),
             rewrite_bloc(bloc, hashmap, modint),
         ),
+        ExprInner::TraitFun(trait_path, typ, fun_name, exprs) => ExprInner::TraitFun(
+            trait_path.clone(),
+            rewrite_type(typ, hashmap, modint),
+            fun_name.clone(),
+            exprs
+                .iter()
+                .map(|expr| rewrite_expr(expr, hashmap, modint))
+                .collect(),
+        ),
     };
     Expr {
         content: Box::new(content),

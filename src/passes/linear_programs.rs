@@ -17,6 +17,7 @@ fn is_ref(
         | ExprInner::Constructor(_, _)
         | ExprInner::FunCall(_, _)
         | ExprInner::FunCallPath(_, _, _)
+        | ExprInner::TraitFun(_, _, _, _)
         | ExprInner::If(_, _, _)
         | ExprInner::Coercion(_, _, _)
         | ExprInner::PatternMatching(_, _, _)
@@ -195,6 +196,8 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
                 ..top_expr
             }
         }
+
+        ExprInner::TraitFun(_, _, _, _) => panic!("Should have already been handled"),
 
         ExprInner::BinOp(binop, expr1, expr2) => Expr {
             content: Box::new(ExprInner::BinOp(

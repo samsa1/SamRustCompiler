@@ -1,9 +1,9 @@
  -- rustc -O
-        6.25 real         6.03 user         0.04 sys
+        6.15 real         5.98 user         0.00 sys
  -- rustc
-       16.30 real        15.93 user         0.10 sys
+       15.86 real        15.69 user         0.01 sys
  -- SamRustCompiler
-       23.22 real        22.75 user         0.15 sys
+       22.78 real        22.22 user         0.01 sys
 
 Nb lines
     1417 tests/benchmarks/fibo_rec.s
