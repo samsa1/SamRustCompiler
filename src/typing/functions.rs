@@ -57,7 +57,7 @@ fn handle_fun(
         Ok(out) => out,
         Err(errs) => err_reporter.report(errs),
     };
-    ctxt.update_specialisation(fun_path, local_ctxt.extract_fun());
+    ctxt.update_dependancies(fun_path, local_ctxt.extract_fun());
     tr::DeclFun {
         name: ctxt.get_path(fun_decl.name.get_content()),
         args: in_types,
@@ -260,7 +260,7 @@ fn translate_funs(
             tr::File {
                 name: module.content.name,
                 funs,
-                structs: Vec::new(),
+                //                structs: Vec::new(),
             },
             submodules,
         ),

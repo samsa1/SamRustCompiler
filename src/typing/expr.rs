@@ -471,12 +471,14 @@ pub fn type_checker(
                 if PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize))
                     == e2.typed.content
                 {
+                    loc_ctxt.insert_fun(index_function.clone(), vec![return_type.clone()]);
                     let is_mut_ref = e1.typed.is_mut_ref();
                     (
                         affectable || is_mut_ref,
                         return_type.clone(),
                         typed_rust::ExprInner::Deref(typed_rust::Expr {
                             content: Box::new(typed_rust::ExprInner::FunCallPath(
+                                vec![return_type.clone()],
                                 index_function,
                                 vec![e1, e2],
                             )),
@@ -572,7 +574,11 @@ pub fn type_checker(
                     IsTypeBinop::NotBuiltIn => (
                         false,
                         out_type.clone(),
-                        typed_rust::ExprInner::FunCallPath(fun_name_cleaned, vec![e1, e2]),
+                        typed_rust::ExprInner::FunCallPath(
+                            Vec::new(),
+                            fun_name_cleaned,
+                            vec![e1, e2],
+                        ),
                     ),
                 }
             } else {
@@ -595,7 +601,7 @@ pub fn type_checker(
                     None => (
                         false,
                         out_type.clone(),
-                        typed_rust::ExprInner::FunCallPath(fun_name_cleaned, vec![e1]),
+                        typed_rust::ExprInner::FunCallPath(Vec::new(), fun_name_cleaned, vec![e1]),
                     ),
                 }
             } else {
@@ -656,7 +662,7 @@ pub fn type_checker(
                 free_types_vec.push(typ.clone());
                 hashmap.insert(name.to_string(), typ);
             }
-            loc_ctxt.insert_fun(path.cleaned(), free_types_vec);
+            loc_ctxt.insert_fun(path.cleaned(), free_types_vec.clone());
 
             let mut args2 = Vec::new();
             for (expr, arg) in args.into_iter().zip(args_typ.iter()) {
@@ -672,7 +678,7 @@ pub fn type_checker(
             (
                 false,
                 output,
-                typed_rust::ExprInner::FunCallPath(path.cleaned(), args2),
+                typed_rust::ExprInner::FunCallPath(free_types_vec, path.cleaned(), args2),
             )
         }
 

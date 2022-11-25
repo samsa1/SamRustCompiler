@@ -487,7 +487,7 @@ impl UnaOperator {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone)]
 pub struct IdCounter {
     id: usize,
 }

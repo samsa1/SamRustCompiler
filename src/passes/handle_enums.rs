@@ -59,7 +59,8 @@ fn rewrite_expr(expr: Expr, context: &ModuleInterface) -> Expr {
                 .map(|expr| rewrite_expr(expr, context))
                 .collect(),
         ),
-        ExprInner::FunCallPath(path, exprs) => ExprInner::FunCallPath(
+        ExprInner::FunCallPath(specialisation, path, exprs) => ExprInner::FunCallPath(
+            specialisation,
             path,
             exprs
                 .into_iter()

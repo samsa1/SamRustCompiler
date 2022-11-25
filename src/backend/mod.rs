@@ -1113,10 +1113,14 @@ fn to_asm(
     }
 }
 
-pub fn compile(file: llr::File, strings: HashMap<String, String>) -> file::File {
+pub fn compile(
+    file: llr::File,
+    strings: HashMap<String, String>,
+    vec_info: crate::to_llr::VecInfo,
+) -> file::File {
     let mut ctxt = context::Context::new();
     let file = to_asm(file, strings, &mut ctxt);
-    let base = base::base(&ctxt);
+    let base = base::base(&mut ctxt, vec_info);
     if file.globl.is_some() {
         panic!("ICE {:?} {:?}", base.globl, file.globl);
     }

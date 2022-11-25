@@ -5,7 +5,7 @@ use std::collections::HashMap;
 pub struct File {
     pub name: String,
     pub funs: Vec<DeclFun>,
-    pub structs: Vec<DeclStruct>,
+    //    pub structs: Vec<DeclStruct>,
 }
 
 impl File {
@@ -13,7 +13,7 @@ impl File {
         Self {
             name: String::new(),
             funs: Vec::new(),
-            structs: Vec::new(),
+            //            structs: Vec::new(),
         }
     }
 }
@@ -185,7 +185,7 @@ pub enum ExprInner {
     Constructor(common::PathUL<()>, Vec<Expr>),
     Deref(Expr),
     FunCall(common::Ident, Vec<Expr>),
-    FunCallPath(common::PathUL<()>, Vec<Expr>),
+    FunCallPath(Vec<PostType>, common::PathUL<()>, Vec<Expr>),
     Int(u64),
     If(Expr, Bloc, Bloc),
     PatternMatching(Expr, Vec<Pattern>, Option<(bool, common::Ident, Bloc)>),

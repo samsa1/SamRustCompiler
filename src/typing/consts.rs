@@ -160,7 +160,7 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
         tr::ExprInner::Constructor(_, _) => todo!(),
         tr::ExprInner::Deref(_) => todo!(),
         tr::ExprInner::FunCall(_, _) => todo!(),
-        tr::ExprInner::FunCallPath(_, _) => todo!(),
+        tr::ExprInner::FunCallPath(_, _, _) => todo!(),
         tr::ExprInner::PatternMatching(_, _, _) => todo!(),
         tr::ExprInner::If(_, _, _) => todo!(),
         tr::ExprInner::Print(_) | tr::ExprInner::PrintPtr(_) => panic!("ICE"),

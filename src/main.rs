@@ -66,15 +66,11 @@ fn main() {
 
     println!("<- check lifetime (TODO) ");
 
-    let checked_lifetime = typed_file;
+    let code = typed_file;
 
     if type_only {
         std::process::exit(0)
     }
-
-    let code = passes::handle_enums::rewrite(checked_lifetime, &code_modint);
-    // Make code linear
-    let code = passes::linear_programs::rewrite(code);
 
     // Compiling std
     let std = std_file::stdlib().unwrap();
@@ -84,8 +80,8 @@ fn main() {
     let std = passes::move_refs::rewrite(std);
     let (std_modint, std) =
         typing::type_inferencer(std, false, ast::common::PathUL::from_vec(vec!["crate"]));
-    let std = passes::handle_enums::rewrite(std, &std_modint);
-    let std = passes::linear_programs::rewrite(std);
+    println!("<- check lifetime (TODO) for std");
+
     let std = passes::change_crate_name::rewrite(std, "crate", "std");
 
     // Fusionning the code and the std in a single huge module
@@ -100,12 +96,18 @@ fn main() {
     modint.insert("std".to_string(), true, std_modint);
     modint.insert("crate".to_string(), true, code_modint);
 
+    let (code, modint) = passes::handle_generics::rewrite(code, modint);
+
+    let code = passes::handle_enums::rewrite(code, &modint);
+    // Make code linear
+    let code = passes::linear_programs::rewrite(code);
+
     // Transform the typed modules to a single llr File
-    let (llr_form, strings) = to_llr::rewrite(code, modint, "file".to_string());
+    let (llr_form, strings, vec_info) = to_llr::rewrite(code, modint, "file".to_string());
     let llr_form = passes::concat_all::rewrite(llr_form);
 
     // Compile to asm
-    let asm = backend::compile(llr_form, strings);
+    let asm = backend::compile(llr_form, strings, vec_info);
 
     // Printing asm
     let mut out_name = std::path::PathBuf::from(in_name);

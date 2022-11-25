@@ -5,6 +5,13 @@ use crate::frontend::Module;
 use crate::typing::context::ModuleInterface;
 use std::collections::HashMap;
 
+pub struct VecInfo {
+    pub new: HashMap<usize, usize>,
+    pub push: HashMap<usize, usize>,
+    pub len: HashMap<usize, usize>,
+    pub get: HashMap<usize, usize>,
+}
+
 #[derive(Debug, Clone)]
 struct StructInfo {
     size: usize,
@@ -325,7 +332,8 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             }
         }
 
-        tr::ExprInner::FunCallPath(id, args) => {
+        tr::ExprInner::FunCallPath(spec, id, args) => {
+            assert!(spec.is_empty());
             let args: Vec<llr::Expr> = args
                 .into_iter()
                 .map(|e| rewrite_expr(e, names_info))
@@ -341,7 +349,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
                         NamePath::Name(n3),
                         NamePath::Name(n4),
                     ) => {
-                        if n1 == "std" && n2 == "vec" && n3 == "Vec" {
+                        if n1 == "std" && n2 == "vec" && n3 == "Vec" && false {
                             if n4 == "push" && args.len() == 2 {
                                 args.into_iter().rev().collect()
                             } else if n4 == "new" && args.is_empty() {
@@ -615,8 +623,70 @@ pub fn rewrite(
     module: Module<tr::File>,
     modint: ModuleInterface,
     string_extend: String,
-) -> (Module<llr::File>, HashMap<String, String>) {
+) -> (Module<llr::File>, HashMap<String, String>, VecInfo) {
+    let vec_new = modint
+        .get_fun(&crate::ast::common::Path::from_vec(vec![
+            "std", "vec", "Vec", "new",
+        ]))
+        .unwrap()
+        .1
+        .clone();
+    let vec_push = modint
+        .get_fun(&crate::ast::common::Path::from_vec(vec![
+            "std", "vec", "Vec", "push",
+        ]))
+        .unwrap()
+        .1
+        .clone();
+    let vec_get = modint
+        .get_fun(&crate::ast::common::Path::from_vec(vec![
+            "std", "vec", "Vec", "get",
+        ]))
+        .unwrap()
+        .1
+        .clone();
+    let vec_len = modint
+        .get_fun(&crate::ast::common::Path::from_vec(vec![
+            "std", "vec", "Vec", "len",
+        ]))
+        .unwrap()
+        .1
+        .clone();
     let mut data_struct = DataStruct::new(modint, string_extend);
+    let mut new = HashMap::new();
+    for (vec, i) in vec_new.get_ids() {
+        assert_eq!(vec.len(), 1);
+        let size = data_struct.compute_size(&vec[0]);
+        new.insert(*i, size);
+    }
+    let mut push = HashMap::new();
+    for (vec, i) in vec_push.get_ids() {
+        assert_eq!(vec.len(), 1);
+        let size = data_struct.compute_size(&vec[0]);
+        push.insert(*i, size);
+    }
+    let mut get = HashMap::new();
+    for (vec, i) in vec_get.get_ids() {
+        assert_eq!(vec.len(), 1);
+        let size = data_struct.compute_size(&vec[0]);
+        get.insert(*i, size);
+    }
+    let mut len = HashMap::new();
+    for (vec, i) in vec_len.get_ids() {
+        assert_eq!(vec.len(), 1);
+        let size = data_struct.compute_size(&vec[0]);
+        len.insert(*i, size);
+    }
+
     let out = rewrite_rec(module, &mut data_struct);
-    (out, data_struct.export_strings())
+    (
+        out,
+        data_struct.export_strings(),
+        VecInfo {
+            new,
+            push,
+            get,
+            len,
+        },
+    )
 }

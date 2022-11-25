@@ -4,6 +4,7 @@ pub mod move_refs;
 pub mod unfold_uses;
 
 pub mod handle_enums;
+pub mod handle_generics;
 pub mod linear_programs;
 
 pub mod change_crate_name;

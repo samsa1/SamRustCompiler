@@ -93,6 +93,25 @@ impl StructInfo {
     pub fn args(self) -> HashMap<String, (bool, PostType)> {
         self.hashmap
     }
+
+    pub fn change_crate_to(self, id: &str) -> Self {
+        Self {
+            hashmap: self
+                .hashmap
+                .into_iter()
+                .map(|(n, (b, typ))| {
+                    (
+                        n,
+                        (
+                            b,
+                            crate::passes::change_crate_name::rewrite_type(typ, "crate", id),
+                        ),
+                    )
+                })
+                .collect(),
+            ..self
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct EnumInfo {
@@ -156,9 +175,31 @@ impl EnumInfo {
         self.size
     }
 
-    // pub fn args(self) -> HashMap<String, (bool, Vec<PostType>, u64, usize)> {
-    //     self.hashmap
-    // }
+    pub fn change_crate_to(self, id: &str) -> Self {
+        Self {
+            hashmap: self
+                .hashmap
+                .into_iter()
+                .map(|(n, (b, vec_typ, i1, i2))| {
+                    (
+                        n,
+                        (
+                            b,
+                            vec_typ
+                                .into_iter()
+                                .map(|typ| {
+                                    crate::passes::change_crate_name::rewrite_type(typ, "crate", id)
+                                })
+                                .collect(),
+                            i1,
+                            i2,
+                        ),
+                    )
+                })
+                .collect(),
+            ..self
+        }
+    }
 }
 #[derive(Debug)]
 pub struct Const {
@@ -221,7 +262,7 @@ pub struct FunInfo {
     free_types: Vec<String>,
     args: Vec<PostType>,
     out_type: PostType,
-    specialisations: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
+    dependancies: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
     specialised: HashMap<Vec<PostType>, usize>,
 }
 
@@ -232,7 +273,7 @@ impl FunInfo {
             free_types,
             args,
             out_type,
-            specialisations: HashMap::new(),
+            dependancies: HashMap::new(),
             specialised: HashMap::new(),
         }
     }
@@ -258,24 +299,78 @@ impl FunInfo {
         &self.out_type
     }
 
-    pub fn set_specialisation(
-        &mut self,
-        specialisations: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
-    ) {
-        assert!(self.specialisations.is_empty());
-        self.specialisations = specialisations
+    pub fn get_dependancies(&self) -> &HashMap<PathUL<()>, HashSet<Vec<PostType>>> {
+        &self.dependancies
     }
 
-    pub fn get_id(&mut self, args: Vec<PostType>) -> (bool, usize) {
-        match self.specialised.get(&args) {
-            Some(id) => (false, *id),
+    pub fn set_dependancies(&mut self, dependancies: HashMap<PathUL<()>, HashSet<Vec<PostType>>>) {
+        assert!(self.dependancies.is_empty());
+        self.dependancies = dependancies
+    }
+
+    pub fn add_version(&mut self, args: &Vec<PostType>) -> bool {
+        match self.specialised.get(args) {
+            Some(_) => false,
             None => {
                 let v = self.specialised.len();
-                self.specialised.insert(args, v);
-                (self.specialisations.is_empty(), v)
+                self.specialised.insert(args.clone(), v);
+                true
+                //                self.dependancies.is_empty()
             }
         }
     }
+
+    pub fn get_ids(&self) -> &HashMap<Vec<PostType>, usize> {
+        &self.specialised
+    }
+
+    pub fn get_id(&self, args: &Vec<PostType>) -> Option<&usize> {
+        self.specialised.get(args)
+    }
+
+    pub fn change_crate_to(self, id: &str) -> Self {
+        assert!(self.specialised.is_empty());
+        Self {
+            is_pub: self.is_pub,
+            free_types: self.free_types,
+            args: self
+                .args
+                .into_iter()
+                .map(|typ| crate::passes::change_crate_name::rewrite_type(typ, "crate", id))
+                .collect(),
+            out_type: crate::passes::change_crate_name::rewrite_type(self.out_type, "crate", id),
+            dependancies: self
+                .dependancies
+                .into_iter()
+                .map(|(path, set)| {
+                    (
+                        path.rewrite_base("crate", id),
+                        change_hashset_crate_to(set, id),
+                    )
+                })
+                .collect(),
+            specialised: HashMap::new(),
+        }
+    }
+}
+
+fn change_hashset_crate_to(set: HashSet<Vec<PostType>>, id: &str) -> HashSet<Vec<PostType>> {
+    set.into_iter()
+        .map(|vec| {
+            vec.into_iter()
+                .map(|typ| crate::passes::change_crate_name::rewrite_type(typ, "crate", id))
+                .collect()
+        })
+        .collect()
+}
+
+fn change_hashmap_crate_to(
+    hm: HashMap<String, PathUL<()>>,
+    id: &str,
+) -> HashMap<String, PathUL<()>> {
+    hm.into_iter()
+        .map(|(n, path)| (n, path.rewrite_base("crate", id)))
+        .collect()
 }
 
 impl std::fmt::Debug for ModuleInterface {
@@ -425,11 +520,27 @@ impl ModuleInterface {
         }
 
         Self {
-            structs: self.structs,
-            enums: self.enums,
+            structs: self
+                .structs
+                .into_iter()
+                .map(|(n, si)| (n, si.change_crate_to(id)))
+                .collect(),
+            enums: self
+                .enums
+                .into_iter()
+                .map(|(n, si)| (n, si.change_crate_to(id)))
+                .collect(),
             implemented_traits: HashMap::new(),
-            methods: HashMap::new(),
-            functions: HashMap::new(),
+            methods: self
+                .methods
+                .into_iter()
+                .map(|(n, hm)| (n, change_hashmap_crate_to(hm, id)))
+                .collect(),
+            functions: self
+                .functions
+                .into_iter()
+                .map(|(n, si)| (n, si.change_crate_to(id)))
+                .collect(),
             submodules,
             sizes: self.sizes,
             constants: HashMap::new(),
@@ -437,7 +548,12 @@ impl ModuleInterface {
     }
 
     pub fn extract(mut self, id: &str) -> Self {
-        self.submodules.remove("crate").unwrap().1.extract_inner(id)
+        let sub = self.submodules.remove("crate").unwrap().1;
+        if id != "crate" {
+            sub.extract_inner(id)
+        } else {
+            sub
+        }
     }
 
     fn get_struct_inner(
@@ -953,15 +1069,15 @@ impl GlobalContext {
             .impl_fun(fun_name, public, free_types, args_types, out_type)
     }
 
-    pub fn update_specialisation(
+    pub fn update_dependancies(
         &mut self,
         path: &Path<()>,
-        specialisations: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
+        dependancies: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
     ) {
         self.modules
             .get_mut_fun(path)
             .unwrap()
-            .set_specialisation(specialisations)
+            .set_dependancies(dependancies)
     }
 
     pub fn get_struct(&self, name: &str) -> Option<&StructInfo> {
