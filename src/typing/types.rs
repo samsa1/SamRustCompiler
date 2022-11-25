@@ -2,21 +2,17 @@ use super::context::{GlobalContext, ModuleInterface};
 use crate::ast::common::{BuiltinType, NamePath, PathUL, Sizes};
 use crate::ast::rust::{PreType, PreTypeInner};
 use crate::ast::typed_rust::{PostType, PostTypeInner};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-pub fn compute_size(
-    typ: &PreType,
-    sizes: &ModuleInterface,
-    path: &mut PathUL<(), String>,
-) -> usize {
+pub fn compute_size(typ: &PreType, ctxt: &ModuleInterface, path: &mut PathUL<(), String>) -> usize {
     match &typ.content {
         PreTypeInner::Fun(_args, _out) => todo!(),
         PreTypeInner::Ident(id) => {
             path.push(NamePath::Name(id.get_content().to_string()));
-            match sizes.get_size(path) {
+            match ctxt.get_size(path) {
                 None => {
                     path.pop();
-                    match sizes.get_size(&PathUL::from_vec(vec![id.get_content()])) {
+                    match ctxt.get_size(&PathUL::from_vec(vec![id.get_content()])) {
                         None => {
                             println!("{:?}", id);
                             todo!()
@@ -30,7 +26,7 @@ pub fn compute_size(
                 }
             }
         }
-        PreTypeInner::IdentPath(path) => match sizes.get_size(&path.cleaned()) {
+        PreTypeInner::IdentPath(path) => match ctxt.get_size(&path.cleaned()) {
             None => todo!(),
             Some(size) => *size,
         },
@@ -44,25 +40,32 @@ pub fn compute_size(
         PreTypeInner::Tuple(elements) => {
             let mut total_size = 0;
             for el in elements.iter() {
-                total_size += compute_size(el, sizes, path);
+                total_size += compute_size(el, ctxt, path);
             }
             total_size
         }
     }
 }
 
-pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
+pub fn translate_typ(
+    typ: PreType,
+    ctxt: &GlobalContext,
+    frees: &HashSet<String>,
+) -> Option<PostType> {
     match typ.content {
         PreTypeInner::Fun(args, out) => {
             let mut args2 = Vec::new();
             for args in args.into_iter() {
-                args2.push(translate_typ(args, sizes)?)
+                args2.push(translate_typ(args, ctxt, frees)?)
             }
-            let out = translate_typ(*out, sizes)?;
+            let out = translate_typ(*out, ctxt, frees)?;
             Some(PostType {
                 content: PostTypeInner::Fun(vec![], args2, Box::new(out)),
             })
         }
+        PreTypeInner::Ident(id) if frees.contains(id.get_content()) => Some(PostType {
+            content: PostTypeInner::FreeType(id.content()),
+        }),
         PreTypeInner::Ident(id) => match id.get_content() {
             "bool" => Some(PostType {
                 content: PostTypeInner::BuiltIn(BuiltinType::Bool),
@@ -98,25 +101,25 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
                 content: PostTypeInner::BuiltIn(BuiltinType::Int(false, Sizes::SUsize)),
             }),
             _ => match (
-                sizes.get_struct(id.get_content()),
-                sizes.get_enum_name(id.get_content()),
+                ctxt.get_struct(id.get_content()),
+                ctxt.get_enum_name(id.get_content()),
             ) {
                 (None, None) => {
                     println!("{:?}", id);
                     todo!()
                 }
                 (Some(_), None) => Some(PostType {
-                    content: PostTypeInner::Struct(sizes.get_path(id.get_content()), Vec::new()),
+                    content: PostTypeInner::Struct(ctxt.get_path(id.get_content()), Vec::new()),
                 }),
                 (None, Some(_)) => Some(PostType {
-                    content: PostTypeInner::Enum(sizes.get_path(id.get_content()), Vec::new()),
+                    content: PostTypeInner::Enum(ctxt.get_path(id.get_content()), Vec::new()),
                 }),
                 (Some(_), Some(_)) => todo!(),
             },
         },
         PreTypeInner::IdentPath(path) => {
             let path = path.cleaned();
-            match (sizes.get_struct_path(&path), sizes.get_enum(&path)) {
+            match (ctxt.get_struct_path(&path), ctxt.get_enum(&path)) {
                 (None, None) => todo!(),
                 (Some(_), None) => Some(PostType {
                     content: PostTypeInner::Struct(path, Vec::new()),
@@ -131,10 +134,10 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
         PreTypeInner::IdentParametrizedPath(path, args) => {
             let args: Option<_> = args
                 .into_iter()
-                .map(|typ| translate_typ(typ, sizes))
+                .map(|typ| translate_typ(typ, ctxt, frees))
                 .collect();
             let path = path.cleaned();
-            match (sizes.get_struct_path(&path), sizes.get_enum(&path)) {
+            match (ctxt.get_struct_path(&path), ctxt.get_enum(&path)) {
                 (None, None) => todo!(),
                 (Some(_), None) => Some(PostType {
                     content: PostTypeInner::Struct(path, args?),
@@ -150,12 +153,12 @@ pub fn translate_typ(typ: PreType, sizes: &GlobalContext) -> Option<PostType> {
             todo!()
         }
 
-        PreTypeInner::Ref(mutable, typ) => Some(translate_typ(*typ, sizes)?.to_ref(mutable)),
+        PreTypeInner::Ref(mutable, typ) => Some(translate_typ(*typ, ctxt, frees)?.to_ref(mutable)),
 
         PreTypeInner::Tuple(elements) => {
             let mut elements2 = Vec::new();
             for el in elements.into_iter() {
-                let el = translate_typ(el, sizes)?;
+                let el = translate_typ(el, ctxt, frees)?;
                 elements2.push(el);
             }
             Some(PostType {
@@ -169,6 +172,7 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
     match (&expected.content, &got.content) {
         (_, PostTypeInner::Diverge) => true,
         (PostTypeInner::BuiltIn(b1), PostTypeInner::BuiltIn(b2)) => b1 == b2,
+        (_, PostTypeInner::BuiltIn(_)) | (PostTypeInner::BuiltIn(_), _) => false,
         (PostTypeInner::Box(box1), PostTypeInner::Box(box2)) => are_compatible(&**box1, &**box2),
         (PostTypeInner::Ref(mut1, box1), PostTypeInner::Ref(mut2, box2)) => {
             (*mut2 || !*mut1) && are_compatible(&**box1, &**box2)
@@ -193,9 +197,7 @@ pub fn are_compatible(expected: &PostType, got: &PostType) -> bool {
                 false
             }
         }
-        (PostTypeInner::FreeType(id1), PostTypeInner::FreeType(id2)) if id1 == id2 => {
-            panic!("Weird")
-        }
+        (PostTypeInner::FreeType(id1), PostTypeInner::FreeType(id2)) if id1 == id2 => true,
         (PostTypeInner::Fun(free1, args1, out1), PostTypeInner::Fun(free2, args2, out2))
             if free1.is_empty() && free2.is_empty() =>
         {

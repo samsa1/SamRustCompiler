@@ -1,5 +1,5 @@
 use super::common::{self, PathUL};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 
 pub struct File {
@@ -46,6 +46,7 @@ pub struct DeclFun {
     pub name: common::Ident,
     pub self_arg: Option<Option<bool>>,
     pub args: Vec<(common::Ident, bool, PreType)>,
+    pub generics: Vec<common::Ident>,
     pub output: PreType,
     pub content: Bloc,
     pub id_counter: common::IdCounter,
@@ -67,6 +68,7 @@ pub struct DeclImpl {
 
 #[derive(Debug, Clone)]
 pub enum Types {
+    Free(String),
     Array(usize, Option<usize>),
     Bool,
     Int(Option<bool>, Option<common::Sizes>),
@@ -131,6 +133,7 @@ impl Display for Types {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
         match self {
             Self::Bool => write!(f, "bool"),
+            Self::Free(name) => write!(f, "free {}", name),
             Self::Fun(args, _) => write!(f, "fn [{}] -> _", args.len()),
             Self::Int(None, None) => write!(f, "{{integer}}"),
             Self::Int(Some(true), None) => write!(f, "{{signed integer}}"),
@@ -170,22 +173,26 @@ impl Display for Types {
 
 #[derive(Debug)]
 pub struct TypeStorage {
+    free_names: HashSet<String>,
     count: usize,
     map: HashMap<usize, Types>,
 }
 
-impl Default for TypeStorage {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl TypeStorage {
-    pub fn new() -> Self {
+    pub fn new(free: &Vec<String>) -> Self {
+        let mut free_names = HashSet::new();
+        for name in free {
+            assert!(free_names.insert(name.clone()));
+        }
         Self {
+            free_names,
             count: 0,
             map: HashMap::new(),
         }
+    }
+
+    pub fn get_frees(&self) -> &HashSet<String> {
+        &self.free_names
     }
 
     pub fn insert_unit(&mut self) -> usize {
@@ -228,7 +235,9 @@ impl TypeStorage {
 
     pub fn new_ref_unmarked(&mut self, type_id: usize) -> usize {
         match self.map.get(&type_id).unwrap() {
-            Types::Bool | Types::Unknown | Types::Int(_, _) | Types::Fun(_, _) => type_id,
+            Types::Bool | Types::Unknown | Types::Int(_, _) | Types::Fun(_, _) | Types::Free(_) => {
+                type_id
+            }
             Types::SameAs(type_id) => self.new_ref_unmarked(*type_id),
             Types::Array(type_id, size) => {
                 let size = *size;

@@ -3,8 +3,10 @@ use crate::frontend::Module;
 
 fn rewrite_rec(module: &mut Module<File>, funs: &mut Vec<DeclFun>) {
     funs.append(&mut module.content.funs);
-    for (_, (_, module)) in module.submodules.iter_mut() {
-        rewrite_rec(module, funs)
+    for (name, (_, module)) in module.submodules.iter_mut() {
+        if name != "Vec" {
+            rewrite_rec(module, funs)
+        }
     }
 }
 

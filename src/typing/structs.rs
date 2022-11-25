@@ -261,26 +261,18 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                 sub_modules.impl_fun(
                     logic_fun.to_string(),
                     true,
-                    typed_rust::PostType {
-                        content: typed_rust::PostTypeInner::Fun(
-                            vec![],
-                            vec![typ.clone(), typ.clone()],
-                            Box::new(typ.clone()),
-                        ),
-                    },
+                    vec![],
+                    vec![typ.clone(), typ.clone()],
+                    typ.clone(),
                 );
             }
             sizes.impl_trait(&typ, Trait::Name("Not".to_string()));
             sub_modules.impl_fun(
                 "not".to_string(),
                 true,
-                typed_rust::PostType {
-                    content: typed_rust::PostTypeInner::Fun(
-                        vec![],
-                        vec![typ.clone()],
-                        Box::new(typ.clone()),
-                    ),
-                },
+                vec![],
+                vec![typ.clone()],
+                typ.clone(),
             );
         }
 
@@ -290,13 +282,9 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                 sub_modules.impl_fun(
                     arith_fun.to_string(),
                     true,
-                    typed_rust::PostType {
-                        content: typed_rust::PostTypeInner::Fun(
-                            vec![],
-                            vec![typ.clone(), typ.clone()],
-                            Box::new(typ.clone()),
-                        ),
-                    },
+                    vec![],
+                    vec![typ.clone(), typ.clone()],
+                    typ.clone(),
                 );
             }
             sizes.impl_trait(&typ, Trait::Parametrized("PartialOrd".to_string(), None));
@@ -304,26 +292,18 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                 sub_modules.impl_fun(
                     tail.to_string(),
                     true,
-                    typed_rust::PostType {
-                        content: typed_rust::PostTypeInner::Fun(
-                            vec![],
-                            vec![typ.clone(), typ.clone()],
-                            Box::new(typed_rust::PostType::bool()),
-                        ),
-                    },
+                    vec![],
+                    vec![typ.clone(), typ.clone()],
+                    typed_rust::PostType::bool(),
                 );
             }
             sizes.impl_trait(&typ, Trait::Name("Neg".to_string()));
             sub_modules.impl_fun(
                 "neg".to_string(),
                 true,
-                typed_rust::PostType {
-                    content: typed_rust::PostTypeInner::Fun(
-                        vec![],
-                        vec![typ.clone()],
-                        Box::new(typ.clone()),
-                    ),
-                },
+                vec![],
+                vec![typ.clone()],
+                typ.clone(),
             );
         };
         sizes.impl_trait(&typ, Trait::Name("Copy".to_string()));
@@ -333,13 +313,9 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
             sub_modules.impl_fun(
                 tail.to_string(),
                 true,
-                typed_rust::PostType {
-                    content: typed_rust::PostTypeInner::Fun(
-                        vec![],
-                        vec![typ.clone(), typ.clone()],
-                        Box::new(typed_rust::PostType::bool()),
-                    ),
-                },
+                vec![],
+                vec![typ.clone(), typ.clone()],
+                typed_rust::PostType::bool(),
             );
         }
         sizes.insert(name.to_string(), true, sub_modules);
@@ -418,7 +394,7 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                 let ctxt = GlobalContext::new(path2, sizes);
                 let mut args = HashMap::new();
                 for (name, typ) in struct_decl.args.into_iter() {
-                    let typ = translate_typ(typ, &ctxt);
+                    let typ = translate_typ(typ, &ctxt, &HashSet::new());
                     if args.contains_key(name.get_content()) {
                         println!("Type {} was declared multiple times", name.content());
                         std::process::exit(1)
@@ -463,7 +439,7 @@ pub fn type_structs(modules: &mut Module<rust::File>) -> ModuleInterface {
                         std::process::exit(1)
                     }
                     for typ in types {
-                        let typ = translate_typ(typ, &ctxt);
+                        let typ = translate_typ(typ, &ctxt, &HashSet::new());
                         match typ {
                             None => todo!(),
                             Some(typ) => row.push(typ),

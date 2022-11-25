@@ -159,7 +159,7 @@ fn check_coherence(
     match type_2 {
         None => Ok(()),
         Some(typ) => {
-            if let Some(pt) = translate_typ(typ, g_ctxt) {
+            if let Some(pt) = translate_typ(typ, g_ctxt, types.get_frees()) {
                 forces_to(
                     types,
                     type_id,
@@ -424,10 +424,21 @@ fn make_coherent(
             typ2.clone(),
         )]),
 
-        (t1, t2) => {
-            println!("not implemented for {t1:?} {t2:?}");
-            todo!()
-        }
+        (Types::Free(s1), Types::Free(s2)) if s1 == s2 => Ok(type_id1),
+        (Types::Free(_), _) | (_, Types::Free(_)) => Err(vec![TypeError::not_compatible(
+            loc,
+            typ1.clone(),
+            typ2.clone(),
+        )]),
+
+        (Types::Array(_, _), Types::Array(_, _)) => todo!(),
+
+        (Types::Array(_, _), _) | (_, Types::Array(_, _)) => Err(vec![TypeError::not_compatible(
+            loc,
+            typ1.clone(),
+            typ2.clone(),
+        )]),
+        (Types::Deref(_), Types::Deref(_)) => todo!(),
     }
 }
 
@@ -497,7 +508,10 @@ fn add_type(
                 .collect();
             types.insert_type(Types::Tuple(type_vec))
         }
-        PostTypeInner::FreeType(name) => *free_types.get(name).unwrap(),
+        PostTypeInner::FreeType(name) => match free_types.get(name) {
+            Some(i) => *i,
+            None => types.insert_type(Types::Free(name.to_string())),
+        },
     }
 }
 
@@ -849,57 +863,51 @@ fn type_expr(
             assert!(args.is_empty());
             match local_ctxt.get_typ(&name) {
                 None => {
-                    if let Some(typ) = ctxt.get_top_fun(name.get_content()) {
-                        match &typ.content {
-                            PostTypeInner::Fun(free, args, out) if args.len() == exprs.len() => {
-                                let mut free_types = HashMap::new();
-                                let mut vec_types = Vec::new();
-                                for name in free.iter() {
-                                    let type_id = types.insert_type(Types::unknown());
-                                    vec_types.push(type_id);
-                                    free_types.insert(name.clone(), type_id);
-                                }
-                                let mut exprs_out = Vec::new();
-                                for (expr, typ) in exprs.into_iter().zip(args.iter()) {
-                                    let expr =
-                                        type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                                    forces_to(
-                                        types,
-                                        expr.typed,
-                                        typ,
-                                        expr.loc,
-                                        &free_types,
-                                        UnificationMethod::StrictSnd,
-                                    )?;
-                                    exprs_out.push(expr)
-                                }
-                                let type_id = add_type(types, out, &free_types);
-                                check_coherence(
-                                    types,
-                                    type_id,
-                                    top_expr.typed,
-                                    top_expr.loc,
-                                    ctxt,
-                                )?;
-                                Ok((
-                                    false,
-                                    Expr {
-                                        content: Box::new(ExprInner::FunCallPath(
-                                            vec_types,
-                                            ctxt.get_path(name.get_content()).add_loc(),
-                                            exprs_out,
-                                        )),
-                                        loc: top_expr.loc,
-                                        typed: type_id,
-                                    },
-                                ))
+                    if let Some((free, args, out)) =
+                        ctxt.get_top_fun(name.get_content()).map(|fi| fi.get_typ())
+                    {
+                        if args.len() == exprs.len() {
+                            let mut free_types = HashMap::new();
+                            let mut vec_types = Vec::new();
+                            for name in free.iter() {
+                                let type_id = types.insert_type(Types::unknown());
+                                vec_types.push(type_id);
+                                free_types.insert(name.clone(), type_id);
                             }
-                            PostTypeInner::Fun(_, args, _) => Err(vec![TypeError::wrong_nb_args(
-                                top_expr.loc,
+                            let mut exprs_out = Vec::new();
+                            for (expr, typ) in exprs.into_iter().zip(args.iter()) {
+                                let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                                forces_to(
+                                    types,
+                                    expr.typed,
+                                    typ,
+                                    expr.loc,
+                                    &free_types,
+                                    UnificationMethod::StrictSnd,
+                                )?;
+                                exprs_out.push(expr);
+                                println!("finished this expr");
+                            }
+                            let type_id = add_type(types, out, &free_types);
+                            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+                            Ok((
+                                false,
+                                Expr {
+                                    content: Box::new(ExprInner::FunCallPath(
+                                        vec_types,
+                                        ctxt.get_path(name.get_content()).add_loc(),
+                                        exprs_out,
+                                    )),
+                                    loc: top_expr.loc,
+                                    typed: type_id,
+                                },
+                            ))
+                        } else {
+                            Err(vec![TypeError::wrong_nb_args(
+                                name.get_loc(),
                                 exprs.len(),
                                 args.len(),
-                            )]),
-                            typ => Err(vec![TypeError::expected_fun(name.get_loc(), typ.clone())]),
+                            )])
                         }
                     } else {
                         Err(vec![TypeError::unknown_var(name)])
@@ -940,8 +948,9 @@ fn type_expr(
         ExprInner::FunCallPath(args, path, exprs) => {
             assert!(args.is_empty());
             match (ctxt.get_fun(&path), ctxt.is_constructor(&path.cleaned())) {
-                (Some(typ), None) => match &typ.content {
-                    PostTypeInner::Fun(free, args, out) if args.len() == exprs.len() => {
+                (Some(info), None) => {
+                    let (free, args, out) = info.get_typ();
+                    if args.len() == exprs.len() {
                         let mut free_types = HashMap::new();
                         let mut vec_types = Vec::new();
                         for name in free.iter() {
@@ -974,14 +983,14 @@ fn type_expr(
                                 typed: type_id,
                             },
                         ))
+                    } else {
+                        Err(vec![TypeError::wrong_nb_args(
+                            top_expr.loc,
+                            exprs.len(),
+                            args.len(),
+                        )])
                     }
-                    PostTypeInner::Fun(_, args, _) => Err(vec![TypeError::wrong_nb_args(
-                        top_expr.loc,
-                        exprs.len(),
-                        args.len(),
-                    )]),
-                    typ => Err(vec![TypeError::expected_fun(path.get_loc(), typ.clone())]),
-                },
+                }
                 (None, Some(enum_info)) => {
                     let mut free_types = HashMap::new();
                     let mut vec_types = Vec::new();
@@ -1206,54 +1215,47 @@ fn type_expr(
             {
                 if let Some(method) = ctxt.get_method_function(struct_name, &method_name) {
                     let method = method.add_loc();
-                    let typ = ctxt.get_fun(&method).unwrap();
-                    match &typ.content {
-                        PostTypeInner::Fun(frees, args, out) => {
-                            assert_eq!(frees.len(), params.len());
-                            let params = params.clone();
-                            let mut free_types = HashMap::new();
-                            for (name, id) in frees.iter().zip(params.iter()) {
-                                assert!(free_types.insert(name.to_string(), *id).is_none());
-                            }
-                            let mut args = args.iter();
-                            let fst = args.next().unwrap();
-                            if let Some(b) = is_ref(fst) {
-                                if is_ref_typ(types, expr.typed).is_none() {
-                                    expr = Expr {
-                                        typed: types.insert_type(Types::refed(b, expr.typed)),
-                                        loc: expr.loc,
-                                        content: Box::new(ExprInner::Ref(b, expr)),
-                                    }
-                                }
-                            };
-                            let mut exprs_out = vec![expr];
-                            for (expr, typ) in exprs.into_iter().zip(args) {
-                                let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
-                                forces_to(
-                                    types,
-                                    expr.typed,
-                                    typ,
-                                    expr.loc,
-                                    &free_types,
-                                    UnificationMethod::StrictSnd,
-                                )?;
-                                exprs_out.push(expr)
-                            }
-                            let type_id = add_type(types, &*out, &free_types);
-                            check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
-                            Ok((
-                                false,
-                                Expr {
-                                    content: Box::new(ExprInner::FunCallPath(
-                                        params, method, exprs_out,
-                                    )),
-                                    loc: top_expr.loc,
-                                    typed: type_id,
-                                },
-                            ))
-                        }
-                        _ => todo!(),
+                    let (frees, args, out) = ctxt.get_fun(&method).unwrap().get_typ();
+                    assert_eq!(frees.len(), params.len());
+                    let params = params.clone();
+                    let mut free_types = HashMap::new();
+                    for (name, id) in frees.iter().zip(params.iter()) {
+                        assert!(free_types.insert(name.to_string(), *id).is_none());
                     }
+                    let mut args = args.iter();
+                    let fst = args.next().unwrap();
+                    if let Some(b) = is_ref(fst) {
+                        if is_ref_typ(types, expr.typed).is_none() {
+                            expr = Expr {
+                                typed: types.insert_type(Types::refed(b, expr.typed)),
+                                loc: expr.loc,
+                                content: Box::new(ExprInner::Ref(b, expr)),
+                            }
+                        }
+                    };
+                    let mut exprs_out = vec![expr];
+                    for (expr, typ) in exprs.into_iter().zip(args) {
+                        let expr = type_expr(ctxt, local_ctxt, expr, types, out_type)?.1;
+                        forces_to(
+                            types,
+                            expr.typed,
+                            typ,
+                            expr.loc,
+                            &free_types,
+                            UnificationMethod::StrictSnd,
+                        )?;
+                        exprs_out.push(expr)
+                    }
+                    let type_id = add_type(types, &*out, &free_types);
+                    check_coherence(types, type_id, top_expr.typed, top_expr.loc, ctxt)?;
+                    Ok((
+                        false,
+                        Expr {
+                            content: Box::new(ExprInner::FunCallPath(params, method, exprs_out)),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
+                    ))
                 } else {
                     todo!()
                 }
@@ -1549,16 +1551,33 @@ fn type_expr(
                     ctxt.get_top_fun(var_name.get_content()),
                     ctxt.get_top_const_val(var_name.get_content()),
                 ) {
-                    (Some(typ), None) | (None, Some(Const { typ, .. })) => {
-                        let type_id = types.insert_type(Types::unknown());
-                        forces_to(
-                            types,
-                            type_id,
-                            typ,
-                            top_expr.loc,
-                            &HashMap::new(),
-                            UnificationMethod::Smallest,
-                        )?;
+                    (Some(fun_info), None) => {
+                        let (free, args, out_type) = fun_info.get_typ();
+                        let mut free_types2 = HashMap::new();
+                        for name in free.iter() {
+                            free_types2
+                                .insert(name.to_string(), types.insert_type(Types::unknown()));
+                        }
+                        let type_vec = args
+                            .iter()
+                            .map(|t| add_type(types, t, &free_types2))
+                            .collect();
+                        let out_type = add_type(types, out_type, &free_types2);
+                        let type_id = types.insert_type(Types::Fun(type_vec, out_type));
+                        Ok((
+                            false,
+                            Expr {
+                                content: Box::new(ExprInner::VarPath(
+                                    ctxt.get_path(var_name.get_content()).add_loc(),
+                                )),
+                                loc: top_expr.loc,
+                                typed: type_id,
+                            },
+                        ))
+                    }
+
+                    (None, Some(Const { typ, .. })) => {
+                        let type_id = add_type(types, typ, &HashMap::new());
                         Ok((
                             false,
                             Expr {
@@ -1583,16 +1602,29 @@ fn type_expr(
                 ctxt.get_const_val(&cleaned_path),
                 ctxt.is_constructor(&cleaned_path),
             ) {
-                (Some(typ), None, None) | (None, Some(Const { typ, .. }), None) => {
-                    let type_id = types.insert_type(Types::unknown());
-                    forces_to(
-                        types,
-                        type_id,
-                        typ,
-                        top_expr.loc,
-                        &HashMap::new(),
-                        UnificationMethod::Smallest,
-                    )?;
+                (Some(fun_info), None, None) => {
+                    let (free, args, out_type) = fun_info.get_typ();
+                    if !free.is_empty() {
+                        panic!("Feature not handled")
+                    }
+                    let free_types2 = HashMap::new();
+                    let type_vec = args
+                        .iter()
+                        .map(|t| add_type(types, t, &free_types2))
+                        .collect();
+                    let out_type = add_type(types, out_type, &free_types2);
+                    let type_id = types.insert_type(Types::Fun(type_vec, out_type));
+                    Ok((
+                        false,
+                        Expr {
+                            content: Box::new(ExprInner::VarPath(var_path)),
+                            loc: top_expr.loc,
+                            typed: type_id,
+                        },
+                    ))
+                }
+                (None, Some(Const { typ, .. }), None) => {
+                    let type_id = add_type(types, typ, &HashMap::new());
                     Ok((
                         false,
                         Expr {
@@ -1798,7 +1830,7 @@ pub fn type_const(
     expected_typ: &PostType,
 ) -> Result<(TypeStorage, Expr<usize>), Vec<TypeError>> {
     let mut local_ctxt = LocalContext::new(Vec::new()).unwrap();
-    let mut types = TypeStorage::new();
+    let mut types = TypeStorage::new(&Vec::new());
     let out_type = types.insert_unit();
     let expr = type_expr(ctxt, &mut local_ctxt, expr, &mut types, out_type)?.1;
     forces_to(
@@ -1815,11 +1847,12 @@ pub fn type_const(
 pub fn type_funs(
     name_fun: &Ident,
     ctxt: &GlobalContext,
+    free: &Vec<String>,
     args: &[(String, bool, &PostType)],
     out_type: &PostType,
     body: Bloc,
 ) -> Result<(Bloc<usize>, TypeStorage), Vec<TypeError>> {
-    let mut types = TypeStorage::new();
+    let mut types = TypeStorage::new(free);
     let out_type = add_type(&mut types, out_type, &HashMap::new());
     let vec = args
         .iter()

@@ -62,6 +62,20 @@ for f in tests/exec/*.rs; do
     fi
 done
 
+f=tests/dependancies/good/main.rs
+echo "  $f"
+expected=tests/dependancies/good/`basename $f .rs`.out
+if rustc $f -o a.out > /dev/null 2>&1 ; then
+    ./a.out > out
+    if ! cmp --quiet out $expected; then
+        echo "mauvaise sortie de rustc sur $f";
+        cmp out $expected;
+        exit 1
+    fi
+else
+    echo "Échec de rustc sur $f"; exit 1
+fi
+
 echo "exec-fail"
 for f in tests/exec-fail/*.rs; do
     echo "  $f"

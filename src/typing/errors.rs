@@ -111,9 +111,11 @@ impl TypeErrorInfo {
             }
             Self::CannotBorrowAsMutable => String::new(),
             Self::SameArgName(_, arg) => format!("argument {} defined multiple times", arg),
-            Self::ExpectedSigned => "expected {signed integer}, found {singed integer}".to_string(),
+            Self::ExpectedSigned => {
+                "expected {signed integer}, found {unsigned integer}".to_string()
+            }
             Self::ExpectedUnsigned => {
-                "expected {signed integer}, found {singed integer}".to_string()
+                "expected {unsigned integer}, found {signed integer}".to_string()
             }
             Self::IncompatibleSizes(s1, s2) => format!(
                 "expected integer of size {:?}, found integer of size {:?}",

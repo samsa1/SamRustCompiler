@@ -16,7 +16,7 @@ fn is_ref(
         | ExprInner::BuildStruct(_, _)
         | ExprInner::Constructor(_, _)
         | ExprInner::FunCall(_, _)
-        | ExprInner::FunCallPath(_, _)
+        | ExprInner::FunCallPath(_, _, _)
         | ExprInner::If(_, _, _)
         | ExprInner::Coercion(_, _, _)
         | ExprInner::PatternMatching(_, _, _)
@@ -151,8 +151,9 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
             ..top_expr
         },
 
-        ExprInner::FunCallPath(name, exprs) => Expr {
+        ExprInner::FunCallPath(specialisation, name, exprs) => Expr {
             content: Box::new(ExprInner::FunCallPath(
+                specialisation,
                 name,
                 exprs
                     .into_iter()

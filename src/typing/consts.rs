@@ -9,6 +9,7 @@ use crate::ast::rust as rr;
 use crate::ast::typed_rust as tr;
 use crate::frontend::Module;
 use std::collections::HashMap;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub enum Val {
@@ -83,7 +84,7 @@ fn compute_i64(bin: TypedBinop, i1: i64, i2: i64) -> Val {
         TypedBinop::And(s) => Val::Integer(i1 & i2, s),
         TypedBinop::Or(s) => Val::Integer(i1 | i2, s),
         TypedBinop::Shl(s) => Val::Integer(i1 << i2, s),
-        TypedBinop::Shr(s) => todo!(),
+        TypedBinop::Shr(s) => Val::Integer((i1 & s.max_sval()) >> i2, s),
     }
 }
 
@@ -103,7 +104,7 @@ fn compute_u64(bin: TypedBinop, i1: u64, i2: u64) -> Val {
         TypedBinop::And(s) => Val::Uinteger(i1 & i2, s),
         TypedBinop::Or(s) => Val::Uinteger(i1 | i2, s),
         TypedBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
-        TypedBinop::Shr(s) => todo!(),
+        TypedBinop::Shr(s) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
     }
 }
 fn compute_bool(bin: TypedBinop, i1: bool, i2: bool) -> Val {
@@ -159,7 +160,7 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
         tr::ExprInner::Constructor(_, _) => todo!(),
         tr::ExprInner::Deref(_) => todo!(),
         tr::ExprInner::FunCall(_, _) => todo!(),
-        tr::ExprInner::FunCallPath(_, _) => todo!(),
+        tr::ExprInner::FunCallPath(_, _, _) => todo!(),
         tr::ExprInner::PatternMatching(_, _, _) => todo!(),
         tr::ExprInner::If(_, _, _) => todo!(),
         tr::ExprInner::Print(_) | tr::ExprInner::PrintPtr(_) => panic!("ICE"),
@@ -181,13 +182,9 @@ pub fn compute_const(expr: tr::Expr, ctxt: &GlobalContext) -> Val {
                 .map(|expr| compute_const(expr, ctxt))
                 .collect(),
         ),
-        tr::ExprInner::Tuple(exprs, _) => panic!("Should never happen"),
+        tr::ExprInner::Tuple(_, _) => panic!("Should never happen"),
         tr::ExprInner::UnaOp(_, _) => todo!(),
-        tr::ExprInner::Var(_) => todo!(), /*ctxt
-        .get_const_val(v.get_content())
-        .unwrap()
-        .get_value()
-        .clone(),*/
+        tr::ExprInner::Var(_) => todo!(),
         tr::ExprInner::VarPath(v) => ctxt.get_const_val(&v).unwrap().get_value().clone(),
         tr::ExprInner::While(_, _) => todo!(),
     }
@@ -257,7 +254,8 @@ pub fn handle(module: &mut Module<rr::File>, mut modint: ModuleInterface) -> Mod
     for (mut path, const_decl, err_reporter) in constants.into_iter() {
         path.pop();
         let mut ctxt = GlobalContext::new(path, modint);
-        let expected_typ = match super::types::translate_typ(const_decl.typ, &ctxt) {
+        let expected_typ = match super::types::translate_typ(const_decl.typ, &ctxt, &HashSet::new())
+        {
             None => todo!(),
             Some(t) => t,
         };

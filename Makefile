@@ -30,3 +30,5 @@ prepare:
 	make clean
 	make bench
 	
+count: clean
+	find src -name '*.rs' | xargs wc -l

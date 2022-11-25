@@ -96,8 +96,12 @@ fn rewrite_expr(top_expr: Expr, name1: &str, name2: &str) -> Expr {
             ..top_expr
         },
 
-        ExprInner::FunCallPath(path, exprs) => Expr {
+        ExprInner::FunCallPath(specialisation, path, exprs) => Expr {
             content: Box::new(ExprInner::FunCallPath(
+                specialisation
+                    .into_iter()
+                    .map(|typ| rewrite_type(typ, name1, name2))
+                    .collect(),
                 path.rewrite_base(name1, name2),
                 exprs
                     .into_iter()
@@ -194,6 +198,46 @@ fn rewrite_bloc(bloc: Bloc, name1: &str, name2: &str) -> Bloc {
     }
 }
 
+pub fn rewrite_type(typ: PostType, name1: &str, name2: &str) -> PostType {
+    let content = match typ.content {
+        PostTypeInner::BuiltIn(b) => PostTypeInner::BuiltIn(b),
+        PostTypeInner::Struct(path, types) => PostTypeInner::Struct(
+            path.rewrite_base(name1, name2),
+            types
+                .into_iter()
+                .map(|typ| rewrite_type(typ, name1, name2))
+                .collect(),
+        ),
+        PostTypeInner::Enum(path, types) => PostTypeInner::Enum(
+            path.rewrite_base(name1, name2),
+            types
+                .into_iter()
+                .map(|typ| rewrite_type(typ, name1, name2))
+                .collect(),
+        ),
+        PostTypeInner::Box(typ) => PostTypeInner::Box(Box::new(rewrite_type(*typ, name1, name2))),
+        PostTypeInner::Ref(b, typ) => PostTypeInner::Ref(b, typ),
+        PostTypeInner::Tuple(types) => PostTypeInner::Tuple(
+            types
+                .into_iter()
+                .map(|typ| rewrite_type(typ, name1, name2))
+                .collect(),
+        ),
+        PostTypeInner::FreeType(t) => PostTypeInner::FreeType(t),
+        PostTypeInner::Fun(free, types, typ) => PostTypeInner::Fun(
+            free,
+            types
+                .into_iter()
+                .map(|typ| rewrite_type(typ, name1, name2))
+                .collect(),
+            Box::new(rewrite_type(*typ, name1, name2)),
+        ),
+        PostTypeInner::Diverge => PostTypeInner::Diverge,
+        PostTypeInner::String => PostTypeInner::String,
+    };
+    PostType { content }
+}
+
 fn rewrite_fun(fun_decl: DeclFun, name1: &str, name2: &str) -> DeclFun {
     DeclFun {
         name: fun_decl.name.rewrite_base(name1, name2),
@@ -213,11 +257,11 @@ fn rewrite_file(file: File, name1: &str, name2: &str) -> File {
             .into_iter()
             .map(|fd| rewrite_fun(fd, name1, name2))
             .collect(),
-        structs: file
-            .structs
-            .into_iter()
-            .map(|sd| rewrite_struct(sd, name1, name2))
-            .collect(),
+        // structs: file
+        //     .structs
+        //     .into_iter()
+        //     .map(|sd| rewrite_struct(sd, name1, name2))
+        //     .collect(),
         ..file
     }
 }
