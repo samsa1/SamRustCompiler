@@ -15,7 +15,7 @@ use std::str::FromStr;
 fn handle_fun(
     ctxt: &mut GlobalContext,
     fun_decl: rr::DeclFun,
-    fun_path: &Path<()>,
+    fun_path: &PathUL<()>,
     err_reporter: &ErrorReporter,
 ) -> tr::DeclFun {
     let fun_info = ctxt.get_fun(fun_path).unwrap();
@@ -227,9 +227,8 @@ fn translate_funs(
     for decl in module.content.content.into_iter() {
         match decl {
             rr::Decl::Fun(ds) => {
-                let mut fun_path = path.add_loc();
-                fun_path.push(NamePath::Name(ds.name.clone()));
-                //                let fun_info = ctxt.get_top_fun(ds.name.get_content()).unwrap();
+                let mut fun_path = path.clone();
+                fun_path.push(NamePath::Name(ds.name.get_content().to_string()));
                 funs.push(handle_fun(
                     &mut ctxt,
                     ds,
@@ -258,9 +257,9 @@ fn translate_funs(
                             fun_decl.self_arg = None;
                         }
                     };
-                    let mut fun_path = path.add_loc();
-                    fun_path.push(NamePath::Name(impl_decl.name.clone()));
-                    fun_path.push(NamePath::Name(fun_decl.name.clone()));
+                    let mut fun_path = path.clone();
+                    fun_path.push(NamePath::Name(impl_decl.name.get_content().to_string()));
+                    fun_path.push(NamePath::Name(fun_decl.name.get_content().to_string()));
                     println!("{:?}", fun_path);
                     let mut fun_decl =
                         handle_fun(&mut ctxt, fun_decl, &fun_path, &module.content.err_reporter);

@@ -23,3 +23,5 @@ for f in tests/benchmarks/*.rs; do
     echo "\nNb lines" >> tests/benchmarks/$file.perf
     wc -l tests/benchmarks/$file.s >> tests/benchmarks/$file.perf
 done
+
+wc -l tests/exec/*.s >> tests/exec/global.perf

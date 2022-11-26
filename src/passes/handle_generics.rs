@@ -20,7 +20,7 @@ fn rewrite_modint(mut modint: ModuleInterface) -> ModuleInterface {
     ];
 
     for (path, _) in &to_handle {
-        let info = modint.get_mut_fun(&path.add_loc()).unwrap();
+        let info = modint.get_mut_fun(&path).unwrap();
         info.add_version(&Vec::new());
     }
 
@@ -28,7 +28,7 @@ fn rewrite_modint(mut modint: ModuleInterface) -> ModuleInterface {
     while !to_handle.is_empty() {
         let (path, types) = to_handle.pop().unwrap();
         println!("{:?}", path);
-        let infos = modint.get_fun(&path.add_loc()).unwrap().1;
+        let infos = modint.get_fun_pathul(&path).unwrap().1;
         let mut hash_map = HashMap::new();
         assert_eq!(types.len(), infos.get_free().len());
         for ((name, _), typ) in infos.get_free().iter().zip(types.into_iter()) {
@@ -42,7 +42,7 @@ fn rewrite_modint(mut modint: ModuleInterface) -> ModuleInterface {
                     .map(|typ| substitute(typ, &hash_map))
                     .collect();
                 println!("-- {:?} {:?}", path, given_free);
-                let info = modint.get_mut_fun(&path.add_loc()).unwrap();
+                let info = modint.get_mut_fun(&path).unwrap();
                 if info.add_version(&given_free) {
                     to_handle.push((path.clone(), given_free))
                 }
@@ -129,7 +129,7 @@ fn rewrite_expr(
                 .map(|typ| rewrite_type(typ, hashmap, modint))
                 .collect();
             println!("{:?}", path);
-            let i = modint.get_fun(&path.add_loc()).unwrap().1;
+            let i = modint.get_fun_pathul(&path).unwrap().1;
             println!("{:?} {:?}", i, spec);
             let i = i.get_id(&spec).unwrap();
             let path = new_path(path, i);
@@ -181,7 +181,7 @@ fn rewrite_expr(
         ),
         ExprInner::UnaOp(op, expr) => ExprInner::UnaOp(*op, rewrite_expr(expr, hashmap, modint)),
         ExprInner::Var(name) => ExprInner::Var(name.clone()),
-        ExprInner::VarPath(path) => match modint.get_fun(&path.add_loc()) {
+        ExprInner::VarPath(path) => match modint.get_fun_pathul(&path) {
             None => ExprInner::VarPath(path.clone()),
             Some((_, info)) => {
                 let i = info.get_id(&Vec::new()).unwrap();
@@ -291,7 +291,7 @@ fn rewrite_code_inner(
 ) -> Module<File> {
     let mut funs = Vec::new();
     for fun_decl in code.content.funs {
-        let info = modint.get_fun(&fun_decl.name.add_loc()).unwrap().1;
+        let info = modint.get_fun_pathul(&fun_decl.name).unwrap().1;
         for (vec, id) in info.get_ids() {
             assert_eq!(vec.len(), fun_decl.free.len());
             let name = new_path(&fun_decl.name, id);

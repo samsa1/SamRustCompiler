@@ -932,19 +932,46 @@ impl ModuleInterface {
         self.get_fun_inner(path.get_content(), 0)
     }
 
-    fn get_mut_fun_inner(
-        &mut self,
-        path: &Vec<NamePath<(), Ident>>,
+    fn get_fun_pathul_inner(
+        &self,
+        path: &Vec<NamePath<(), String>>,
         pos: usize,
-    ) -> Option<&mut FunInfo> {
+    ) -> Option<(bool, &FunInfo)> {
         if pos == path.len() - 1 {
             match &path[pos] {
-                NamePath::Name(name) => self.functions.get_mut(name.get_content()),
+                NamePath::Name(name) => self.functions.get(name).map(|fun_info| (true, fun_info)),
                 NamePath::Specialisation(_) => None,
             }
         } else {
             match &path[pos] {
-                NamePath::Name(name) => match self.submodules.get_mut(name.get_content()) {
+                NamePath::Name(name) => match self.submodules.get(name) {
+                    None => None,
+                    Some((b1, sb)) => sb
+                        .get_fun_pathul_inner(path, pos + 1)
+                        .map(|(b2, fun_info)| (b2 && *b1, fun_info)),
+                },
+                _ => todo!(),
+            }
+        }
+    }
+
+    pub fn get_fun_pathul(&self, path: &PathUL<()>) -> Option<(bool, &FunInfo)> {
+        self.get_fun_pathul_inner(path.get_content(), 0)
+    }
+
+    fn get_mut_fun_inner(
+        &mut self,
+        path: &Vec<NamePath<(), String>>,
+        pos: usize,
+    ) -> Option<&mut FunInfo> {
+        if pos == path.len() - 1 {
+            match &path[pos] {
+                NamePath::Name(name) => self.functions.get_mut(name),
+                NamePath::Specialisation(_) => None,
+            }
+        } else {
+            match &path[pos] {
+                NamePath::Name(name) => match self.submodules.get_mut(name) {
                     None => None,
                     Some((_, sb)) => sb.get_mut_fun_inner(path, pos + 1),
                 },
@@ -953,7 +980,7 @@ impl ModuleInterface {
         }
     }
 
-    pub fn get_mut_fun(&mut self, path: &Path<()>) -> Option<&mut FunInfo> {
+    pub fn get_mut_fun(&mut self, path: &PathUL<()>) -> Option<&mut FunInfo> {
         self.get_mut_fun_inner(path.get_content(), 0)
     }
 
@@ -1313,7 +1340,7 @@ impl GlobalContext {
 
     pub fn update_dependancies(
         &mut self,
-        path: &Path<()>,
+        path: &PathUL<()>,
         dependancies: HashMap<PathUL<()>, HashSet<Vec<PostType>>>,
     ) {
         self.modules
@@ -1375,7 +1402,14 @@ impl GlobalContext {
         Some(path)
     }
 
-    pub fn get_fun(&self, path: &Path<()>) -> Option<&FunInfo> {
+    pub fn get_fun(&self, path: &PathUL<()>) -> Option<&FunInfo> {
+        match self.modules.get_fun_pathul(path) {
+            Some((_, fun_info)) => Some(fun_info),
+            _ => None,
+        }
+    }
+
+    pub fn get_fun_loc(&self, path: &Path<()>) -> Option<&FunInfo> {
         match self.modules.get_fun(path) {
             Some((_, fun_info)) => Some(fun_info),
             _ => None,
