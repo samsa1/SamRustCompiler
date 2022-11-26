@@ -24,4 +24,4 @@ for f in tests/benchmarks/*.rs; do
     wc -l tests/benchmarks/$file.s >> tests/benchmarks/$file.perf
 done
 
-wc -l tests/exec/*.s >> tests/exec/global.perf
+wc -l tests/exec/*.s > tests/exec/global.perf

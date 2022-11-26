@@ -187,9 +187,6 @@ pub fn add_fun_types(
                         Some(out) => out,
                         None => todo!(),
                     };
-                    // let fun_typ = tr::PostType {
-                    //     content: tr::PostTypeInner::Fun(Vec::new(), args, Box::new(output)),
-                    // };
                     if ctxt
                         .impl_fun_path(
                             PathUL::from_vec(vec![impl_decl.name.get_content()]),
@@ -290,7 +287,6 @@ fn translate_funs(
             tr::File {
                 name: module.content.name,
                 funs,
-                //                structs: Vec::new(),
             },
             submodules,
         ),

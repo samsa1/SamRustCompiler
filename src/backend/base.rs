@@ -1,3 +1,5 @@
+use std::collections::{HashMap, HashSet};
+
 use super::context::Context;
 use crate::ast::common::PathUL;
 use write_x86_64::*;
@@ -71,22 +73,37 @@ fn default_vec_function(
             + popq(RBP) /* returns */
             + ret()
     }
+
+    let not_empty = !vec_info.len.is_empty();
     for (id, _) in vec_info.len {
         let path = PathUL::from_vec(vec!["std", "vec", "Vec", "len"]);
         let path = crate::passes::handle_generics::new_path(&path, &id);
         asm += Segment::label(ctxt.fun_label(&path))
-            + movq(addr!(8, RSP), reg!(RAX)) /* get pointer to vec */
+    }
+    if not_empty {
+        asm += movq(addr!(8, RSP), reg!(RAX)) /* get pointer to vec */
             + movq(addr!(RAX), reg!(RAX))    /* get pointer to 4-vector */
             + movq(addr!(8, RAX), reg!(RAX)) /* put length in Rax */
             + movq(reg!(RAX), addr!(16, RSP)) /* Store the result in stack */
             + ret()
     }
 
+    let mut hashmap = HashMap::new();
+
     for (id, size) in vec_info.get {
-        let path = PathUL::from_vec(vec!["std", "vec", "Vec", "get"]);
-        let path = crate::passes::handle_generics::new_path(&path, &id);
-        asm += Segment::label(ctxt.fun_label(&path))
-            + movq(addr!(16, RSP), reg!(RCX)) /* get pointer to vec */
+        match hashmap.get_mut(&size) {
+            None => assert!(hashmap.insert(size, HashSet::from([id])).is_none()),
+            Some(set) => assert!(set.insert(id)),
+        }
+    }
+
+    for (size, ids) in hashmap {
+        for id in ids {
+            let path = PathUL::from_vec(vec!["std", "vec", "Vec", "get"]);
+            let path = crate::passes::handle_generics::new_path(&path, &id);
+            asm += Segment::label(ctxt.fun_label(&path))
+        }
+        asm += movq(addr!(16, RSP), reg!(RCX)) /* get pointer to vec */
             + movq(addr!(RCX), reg!(RCX)) /* get pointer to 4-vector */
             + movq(addr!(8, RSP), reg!(RAX)) /* put index in Rax */
             + movq(addr!(8, RCX), reg!(RDX))
@@ -103,15 +120,25 @@ fn default_vec_function(
     }
 
     /*
-    Called with pointer to pointer to quadri vector as second argument
-    and then arg
+    Called with element of size Size then a pointer to pointer to quadri vector
     */
+    let mut hashmap = HashMap::new();
+
     for (id, size) in vec_info.push {
-        let path = PathUL::from_vec(vec!["std", "vec", "Vec", "push"]);
-        let path = crate::passes::handle_generics::new_path(&path, &id);
+        match hashmap.get_mut(&size) {
+            None => assert!(hashmap.insert(size, HashSet::from([id])).is_none()),
+            Some(set) => assert!(set.insert(id)),
+        }
+    }
+
+    for (size, ids) in hashmap {
+        for id in ids {
+            let path = PathUL::from_vec(vec!["std", "vec", "Vec", "push"]);
+            let path = crate::passes::handle_generics::new_path(&path, &id);
+            asm += Segment::label(ctxt.fun_label(&path))
+        }
         let (label_has_capacity, _) = ctxt.gen_if_labels();
-        asm += Segment::label(ctxt.fun_label(&path))
-            + pushq(reg!(RBP))
+        asm += pushq(reg!(RBP))
             + movq(addr!(16 + size as i64, RSP), reg!(RBP)) /* get pointer to vec */
             + movq(addr!(RBP), reg!(RBP)) /* get pointer to 4-vector */
             + movq(addr!(8, RBP), reg!(RAX)) /* get length */

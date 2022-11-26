@@ -177,10 +177,8 @@ fn compile_expr_val(
         }
 
         llr::ExprInner::BinOp(op, expr1, expr2) => {
-            //            println!("{:?} {:?} {:?}", op, expr1, expr2);
             let size = expr2.size;
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
-            //            println!("{:?}", loc);
             let expr2 = match loc {
                 Location::Never => expr2,
                 Location::Rax => match size {
@@ -221,7 +219,6 @@ fn compile_expr_val(
                 },
             };
             let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
-            //            println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
                 Location::StackWithPadding(pad) => expr1 + move_stack_to_rax(pad, size),

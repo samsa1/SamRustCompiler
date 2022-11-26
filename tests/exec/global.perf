@@ -1,10 +1,10 @@
-    2329 tests/exec/abr.s
-    2329 tests/exec/abr_methods.s
+    2324 tests/exec/abr.s
+    2324 tests/exec/abr_methods.s
     1521 tests/exec/arith.s
     1420 tests/exec/bitwise_ops.s
     1703 tests/exec/bool.s
     1632 tests/exec/borrow.s
-    1508 tests/exec/coercions.s
+    1497 tests/exec/coercions.s
     1412 tests/exec/constants.s
     1797 tests/exec/enum.s
     1522 tests/exec/fact_imp.s
@@ -13,7 +13,7 @@
     1470 tests/exec/generic_arith.s
     1484 tests/exec/generics.s
     1358 tests/exec/hello_world.s
-    1986 tests/exec/lists.s
+    1981 tests/exec/lists.s
     1970 tests/exec/mandelbrot.s
     1947 tests/exec/pascal.s
     1358 tests/exec/print1.s
@@ -29,5 +29,5 @@
     1624 tests/exec/struct5.s
     1483 tests/exec/swap.s
     1567 tests/exec/tuple.s
-    1775 tests/exec/vec.s
-   52117 total
+    1759 tests/exec/vec.s
+   52075 total

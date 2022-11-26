@@ -358,7 +358,6 @@ impl FunInfo {
                 let v = self.specialised.len();
                 self.specialised.insert(args.clone(), v);
                 true
-                //                self.dependancies.is_empty()
             }
         }
     }
@@ -429,7 +428,6 @@ pub struct ModuleInterface {
     pub structs: HashMap<String, StructInfo>,
     pub enums: HashMap<String, EnumInfo>,
     pub traits: HashMap<String, TraitInfo>,
-    //    implemented_traits: HashMap<PostType, HashSet<TraitInner>>,
     methods: HashMap<String, HashMap<String, PathUL<()>>>,
     functions: HashMap<String, FunInfo>,
     pub submodules: HashMap<String, (bool, ModuleInterface)>,
@@ -473,9 +471,6 @@ impl ModuleInterface {
         let mut_ref_vec_type = PostType {
             content: PostTypeInner::Ref(true, Box::new(vec_type.clone())),
         };
-        // let fun_typ = PostType {
-        //     content: PostTypeInner::Fun(vec!["T".to_string()], vec![], Box::new(vec_type)),
-        // };
 
         let mut vec_mod = ModuleInterface::empty();
 
