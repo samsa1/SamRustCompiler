@@ -202,8 +202,8 @@ fn rewrite_expr(top_expr: Expr, context: &mut Vec<Instr>, counter: &mut IdCounte
         ExprInner::BinOp(binop, expr1, expr2) => Expr {
             content: Box::new(ExprInner::BinOp(
                 binop,
-                is_ref(false, expr1, context, counter),
-                is_ref(false, expr2, context, counter),
+                rewrite_expr(expr1, context, counter),
+                rewrite_expr(expr2, context, counter),
             )),
             ..top_expr
         },

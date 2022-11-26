@@ -625,6 +625,8 @@ pub enum TypedBinop {
     Sub(Sizes),
     Div(bool, Sizes),
     Mod(bool, Sizes),
+    LAnd,
+    LOr,
     And(Sizes),
     Or(Sizes),
     Shl(Sizes),

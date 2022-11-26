@@ -85,6 +85,7 @@ fn compute_i64(bin: TypedBinop, i1: i64, i2: i64) -> Val {
         TypedBinop::Or(s) => Val::Integer(i1 | i2, s),
         TypedBinop::Shl(s) => Val::Integer(i1 << i2, s),
         TypedBinop::Shr(s) => Val::Integer((i1 & s.max_sval()) >> i2, s),
+        TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
     }
 }
 
@@ -105,6 +106,7 @@ fn compute_u64(bin: TypedBinop, i1: u64, i2: u64) -> Val {
         TypedBinop::Or(s) => Val::Uinteger(i1 | i2, s),
         TypedBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
         TypedBinop::Shr(s) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
+        TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
     }
 }
 fn compute_bool(bin: TypedBinop, i1: bool, i2: bool) -> Val {
@@ -117,6 +119,8 @@ fn compute_bool(bin: TypedBinop, i1: bool, i2: bool) -> Val {
         TypedBinop::LowerEq(_, _) => Val::Bool(i1 < i2),
         TypedBinop::And(_) => Val::Bool(i1 & i2),
         TypedBinop::Or(_) => Val::Bool(i1 | i2),
+        TypedBinop::LAnd => Val::Bool(i1 && i2),
+        TypedBinop::LOr => Val::Bool(i1 || i2),
         _ => panic!("ICE, operation not handled {:?}", bin),
     }
 }
