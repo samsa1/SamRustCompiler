@@ -164,38 +164,12 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                             ("And", 2, BuiltinType::Bool) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
-                                let expr_false = Expr {
-                                    content: Box::new(ExprInner::Bool(false)),
-                                    loc: Location::default(),
-                                    typed: PostType::bool(),
-                                };
-                                let bloc_false = Bloc {
-                                    content: vec![Instr::Expr(ComputedValue::Keep, expr_false)],
-                                    last_type: PostType::bool(),
-                                };
-                                let bloc_e2 = Bloc {
-                                    content: vec![Instr::Expr(ComputedValue::Keep, expr2)],
-                                    last_type: PostType::bool(),
-                                };
-                                ExprInner::If(expr1, bloc_e2, bloc_false)
+                                ExprInner::BinOp(TypedBinop::LAnd, expr1, expr2)
                             }
                             ("Or", 2, BuiltinType::Bool) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
-                                let expr_true = Expr {
-                                    content: Box::new(ExprInner::Bool(true)),
-                                    loc: Location::default(),
-                                    typed: PostType::bool(),
-                                };
-                                let bloc_true = Bloc {
-                                    content: vec![Instr::Expr(ComputedValue::Keep, expr_true)],
-                                    last_type: PostType::bool(),
-                                };
-                                let bloc_e2 = Bloc {
-                                    content: vec![Instr::Expr(ComputedValue::Keep, expr2)],
-                                    last_type: PostType::bool(),
-                                };
-                                ExprInner::If(expr1, bloc_true, bloc_e2)
+                                ExprInner::BinOp(TypedBinop::LOr, expr1, expr2)
                             }
                             ("BitAnd", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();

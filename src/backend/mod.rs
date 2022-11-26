@@ -7,6 +7,7 @@ use crate::ast::typed_rust::PostType;
 use write_x86_64::*;
 
 mod base;
+mod cond;
 mod context;
 
 #[derive(Debug, PartialEq, Eq)]
@@ -113,6 +114,7 @@ fn compile_expr_pointer(
 
 fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
     match op {
+        TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
         TypedBinop::And(_)
         | TypedBinop::Or(_)
         | TypedBinop::Add(_)
@@ -176,11 +178,49 @@ fn compile_expr_val(
             (Location::Rax, expr + op)
         }
 
+        llr::ExprInner::BinOp(TypedBinop::LAnd, expr1, expr2) => {
+            let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
+            let expr2 = match loc {
+                Location::Never | Location::Rax => expr2,
+                Location::StackWithPadding(pad) => {
+                    expr2 + movb(addr!(RSP), reg!(AL)) + addq(immq(1 + pad as i64), reg!(RSP))
+                }
+            };
+            let (label_failed, label2) = ctxt.gen_if_labels();
+            (
+                Location::Rax,
+                cond::compile_cond(ctxt, expr1, stack_offset, None, label_failed.clone())
+                    + expr2
+                    + jmp(label2.clone())
+                    + Segment::label(label_failed)
+                    + movb(immb(0), reg!(AL))
+                    + Segment::label(label2),
+            )
+        }
+
+        llr::ExprInner::BinOp(TypedBinop::LOr, expr1, expr2) => {
+            let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
+            let expr2 = match loc {
+                Location::Never | Location::Rax => expr2,
+                Location::StackWithPadding(pad) => {
+                    expr2 + movb(addr!(RSP), reg!(AL)) + addq(immq(1 + pad as i64), reg!(RSP))
+                }
+            };
+            let (label_success, label_fail) = ctxt.gen_if_labels();
+            (
+                Location::Rax,
+                cond::compile_cond(ctxt, expr1, stack_offset, None, label_fail.clone())
+                    + movb(immb(1), reg!(AL))
+                    + jmp(label_success.clone())
+                    + Segment::label(label_fail)
+                    + expr2
+                    + Segment::label(label_success),
+            )
+        }
+
         llr::ExprInner::BinOp(op, expr1, expr2) => {
-            //            println!("{:?} {:?} {:?}", op, expr1, expr2);
             let size = expr2.size;
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
-            //            println!("{:?}", loc);
             let expr2 = match loc {
                 Location::Never => expr2,
                 Location::Rax => match size {
@@ -221,7 +261,6 @@ fn compile_expr_val(
                 },
             };
             let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
-            //            println!("{:?}", loc);
             let expr1 = match loc {
                 Location::Rax | Location::Never => expr1,
                 Location::StackWithPadding(pad) => expr1 + move_stack_to_rax(pad, size),
@@ -235,6 +274,7 @@ fn compile_expr_val(
                 _ => panic!("ICE"),
             };
             let op = match op {
+                TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
                 TypedBinop::Add(Sizes::S8) => addb(reg!(CL), reg!(AL)),
                 TypedBinop::Add(Sizes::S16) => addw(reg!(CX), reg!(AX)),
                 TypedBinop::Add(Sizes::S32) => addl(reg!(ECX), reg!(EAX)),
@@ -640,15 +680,6 @@ fn compile_expr_val(
             (Location::StackWithPadding(missing), asm)
         }
         llr::ExprInner::If(expr, bloc1, bloc2) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
-            let expr = match loc {
-                Location::Never => todo!(),
-                Location::Rax => expr,
-                Location::StackWithPadding(pad) => {
-                    expr + movb(addr!(0, RSP), reg::Operand::Reg(AL))
-                        + addq(immq(pad as i64 + 1), reg!(RSP))
-                }
-            };
             let (loc1, bloc1) = compile_bloc(ctxt, bloc1, stack_offset);
             let (loc2, bloc2) = compile_bloc(ctxt, bloc2, stack_offset);
             let (else_label, end_label) = ctxt.gen_if_labels();
@@ -703,8 +734,7 @@ fn compile_expr_val(
             };
             (
                 loc,
-                expr + testb(reg::Operand::Reg(AL), reg::Operand::Reg(AL))
-                    + jz(else_label.clone())
+                cond::compile_cond(ctxt, expr, stack_offset, None, else_label.clone())
                     + bloc1
                     + jmp(end_label.clone())
                     + Segment::label(else_label)
@@ -955,8 +985,6 @@ fn compile_expr_val(
         }
 
         llr::ExprInner::While(expr, bloc) => {
-            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
-            assert!(!matches!(loc, Location::StackWithPadding(_)));
             let (loc2, bloc) = compile_bloc(ctxt, bloc, stack_offset);
             let bloc = match loc2 {
                 Location::StackWithPadding(_) => panic!("ICE"),
@@ -966,9 +994,7 @@ fn compile_expr_val(
             (
                 Location::Rax,
                 Segment::label(in_label.clone())
-                    + expr
-                    + testb(reg!(AL), reg!(AL))
-                    + jz(out_label.clone())
+                    + cond::compile_cond(ctxt, expr, stack_offset, None, out_label.clone())
                     + bloc
                     + jmp(in_label)
                     + Segment::label(out_label),

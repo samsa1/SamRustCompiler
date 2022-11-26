@@ -258,10 +258,6 @@ fn rewrite_fun(fun_decl: DeclFun, name1: &str, name2: &str) -> DeclFun {
     }
 }
 
-fn rewrite_struct(_: DeclStruct, _: &str, _: &str) -> DeclStruct {
-    todo!()
-}
-
 fn rewrite_file(file: File, name1: &str, name2: &str) -> File {
     File {
         funs: file
@@ -269,11 +265,6 @@ fn rewrite_file(file: File, name1: &str, name2: &str) -> File {
             .into_iter()
             .map(|fd| rewrite_fun(fd, name1, name2))
             .collect(),
-        // structs: file
-        //     .structs
-        //     .into_iter()
-        //     .map(|sd| rewrite_struct(sd, name1, name2))
-        //     .collect(),
         ..file
     }
 }

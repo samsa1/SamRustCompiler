@@ -346,7 +346,10 @@ pub fn type_checker(
 
         rust::ExprInner::VarPath(var_name) => {
             let cleaned_path = var_name.cleaned();
-            match (ctxt.get_fun(&var_name), ctxt.get_const_val(&cleaned_path)) {
+            match (
+                ctxt.get_fun(&cleaned_path),
+                ctxt.get_const_val(&cleaned_path),
+            ) {
                 (None, None) => panic!(
                     "ICE : undefined variable {:?} at {:?} should be cought by inferencer",
                     var_name, expr.loc
@@ -547,7 +550,8 @@ pub fn type_checker(
         }
 
         rust::ExprInner::FunCallPath(specialisation, path, args) => {
-            let (freetypes, args_typ, output) = match ctxt.get_fun(&path) {
+            let cleaned = path.cleaned();
+            let (freetypes, args_typ, output) = match ctxt.get_fun(&cleaned) {
                 Some(typ) => typ.get_typ(),
                 None => todo!(),
             };
@@ -587,7 +591,7 @@ pub fn type_checker(
             (
                 false,
                 output,
-                typed_rust::ExprInner::FunCallPath(free_types_vec, path.cleaned(), args2),
+                typed_rust::ExprInner::FunCallPath(free_types_vec, cleaned, args2),
             )
         }
 

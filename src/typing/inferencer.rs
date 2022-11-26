@@ -947,7 +947,10 @@ fn type_expr(
 
         ExprInner::FunCallPath(args, path, exprs) => {
             assert!(args.is_empty());
-            match (ctxt.get_fun(&path), ctxt.is_constructor(&path.cleaned())) {
+            match (
+                ctxt.get_fun_loc(&path),
+                ctxt.is_constructor(&path.cleaned()),
+            ) {
                 (Some(info), None) => {
                     let (free, args, out) = info.get_typ();
                     if args.len() == exprs.len() {
@@ -1215,7 +1218,7 @@ fn type_expr(
             {
                 if let Some(method) = ctxt.get_method_function(struct_name, &method_name) {
                     let method = method.add_loc();
-                    let (frees, args, out) = ctxt.get_fun(&method).unwrap().get_typ();
+                    let (frees, args, out) = ctxt.get_fun_loc(&method).unwrap().get_typ();
                     assert_eq!(frees.len(), params.len());
                     let params = params.clone();
                     let mut free_types = HashMap::new();
@@ -1598,7 +1601,7 @@ fn type_expr(
         ExprInner::VarPath(var_path) => {
             let mut cleaned_path = var_path.cleaned();
             match (
-                ctxt.get_fun(&var_path),
+                ctxt.get_fun(&cleaned_path),
                 ctxt.get_const_val(&cleaned_path),
                 ctxt.is_constructor(&cleaned_path),
             ) {
