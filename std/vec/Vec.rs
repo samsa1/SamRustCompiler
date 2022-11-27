@@ -1,6 +1,9 @@
 
 
 pub fn new<T>() -> Vec<T> {
+    let mut vec = vec![];
+    crate::allocator::init(&mut vec);
+    crate::allocator::realloc(&mut vec, 0, 0);
     vec![]
 }
 
