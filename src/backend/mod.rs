@@ -1131,6 +1131,7 @@ fn to_asm(
     for (str1, str2) in strings {
         data_ss += Segment::label(new_label(&str2)) + data::dasciz(str1)
     }
+    data_ss += Segment::label(new_label("heap")) + data::space(base::HEAP_SIZE + 32);
 
     file::File {
         globl: None,

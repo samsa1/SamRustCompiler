@@ -8,7 +8,7 @@ mod expr;
 mod functions;
 mod implementation;
 mod inferencer;
-mod lifetime_analysis;
+// mod lifetime_analysis;
 mod structs;
 pub mod types;
 

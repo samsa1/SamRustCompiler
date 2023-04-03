@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 "peg" = "0.8.0"
 write_x86_64 = {git = "https://github.com/samsa1/write_x86_64"}
+# write_x86_64 = {path = "..//write_x86_64", features = ["gen_binary"]}
