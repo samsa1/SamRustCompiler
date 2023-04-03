@@ -4,6 +4,8 @@ use super::context::Context;
 use crate::ast::common::PathUL;
 use write_x86_64::*;
 
+pub const HEAP_SIZE: usize = 8 << 10;
+
 fn default_vec_function(
     heap_address: &str,
     ctxt: &mut Context,
@@ -178,6 +180,35 @@ fn default_vec_function(
             + popq(RBP)
             + ret()
     }
+    asm
+}
+
+#[cfg(target_os = "macos")]
+const WRITE_SYSCALL: i64 = 0x2000004;
+
+#[cfg(target_os = "linux")]
+const WRITE_SYSCALL: i64 = 0x1;
+// https://blog.rchapman.org/posts/Linux_System_Call_Table_for_x86_64/
+
+fn printf_seg() -> Segment<instr::Instr> {
+    use write_x86_64::reg::Label;
+
+    let mut asm = Segment::label(Label::from_str("printf".to_string()))
+        + pushq(reg!(RBP))
+        + movq(reg!(RDI), reg!(RSI))
+        + movq(immq(1), reg!(RDI))
+        + xorq(reg!(RDX), reg!(RDX))
+        + Segment::label(Label::from_str("printf_if_0".to_string()))
+        + movb(addr!(0, RSI, RDX), reg!(AL))
+        + testb(reg!(AL), reg!(AL))
+        + jz(Label::from_str("printf_else_1".to_string()))
+        + incq(reg!(RDX))
+        + jmp(Label::from_str("printf_if_0".to_string()))
+        + Segment::label(Label::from_str("printf_else_1".to_string()))
+        + movq(immq(WRITE_SYSCALL), reg!(RAX))
+        + syscall()
+        + popq(RBP)
+        + ret();
 
     asm += Segment::label(reg::Label::panic())
         + movq(reg!(R13), reg!(RSP))
@@ -194,38 +225,53 @@ fn default_vec_function(
 
 pub fn base(ctxt: &mut Context, vec_info: crate::to_llr::VecInfo) -> file::File {
     let heap_address = "heap_address".to_string();
-    let heap_size = 8 << 10;
 
-    let text_ss = Segment::label(reg::Label::from_str("main".to_string()))
-        + pushq(reg!(RBP))
-        + pushq(reg!(R12))
-        + pushq(reg!(R13))
-        + movq(reg!(RSP), reg!(R13))
-        + movq(immq(heap_size + 32), reg!(RDI)) // 8ko
-        + call(reg::Label::malloc())
-        + movq(reg!(RAX), reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())))
-        + movq(immq(heap_size / 4), reg!(RCX))
-        + movq(reg!(RCX), addr!(8, RAX))
-        + movq(reg!(RCX), addr!(16, RAX))
-        + movq(immq(4), addr!(24, RAX))
-        + movq(reg!(RAX), reg!(RCX))
-        + addq(immq(32), reg!(RCX))
-        + movq(reg!(RCX), addr!(RAX))
-        + leaq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), RAX)
-        + pushq(reg!(RAX))
-        + pushq(reg!(RAX))
-        + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "init_0"])))
-        + addq(immq(16), reg!(RSP))
-
-        + call(ctxt.fun_label(&PathUL::from_vec(vec!["crate", "main_0"])))
-        + movq(reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())), reg!(RDI))
-        + call(reg::Label::free())
-        + popq(R13)
-        + popq(R12)
-        + popq(RBP)
-        + xorq(reg!(RAX), reg!(RAX))
-        + ret()
-        + default_vec_function(&heap_address, ctxt, vec_info);
+    let text_ss = if !vec_info.new.is_empty() {
+        Segment::label(reg::Label::from_str("main".to_string()))
+            + pushq(reg!(RBP))
+            + pushq(reg!(R12))
+            + pushq(reg!(R13))
+            + movq(reg!(RSP), reg!(R13))
+            + leaq(reg::Operand::LabRelAddr(new_label("heap")), RAX)
+            + movq(
+                reg!(RAX),
+                reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())),
+            )
+            + movq(immq(HEAP_SIZE as i64 / 4), reg!(RCX))
+            + movq(reg!(RCX), addr!(8, RAX))
+            + movq(reg!(RCX), addr!(16, RAX))
+            + movq(immq(4), addr!(24, RAX))
+            + movq(reg!(RAX), reg!(RCX))
+            + addq(immq(32), reg!(RCX))
+            + movq(reg!(RCX), addr!(RAX))
+            + leaq(
+                reg::Operand::LabRelAddr(reg::Label::from_str(heap_address.clone())),
+                RAX,
+            )
+            + pushq(reg!(RAX))
+            + pushq(reg!(RAX))
+            + call(ctxt.fun_label(&PathUL::from_vec(vec!["std", "allocator", "init_0"])))
+            + addq(immq(16), reg!(RSP))
+            + call(ctxt.fun_label(&PathUL::from_vec(vec!["crate", "main_0"])))
+            + popq(R13)
+            + popq(R12)
+            + popq(RBP)
+            + xorq(reg!(RAX), reg!(RAX))
+            + ret()
+            + default_vec_function(&heap_address, ctxt, vec_info)
+    } else {
+        Segment::label(reg::Label::from_str("main".to_string()))
+            + pushq(reg!(RBP))
+            + pushq(reg!(R12))
+            + pushq(reg!(R13))
+            + movq(reg!(RSP), reg!(R13))
+            + call(ctxt.fun_label(&PathUL::from_vec(vec!["crate", "main_0"])))
+            + popq(R13)
+            + popq(R12)
+            + popq(RBP)
+            + xorq(reg!(RAX), reg!(RAX))
+            + ret()
+    } + printf_seg();
     let data_ss = Segment::label(reg::Label::from_str("my_string".to_string()))
         + data::dasciz("%zd\\n".to_string())
         + Segment::label(reg::Label::from_str("division_by_zero_str".to_string()))

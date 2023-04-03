@@ -9,14 +9,14 @@ use crate::{ast::common::PathUL, typing::context::ModuleInterface};
 fn rewrite_modint(mut modint: ModuleInterface) -> ModuleInterface {
     let mut to_handle = vec![
         (PathUL::from_vec(vec!["crate", "main"]), Vec::new()),
-        (
-            PathUL::from_vec(vec!["std", "allocator", "realloc"]),
-            Vec::new(),
-        ),
-        (
-            PathUL::from_vec(vec!["std", "allocator", "init"]),
-            Vec::new(),
-        ),
+        // (
+        //     PathUL::from_vec(vec!["std", "allocator", "realloc"]),
+        //     Vec::new(),
+        // ),
+        // (
+        //     PathUL::from_vec(vec!["std", "allocator", "init"]),
+        //     Vec::new(),
+        // ),
     ];
 
     for (path, _) in &to_handle {
