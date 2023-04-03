@@ -1,9 +1,9 @@
  -- rustc -O
         0.13 real         0.00 user         0.00 sys
  -- rustc
-       11.84 real        11.68 user         0.01 sys
+       11.85 real        11.67 user         0.01 sys
  -- SamRustCompiler
-       30.02 real        29.71 user         0.03 sys
+       30.57 real        29.97 user         0.03 sys
 
 Nb lines
-     407 tests/benchmarks/struct.s
+     417 tests/benchmarks/struct.s

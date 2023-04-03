@@ -180,17 +180,6 @@ fn default_vec_function(
             + popq(RBP)
             + ret()
     }
-
-    asm += Segment::label(reg::Label::panic())
-        + movq(reg!(R13), reg!(RSP))
-        + movq(reg!(R12), reg!(RDI))
-        + movq(immq(0), reg!(RAX))
-        + call(reg::Label::printf())
-        + popq(R13)
-        + popq(R12)
-        + popq(RBP)
-        + movq(immq(1), reg!(RAX))
-        + ret();
     asm
 }
 
@@ -204,7 +193,7 @@ const WRITE_SYSCALL: i64 = 0x1;
 fn printf_seg() -> Segment<instr::Instr> {
     use write_x86_64::reg::Label;
 
-    Segment::label(Label::from_str("printf".to_string()))
+    let mut asm = Segment::label(Label::from_str("printf".to_string()))
         + pushq(reg!(RBP))
         + movq(reg!(RDI), reg!(RSI))
         + movq(immq(1), reg!(RDI))
@@ -219,7 +208,19 @@ fn printf_seg() -> Segment<instr::Instr> {
         + movq(immq(WRITE_SYSCALL), reg!(RAX))
         + syscall()
         + popq(RBP)
-        + ret()
+        + ret();
+
+    asm += Segment::label(reg::Label::panic())
+        + movq(reg!(R13), reg!(RSP))
+        + movq(reg!(R12), reg!(RDI))
+        + movq(immq(0), reg!(RAX))
+        + call(reg::Label::printf())
+        + popq(R13)
+        + popq(R12)
+        + popq(RBP)
+        + movq(immq(1), reg!(RAX))
+        + ret();
+    asm
 }
 
 pub fn base(ctxt: &mut Context, vec_info: crate::to_llr::VecInfo) -> file::File {
