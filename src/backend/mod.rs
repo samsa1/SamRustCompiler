@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::ast::common::{BuiltinType, ComputedValue, Sizes, TypedBinop, TypedUnaop};
 use crate::ast::low_level_repr as llr;
+use llr::{Value, Pos};
 use crate::ast::typed_rust::PostType;
 
 use write_x86_64::*;
@@ -74,18 +75,17 @@ fn compile_expr_pointer(
     match *expr.content {
         llr::ExprInner::BinOp(_, _, _)
         | llr::ExprInner::Bloc(_)
-        | llr::ExprInner::Bool(_)
         | llr::ExprInner::BuildStruct(_, _)
         | llr::ExprInner::Coercion(_, _, _)
         | llr::ExprInner::FunCall(_, _)
         | llr::ExprInner::FunCallVar(_, _)
         | llr::ExprInner::If(_, _, _)
-        | llr::ExprInner::Int(_, _)
         | llr::ExprInner::Print(_)
         | llr::ExprInner::Ref(_)
         | llr::ExprInner::Set(_, _, _)
         | llr::ExprInner::Tuple(_, _)
         | llr::ExprInner::Return(_)
+        | llr::ExprInner::Value(_)
         | llr::ExprInner::While(_, _)
         | llr::ExprInner::UnaOp(_, _) => panic!("ICE"),
         llr::ExprInner::Deref(expr) => {
@@ -112,10 +112,10 @@ fn compile_expr_pointer(
     }
 }
 
-fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
-    match op {
-        TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
-        TypedBinop::And(_)
+fn get_cond(rev : bool, op: TypedBinop) -> Option<instr::Cond> {
+    match (rev, op) {
+        (_, TypedBinop::LAnd | TypedBinop::LOr) => panic!("ICE"),
+        (_, TypedBinop::And(_)
         | TypedBinop::Or(_)
         | TypedBinop::Add(_)
         | TypedBinop::Shl(_)
@@ -123,18 +123,38 @@ fn get_cond(op: TypedBinop) -> Option<instr::Cond> {
         | TypedBinop::Sub(_)
         | TypedBinop::Mod(_, _)
         | TypedBinop::Mul(_, _)
-        | TypedBinop::Div(_, _) => None,
+        | TypedBinop::Div(_, _)) => None,
 
-        TypedBinop::Eq(_) => Some(instr::Cond::Z),
-        TypedBinop::Neq(_) => Some(instr::Cond::NZ),
-        TypedBinop::Lower(false, _) => Some(instr::Cond::B),
-        TypedBinop::Lower(true, _) => Some(instr::Cond::L),
-        TypedBinop::LowerEq(false, _) => Some(instr::Cond::BE),
-        TypedBinop::LowerEq(true, _) => Some(instr::Cond::LE),
-        TypedBinop::Greater(false, _) => Some(instr::Cond::A),
-        TypedBinop::Greater(true, _) => Some(instr::Cond::G),
-        TypedBinop::GreaterEq(false, _) => Some(instr::Cond::AE),
-        TypedBinop::GreaterEq(true, _) => Some(instr::Cond::GE),
+        (_, TypedBinop::Eq(_)) => Some(instr::Cond::Z),
+        (_, TypedBinop::Neq(_)) => Some(instr::Cond::NZ),
+        (false, TypedBinop::Lower(signed, _))
+        | (true, TypedBinop::Greater(signed, _)) =>
+            if signed {
+                Some(instr::Cond::L)
+            } else {
+                Some(instr::Cond::B)
+            },
+        (false, TypedBinop::LowerEq(signed, _))
+        | (true, TypedBinop::GreaterEq(signed, _)) =>
+            if signed {
+                Some(instr::Cond::LE)
+            } else {
+                Some(instr::Cond::BE)
+            },
+        (false, TypedBinop::Greater(signed, _))
+        | (true, TypedBinop::Lower(signed, _)) =>
+            if signed {
+                Some(instr::Cond::G)
+            } else {
+                Some(instr::Cond::A)
+            },
+        (false, TypedBinop::GreaterEq(signed, _))
+        | (true, TypedBinop::LowerEq(signed, _)) =>
+            if signed {
+                Some(instr::Cond::GE)
+            } else {
+                Some(instr::Cond::AE)
+            },
     }
 }
 
@@ -146,6 +166,277 @@ fn move_stack_to_rax(pad: u64, size: usize) -> Segment<instr::Instr> {
         4 => movl(addr!(RSP), reg!(EAX)) + addq(immq(4 + pad as i64), reg!(RSP)),
         8 => popq(RAX) + addq(immq(pad as i64), reg!(RSP)),
         _ => panic!("No handled"),
+    }
+}
+
+fn compile_val(v : llr::Value) -> Segment<instr::Instr> {
+    match v {
+        llr::Value::Bool(b) => {
+            if b {
+                movb(immb(1), reg::Operand::Reg(AL))
+            } else {
+                movb(immb(0), reg::Operand::Reg(AL))
+            }
+        }
+        llr::Value::UInt(imm, size) =>
+            match size {
+                Sizes::S8 => movb(immb(imm as i8), reg::Operand::Reg(AL)),
+                Sizes::S16 => movw(immw(imm as i16), reg::Operand::Reg(AX)),
+                Sizes::S32 => movl(imml(imm as i32), reg::Operand::Reg(EAX)),
+                Sizes::S64 | Sizes::SUsize => movq(immq(imm as i64), reg!(RAX)),
+            },
+        llr::Value::SInt(imm, size) =>
+            match size {
+                Sizes::S8 => movb(immb(imm as i8), reg::Operand::Reg(AL)),
+                Sizes::S16 => movw(immw(imm as i16), reg::Operand::Reg(AX)),
+                Sizes::S32 => movl(imml(imm as i32), reg::Operand::Reg(EAX)),
+                Sizes::S64 | Sizes::SUsize => movq(immq(imm), reg!(RAX)),
+            },
+    }
+}
+
+fn compile_div(size : Sizes, signed : bool, v : Value, pos : Pos) -> Segment<instr::Instr> {
+    match (size, pos) {
+        (Sizes::S8, _) => todo!(),
+        (Sizes::S16, _) => todo!(),
+        (Sizes::S32, Pos::Left) => {
+            leaq(
+                reg::Operand::LabRelAddr(reg::Label::from_str(
+                    "division_by_zero_str".to_string(),
+                )),
+                R12,
+            ) + testl(reg!(EAX), reg!(EAX))
+                + jz(reg::Label::panic())
+                + movl(reg!(EAX), reg!(ECX))
+                + movl(imml(v.imm() as i32), reg!(EAX))
+                + if signed {
+                    cltd() + idivl(reg!(ECX))
+                } else {
+                    xorl(reg!(EDX), reg!(EDX)) + divl(reg!(ECX))
+                }
+        }
+        (Sizes::S32, Pos::Right) => {
+            let imm = v.imm();
+            if imm == 0 {
+                leaq(
+                    reg::Operand::LabRelAddr(reg::Label::from_str(
+                        "division_by_zero_str".to_string(),
+                    )),
+                    R12,
+                ) + jmp(reg::Label::panic())
+            } else {
+                movl(imml(v.imm() as i32), reg!(ECX))
+                + if signed {
+                    cltd() + idivl(reg!(ECX))
+                } else {
+                    xorl(reg!(EDX), reg!(EDX)) + divl(reg!(ECX))
+                }
+
+            }
+        }
+        (Sizes::S64 | Sizes::SUsize, Pos::Left) => {
+            leaq(
+                reg::Operand::LabRelAddr(reg::Label::from_str(
+                    "division_by_zero_str".to_string(),
+                )),
+                R12,
+            ) + testq(reg!(RAX), reg!(RAX))
+                + jz(reg::Label::panic())
+                + movq(reg!(RAX), reg!(RCX))
+                + movq(immq(v.imm()), reg!(RAX))
+                + if signed {
+                    cqto() + idivq(reg!(RCX))
+                } else {
+                    xorq(reg!(RDX), reg!(RDX)) + divq(reg!(RCX))
+                }
+        }
+        (Sizes::S64 | Sizes::SUsize, Pos::Right) => {
+            let imm = v.imm();
+            if imm == 0 {
+                leaq(
+                    reg::Operand::LabRelAddr(reg::Label::from_str(
+                        "division_by_zero_str".to_string(),
+                    )),
+                    R12,
+                ) + jmp(reg::Label::panic())
+            } else {
+                movq(immq(v.imm()), reg!(RCX))
+                + if signed {
+                    cqto() + idivq(reg!(RCX))
+                } else {
+                    xorq(reg!(RDX), reg!(RDX)) + divq(reg!(RCX))
+                }
+            }
+        }
+    }
+}
+
+fn compile_op(op : TypedBinop, v : Value, pos : Pos) -> Segment<instr::Instr> {
+    match (op, pos) {
+        (TypedBinop::LAnd | TypedBinop::LOr, _) => panic!("ICE"),
+        (TypedBinop::Add(Sizes::S8), _) =>
+            addb(immb(v.imm() as i8), reg!(AL)),
+        (TypedBinop::Add(Sizes::S16), _) =>
+            addw(immw(v.imm() as i16), reg!(AX)),
+        (TypedBinop::Add(Sizes::S32), _) =>
+            addl(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::Add(Sizes::S64 | Sizes::SUsize), _) =>
+            addq(immq(v.imm()), reg!(RAX)),
+
+        (TypedBinop::Sub(Sizes::S8), Pos::Right) =>
+            subb(immb(v.imm() as i8), reg!(AL)),
+        (TypedBinop::Sub(Sizes::S16), Pos::Right) =>
+            subw(immw(v.imm() as i16), reg!(AX)),
+        (TypedBinop::Sub(Sizes::S32), Pos::Right) =>
+            subl(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::Sub(Sizes::S64), Pos::Right)
+        | (TypedBinop::Sub(Sizes::SUsize), Pos::Right) =>
+            subq(immq(v.imm() as i64), reg!(RAX)),
+
+        (TypedBinop::Sub(Sizes::S8), Pos::Left) =>
+            todo!(),
+            // subb(immb(v.imm() as i8), reg!(AL)),
+        (TypedBinop::Sub(Sizes::S16), Pos::Left) =>
+            todo!(),
+            // subw(immw(v.imm() as i16), reg!(AX)),
+        (TypedBinop::Sub(Sizes::S32), Pos::Left) =>
+            todo!(),
+            // subl(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::Sub(Sizes::S64 | Sizes::SUsize), Pos::Left) =>
+            todo!(),
+            // subq(immq(v.imm() as i64), reg!(RAX))
+
+
+        (TypedBinop::Mul(_, Sizes::S8), _)=> todo!(),
+        (TypedBinop::Mul(_, Sizes::S16), _) => todo!(),
+        (TypedBinop::Mul(true, Sizes::S32), _) =>
+            imull(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::Mul(false, Sizes::S32), _) =>
+            imull(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::Mul(true, Sizes::S64 | Sizes::SUsize), _) =>
+            imulq(immq(v.imm()), reg!(RAX)),
+        (TypedBinop::Mul(false, Sizes::S64 | Sizes::SUsize), _) =>
+            imulq(immq(v.imm()), reg!(RAX)),
+
+        (TypedBinop::Div(signed, size), _) =>
+            compile_div(size, signed, v, pos),
+
+        (TypedBinop::Mod(signed, size), _) => {
+            compile_div(size, signed, v, pos)
+            + movq(reg!(RDX), reg!(RAX))
+        }
+
+        (TypedBinop::And(Sizes::S8), _) =>
+            andb(immb(v.imm() as i8), reg!(AL)),
+        (TypedBinop::And(Sizes::S16), _) =>
+            andw(immw(v.imm() as i16), reg!(AX)),
+        (TypedBinop::And(Sizes::S32), _) =>
+            andl(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::And(Sizes::S64 | Sizes::SUsize), _) =>
+            andq(immq(v.imm()), reg!(RAX)),
+
+        (TypedBinop::Or(Sizes::S8), _) =>
+            orb(immb(v.imm() as i8), reg!(AL)),
+        (TypedBinop::Or(Sizes::S16), _) =>
+            orw(immw(v.imm() as i16), reg!(AX)),
+        (TypedBinop::Or(Sizes::S32), _) =>
+            orl(imml(v.imm() as i32), reg!(EAX)),
+        (TypedBinop::Or(Sizes::S64 | Sizes::SUsize), _) =>
+            orq(immq(v.imm()), reg!(RAX)),
+
+
+        (TypedBinop::Shl(Sizes::S8), Pos::Right) =>
+            movb(immb(v.imm() as i8), reg!(CL)) + shlb_reg(reg!(AL)),
+        (TypedBinop::Shl(Sizes::S16), Pos::Right) =>
+            movw(immw(v.imm() as i16), reg!(CX)) + shlw_reg(reg!(AX)),
+        (TypedBinop::Shl(Sizes::S32), Pos::Right) =>
+            movl(imml(v.imm() as i32), reg!(ECX)) + shll_reg(reg!(EAX)),
+        (TypedBinop::Shl(Sizes::S64 | Sizes::SUsize), Pos::Right) =>
+            movq(immq(v.imm()), reg!(RCX)) + shlq_reg(reg!(RAX)),
+        (TypedBinop::Shr(Sizes::S8), Pos::Right) =>
+            movb(immb(v.imm() as i8), reg!(CL)) + shrb_reg(reg!(AL)),
+        (TypedBinop::Shr(Sizes::S16), Pos::Right) =>
+            movw(immw(v.imm() as i16), reg!(CX)) + shrw_reg(reg!(AX)),
+        (TypedBinop::Shr(Sizes::S32), Pos::Right) =>
+            movl(imml(v.imm() as i32), reg!(ECX)) + shrl_reg(reg!(EAX)),
+        (TypedBinop::Shr(Sizes::S64 | Sizes::SUsize), Pos::Right) =>
+            movq(immq(v.imm()), reg!(RCX)) + shrq_reg(reg!(RAX)),
+
+
+        (TypedBinop::Shl(Sizes::S8), Pos::Left) =>
+            movb(reg!(AL), reg!(CL))
+            + movb(immb(v.imm() as i8), reg!(AL))
+            + shlb_reg(reg!(AL)),
+        (TypedBinop::Shl(Sizes::S16), Pos::Left) =>
+            movw(reg!(AX), reg!(CX))
+            + movw(immw(v.imm() as i16), reg!(AX))
+            + shlw_reg(reg!(AX)),
+        (TypedBinop::Shl(Sizes::S32), Pos::Left) =>
+            movl(reg!(EAX), reg!(ECX))
+            + movl(imml(v.imm() as i32), reg!(EAX))
+            + shll_reg(reg!(EAX)),
+        (TypedBinop::Shl(Sizes::S64 | Sizes::SUsize), Pos::Left) =>
+            movq(reg!(RAX), reg!(RCX))
+            + movq(immq(v.imm()), reg!(RAX))
+            + shlq_reg(reg!(RAX)),
+        (TypedBinop::Shr(Sizes::S8), Pos::Left) =>
+            movb(reg!(AL), reg!(CL))
+            + movb(immb(v.imm() as i8), reg!(AL))
+            + shrb_reg(reg!(AL)),
+        (TypedBinop::Shr(Sizes::S16), Pos::Left) =>
+            movw(reg!(AX), reg!(CX))
+            + movw(immw(v.imm() as i16), reg!(AX))
+            + shrw_reg(reg!(AX)),
+        (TypedBinop::Shr(Sizes::S32), Pos::Left) =>
+            movl(reg!(EAX), reg!(ECX))
+            + movl(imml(v.imm() as i32), reg!(EAX))
+            + shrl_reg(reg!(EAX)),
+        (TypedBinop::Shr(Sizes::S64 | Sizes::SUsize), Pos::Left) =>
+            movq(reg!(RAX), reg!(RCX))
+            + movq(immq(v.imm()), reg!(RAX))
+            + shrq_reg(reg!(RAX)),
+
+        (TypedBinop::Eq(Sizes::S8)
+        | TypedBinop::Neq(Sizes::S8)
+        | TypedBinop::Lower(_, Sizes::S8)
+        | TypedBinop::LowerEq(_, Sizes::S8)
+        | TypedBinop::Greater(_, Sizes::S8)
+        | TypedBinop::GreaterEq(_, Sizes::S8), _) => {
+            cmpb(immb(v.imm() as i8), reg!(AL)) + set(get_cond(pos.is_left(), op).unwrap(), reg!(AL))
+        }
+        (TypedBinop::Eq(Sizes::S16)
+        | TypedBinop::Neq(Sizes::S16)
+        | TypedBinop::Lower(_, Sizes::S16)
+        | TypedBinop::LowerEq(_, Sizes::S16)
+        | TypedBinop::Greater(_, Sizes::S16)
+        | TypedBinop::GreaterEq(_, Sizes::S16), _) => {
+            cmpw(immw(v.imm() as i16), reg!(AX)) + set(get_cond(pos.is_left(), op).unwrap(), reg!(AL))
+        }
+
+        (TypedBinop::Eq(Sizes::S32)
+        | TypedBinop::Neq(Sizes::S32)
+        | TypedBinop::Lower(_, Sizes::S32)
+        | TypedBinop::LowerEq(_, Sizes::S32)
+        | TypedBinop::Greater(_, Sizes::S32)
+        | TypedBinop::GreaterEq(_, Sizes::S32), _) => {
+            cmpl(imml(v.imm() as i32), reg!(EAX)) + set(get_cond(pos.is_left(), op).unwrap(), reg!(AL))
+        }
+
+        (TypedBinop::Eq(Sizes::S64 | Sizes::SUsize)
+        | TypedBinop::Neq(Sizes::S64 | Sizes::SUsize)
+        | TypedBinop::Lower(_, Sizes::S64 | Sizes::SUsize)
+        | TypedBinop::LowerEq(_, Sizes::S64 | Sizes::SUsize)
+        | TypedBinop::Greater(_, Sizes::S64 | Sizes::SUsize)
+        | TypedBinop::GreaterEq(_, Sizes::S64 | Sizes::SUsize), _) => {
+            if v.imm().abs () < 1 << 32 {
+                cmpq(immq(v.imm()), reg!(RAX))
+                + set(get_cond(pos.is_left(), op).unwrap(), reg!(AL))
+            } else {
+                movq(immq(v.imm()), reg!(RCX))
+                + cmpq(reg!(RCX), reg!(RAX))
+                + set(get_cond(pos.is_left(), op).unwrap(), reg!(AL))
+            }
+        }
     }
 }
 
@@ -164,16 +455,17 @@ fn compile_expr_val(
                 Location::StackWithPadding(pad) => expr + move_stack_to_rax(pad, size),
             };
             let op = match op {
-                TypedUnaop::Neg(Sizes::S8) => negb(reg!(AL)),
-                TypedUnaop::Neg(Sizes::S16) => negw(reg!(AX)),
-                TypedUnaop::Neg(Sizes::S32) => negl(reg!(EAX)),
-                TypedUnaop::Neg(Sizes::S64) => negq(reg!(RAX)),
-                TypedUnaop::Neg(Sizes::SUsize) => negq(reg!(RAX)),
-                TypedUnaop::Not(Sizes::S8) => xorb(immb(1), reg!(AL)),
-                TypedUnaop::Not(Sizes::S16) => xorw(immw(1), reg!(AX)),
-                TypedUnaop::Not(Sizes::S32) => xorl(imml(1), reg!(EAX)),
-                TypedUnaop::Not(Sizes::S64) => xorq(immq(1), reg!(RAX)),
-                TypedUnaop::Not(Sizes::SUsize) => xorq(immq(1), reg!(RAX)),
+                llr::UnaOp::Unary(TypedUnaop::Neg(Sizes::S8)) => negb(reg!(AL)),
+                llr::UnaOp::Unary(TypedUnaop::Neg(Sizes::S16)) => negw(reg!(AX)),
+                llr::UnaOp::Unary(TypedUnaop::Neg(Sizes::S32)) => negl(reg!(EAX)),
+                llr::UnaOp::Unary(TypedUnaop::Neg(Sizes::S64)) => negq(reg!(RAX)),
+                llr::UnaOp::Unary(TypedUnaop::Neg(Sizes::SUsize)) => negq(reg!(RAX)),
+                llr::UnaOp::Unary(TypedUnaop::Not(Sizes::S8)) => xorb(immb(1), reg!(AL)),
+                llr::UnaOp::Unary(TypedUnaop::Not(Sizes::S16)) => xorw(immw(1), reg!(AX)),
+                llr::UnaOp::Unary(TypedUnaop::Not(Sizes::S32)) => xorl(imml(1), reg!(EAX)),
+                llr::UnaOp::Unary(TypedUnaop::Not(Sizes::S64)) => xorq(immq(1), reg!(RAX)),
+                llr::UnaOp::Unary(TypedUnaop::Not(Sizes::SUsize)) => xorq(immq(1), reg!(RAX)),
+                llr::UnaOp::Binary(op, v, pos) => compile_op(op, v, pos),
             };
             (Location::Rax, expr + op)
         }
@@ -278,30 +570,23 @@ fn compile_expr_val(
                 TypedBinop::Add(Sizes::S8) => addb(reg!(CL), reg!(AL)),
                 TypedBinop::Add(Sizes::S16) => addw(reg!(CX), reg!(AX)),
                 TypedBinop::Add(Sizes::S32) => addl(reg!(ECX), reg!(EAX)),
-                TypedBinop::Add(Sizes::S64) | TypedBinop::Add(Sizes::SUsize) => {
-                    addq(reg!(RCX), reg!(RAX))
-                }
+                TypedBinop::Add(Sizes::S64 | Sizes::SUsize) =>
+                    addq(reg!(RCX), reg!(RAX)),
 
                 TypedBinop::Sub(Sizes::S8) => subb(reg!(CL), reg!(AL)),
                 TypedBinop::Sub(Sizes::S16) => subw(reg!(CX), reg!(AX)),
                 TypedBinop::Sub(Sizes::S32) => subl(reg!(ECX), reg!(EAX)),
-                TypedBinop::Sub(Sizes::S64) | TypedBinop::Sub(Sizes::SUsize) => {
-                    subq(reg!(RCX), reg!(RAX))
-                }
+                TypedBinop::Sub(Sizes::S64 | Sizes::SUsize) =>
+                    subq(reg!(RCX), reg!(RAX)),
 
-                TypedBinop::Mul(true, Sizes::S8) => todo!(),
-                TypedBinop::Mul(true, Sizes::S16) => todo!(),
+                TypedBinop::Mul(_, Sizes::S8) => todo!(),
+                TypedBinop::Mul(_, Sizes::S16) => todo!(),
                 TypedBinop::Mul(true, Sizes::S32) => imull(reg!(ECX), reg!(EAX)),
-                TypedBinop::Mul(true, Sizes::S64) | TypedBinop::Mul(true, Sizes::SUsize) => {
-                    imulq(reg!(RCX), reg!(RAX))
-                }
-
-                TypedBinop::Mul(false, Sizes::S8) => todo!(),
-                TypedBinop::Mul(false, Sizes::S16) => todo!(),
                 TypedBinop::Mul(false, Sizes::S32) => imull(reg!(ECX), reg!(EAX)),
-                TypedBinop::Mul(false, Sizes::S64) | TypedBinop::Mul(false, Sizes::SUsize) => {
-                    imulq(reg!(RCX), reg!(RAX))
-                }
+                TypedBinop::Mul(true, Sizes::S64 | Sizes::SUsize) =>
+                    imulq(reg!(RCX), reg!(RAX)),
+                TypedBinop::Mul(false, Sizes::S64 | Sizes::SUsize) =>
+                    imulq(reg!(RCX), reg!(RAX)),
 
                 TypedBinop::Div(_, Sizes::S8) => todo!(),
                 TypedBinop::Div(_, Sizes::S16) => todo!(),
@@ -397,7 +682,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S8)
                 | TypedBinop::Greater(_, Sizes::S8)
                 | TypedBinop::GreaterEq(_, Sizes::S8) => {
-                    cmpb(reg!(CL), reg!(AL)) + set(get_cond(op).unwrap(), reg!(AL))
+                    cmpb(reg!(CL), reg!(AL)) + set(get_cond(false, op).unwrap(), reg!(AL))
                 }
                 TypedBinop::Eq(Sizes::S16)
                 | TypedBinop::Neq(Sizes::S16)
@@ -405,7 +690,7 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S16)
                 | TypedBinop::Greater(_, Sizes::S16)
                 | TypedBinop::GreaterEq(_, Sizes::S16) => {
-                    cmpw(reg!(CX), reg!(AX)) + set(get_cond(op).unwrap(), reg!(AL))
+                    cmpw(reg!(CX), reg!(AX)) + set(get_cond(false, op).unwrap(), reg!(AL))
                 }
 
                 TypedBinop::Eq(Sizes::S32)
@@ -414,25 +699,16 @@ fn compile_expr_val(
                 | TypedBinop::LowerEq(_, Sizes::S32)
                 | TypedBinop::Greater(_, Sizes::S32)
                 | TypedBinop::GreaterEq(_, Sizes::S32) => {
-                    cmpl(reg!(ECX), reg!(EAX)) + set(get_cond(op).unwrap(), reg!(AL))
+                    cmpl(reg!(ECX), reg!(EAX)) + set(get_cond(false, op).unwrap(), reg!(AL))
                 }
 
-                TypedBinop::Eq(Sizes::S64)
-                | TypedBinop::Neq(Sizes::S64)
-                | TypedBinop::Lower(_, Sizes::S64)
-                | TypedBinop::LowerEq(_, Sizes::S64)
-                | TypedBinop::Greater(_, Sizes::S64)
-                | TypedBinop::GreaterEq(_, Sizes::S64) => {
-                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AL))
-                }
-
-                TypedBinop::Eq(Sizes::SUsize)
-                | TypedBinop::Neq(Sizes::SUsize)
-                | TypedBinop::Lower(_, Sizes::SUsize)
-                | TypedBinop::LowerEq(_, Sizes::SUsize)
-                | TypedBinop::Greater(_, Sizes::SUsize)
-                | TypedBinop::GreaterEq(_, Sizes::SUsize) => {
-                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(op).unwrap(), reg!(AL))
+                TypedBinop::Eq(Sizes::S64 | Sizes::SUsize)
+                | TypedBinop::Neq(Sizes::S64 | Sizes::SUsize)
+                | TypedBinop::Lower(_, Sizes::S64 | Sizes::SUsize)
+                | TypedBinop::LowerEq(_, Sizes::S64 | Sizes::SUsize)
+                | TypedBinop::Greater(_, Sizes::S64 | Sizes::SUsize)
+                | TypedBinop::GreaterEq(_, Sizes::S64 | Sizes::SUsize) => {
+                    cmpq(reg!(RCX), reg!(RAX)) + set(get_cond(false, op).unwrap(), reg!(AL))
                 }
             };
             (Location::Rax, expr2 + expr1 + mov + op)
@@ -507,13 +783,6 @@ fn compile_expr_val(
         }
 
         llr::ExprInner::Bloc(bloc) => compile_bloc(ctxt, bloc, stack_offset),
-        llr::ExprInner::Bool(b) => {
-            if b {
-                (Location::Rax, movb(immb(1), reg::Operand::Reg(AL)))
-            } else {
-                (Location::Rax, movb(immb(0), reg::Operand::Reg(AL)))
-            }
-        }
         llr::ExprInner::BuildStruct(struct_size, exprs) => {
             let mut asm = subq(immq(struct_size as i64), reg::Operand::Reg(RSP));
             for (offset, expr) in exprs {
@@ -742,15 +1011,6 @@ fn compile_expr_val(
                     + Segment::label(end_label),
             )
         }
-        llr::ExprInner::Int(i, size) => (
-            Location::Rax,
-            match size {
-                Sizes::S8 => movb(immb(i as i8), reg::Operand::Reg(AL)),
-                Sizes::S16 => movw(immw(i as i16), reg::Operand::Reg(AX)),
-                Sizes::S32 => movl(imml(i as i32), reg::Operand::Reg(EAX)),
-                Sizes::S64 | Sizes::SUsize => movq(immq(i as i64), reg!(RAX)),
-            },
-        ),
         llr::ExprInner::Print(label_name) => {
             let missing = if stack_offset % 16 == 0 {
                 0
@@ -914,6 +1174,7 @@ fn compile_expr_val(
             (Location::StackWithPadding(0), asm)
         }
         llr::ExprInner::FunVar(str) => (Location::Rax, leaq(lab!(ctxt.fun_label(&str)), RAX)),
+        llr::ExprInner::Value(v) => (Location::Rax, compile_val(v)),
         llr::ExprInner::VarId(id) => {
             let offset_from_rbp = ctxt.find(id);
             if expr.size == 1 {

@@ -639,6 +639,15 @@ pub enum TypedBinop {
     GreaterEq(bool, Sizes),
 }
 
+impl TypedBinop {
+    pub fn can_unary(&self) -> bool {
+        match self {
+            Self::LAnd | Self::LOr => false,
+            _ => true,
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum TypedUnaop {
     Not(Sizes),

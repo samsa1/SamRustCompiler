@@ -32,7 +32,7 @@ pub fn compile_cond(
     label_false: reg::Label,
 ) -> Segment<instr::Instr> {
     match *expr.content {
-        ExprInner::UnaOp(TypedUnaop::Not(size), expr) => {
+        ExprInner::UnaOp(UnaOp::Unary(TypedUnaop::Not(size)), expr) => {
             assert_eq!(size, Sizes::S8);
             match label_true {
                 Some(label_true) => {
@@ -71,8 +71,8 @@ pub fn compile_cond(
                     + Segment::label(label)
             }
         },
-        ExprInner::BinOp(op, expr1, expr2) if super::get_cond(op).is_some() => {
-            let cond = super::get_cond(op).unwrap();
+        ExprInner::BinOp(op, expr1, expr2) if super::get_cond(false, op).is_some() => {
+            let cond = super::get_cond(false, op).unwrap();
             let size = expr2.size;
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
             let expr2 = match loc {

@@ -45,7 +45,7 @@ impl Expr {
 
     pub fn new_usize(s: u64) -> Self {
         Self {
-            content: Box::new(ExprInner::Int(s, common::Sizes::SUsize)),
+            content: Box::new(ExprInner::Value(Value::UInt(s, common::Sizes::SUsize))),
             loc: common::Location::default(),
             typed: super::typed_rust::PostType::usize(),
             size: 8,
@@ -77,11 +77,48 @@ impl std::fmt::Debug for Expr {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum Value {
+    Bool(bool),
+    SInt(i64, common::Sizes),
+    UInt(u64, common::Sizes),
+}
+
+impl Value {
+    pub fn imm(&self) -> i64 {
+        match self {
+            Self::Bool(_) => panic!("ICE"),
+            Self::SInt(i, _) => *i,
+            Self::UInt(u, _) => *u as i64,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub enum Pos {
+    Left,
+    Right,
+}
+
+impl Pos {
+    pub fn is_left(&self) -> bool {
+        match self {
+            Self::Left => true,
+            _ => false,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum UnaOp {
+    Unary(common::TypedUnaop),
+    Binary(common::TypedBinop, Value, Pos)
+}
+
 #[derive(Debug)]
 pub enum ExprInner {
     BinOp(common::TypedBinop, Expr, Expr),
     Bloc(Bloc),
-    Bool(bool),
     BuildStruct(usize /* size */, Vec<(usize, Expr)>),
     Coercion(Expr, common::BuiltinType, common::BuiltinType),
     Constant(PathUL<()>),
@@ -90,7 +127,6 @@ pub enum ExprInner {
     FunCallVar(usize, Vec<Expr>),
     FunVar(PathUL<()>),
     If(Expr, Bloc, Bloc),
-    Int(u64, common::Sizes),
     /// Path represent the name of the constant containing the string
     Print(PathUL<()>),
     Proj(Expr, usize),
@@ -98,7 +134,8 @@ pub enum ExprInner {
     Return(Option<Expr>),
     Set(usize, Expr, Expr),
     Tuple(usize, Vec<Expr>),
-    UnaOp(common::TypedUnaop, Expr),
+    UnaOp(UnaOp, Expr),
+    Value(Value),
     VarId(usize),
     While(Expr, Bloc),
 }

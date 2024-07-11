@@ -1,5 +1,6 @@
 use crate::ast::common::*;
 use crate::ast::low_level_repr as llr;
+use crate::ast::typed_rust::PostType;
 use crate::ast::typed_rust as tr;
 use crate::frontend::Module;
 use crate::typing::context::ModuleInterface;
@@ -273,6 +274,64 @@ impl DataStruct {
     }
 }
 
+fn eval(op : TypedBinop, v1 : &llr::Value, v2 : &llr::Value) -> Option<llr::Value> {
+    use TypedBinop::*;
+    use llr::Value::*;
+    match (op, v1, v2) {
+        (Add(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(i1 + i2, s)),
+        (Add(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(i1 + i2, s)),
+        (Sub(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 - *i2, s)),
+        (Sub(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 - *i2, s)),
+        (Mul(false, s), UInt(i1, _), UInt(i2, _)) =>
+            Some(UInt((*i1 * *i2) as u64, s)),
+        (Mul(true, s), SInt(i1, _), SInt(i2, _)) =>
+            Some(SInt(*i1 * *i2, s)),
+        (Div(true, s), SInt(i1, _), SInt(i2, _)) =>
+            if v2.imm() == 0 { None } else {
+                Some(SInt(*i1 / *i2, s))
+            },
+        (Div(false, s), UInt(i1, _), UInt(i2, _)) =>
+            if *i2 == 0 { panic!("ICE") } else {
+                Some(UInt(*i1 / *i2, s))
+            },
+        (Mod(true, s), SInt(i1, _), SInt(i2, _)) =>
+            if v2.imm() == 0 { panic!("ICE") } else {
+                Some(SInt(*i1 % *i2, s))
+            },
+        (Mod(false, s), UInt(i1, _), UInt(i2, _)) =>
+            if *i2 == 0 { panic!("ICE") } else {
+                Some(UInt(*i1 % *i2, s))
+            },
+        (LAnd, Bool(b1), Bool(b2)) => Some(Bool(*b1 && *b2)),
+        (LOr , Bool(b1), Bool(b2)) => Some(Bool(*b1 || *b2)),
+        (And(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 & *i2, s)),
+        (And(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 & *i2, s)),
+        (Or(s) , SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 | *i2, s)),
+        (Or(s) , UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 | *i2, s)),
+        (Shl(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 << *i2, s)),
+        (Shl(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 << *i2, s)),
+        (Shr(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 >> *i2, s)),
+        (Shr(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 >> *i2, s)),
+        (Eq(_), Bool(b1), Bool(b2)) => Some(Bool(*b1 == *b2)),
+        (Eq(_), SInt(i1, _), SInt(i2, _)) => Some(Bool(*i1 == *i2)),
+        (Eq(_), UInt(i1, _), UInt(i2, _)) => Some(Bool(*i1 == *i2)),
+        (Neq(_), Bool(b1), Bool(b2)) => Some(Bool(*b1 != *b2)),
+        (Neq(_), SInt(i1, _), SInt(i2, _)) => Some(Bool(*i1 != *i2)),
+        (Neq(_), UInt(i1, _), UInt(i2, _)) => Some(Bool(*i1 != *i2)),
+        (Lower(_, _), SInt(i1, _), SInt(i2, _)) => Some(Bool(*i1 < *i2)),
+        (Lower(_, _), UInt(i1, _), UInt(i2, _)) => Some(Bool(*i1 < *i2)),
+        (LowerEq(_, _), SInt(i1, _), SInt(i2, _)) => Some(Bool(*i1 <= *i2)),
+        (LowerEq(_, _), UInt(i1, _), UInt(i2, _)) => Some(Bool(*i1 <= *i2)),
+        (Greater(_, _), SInt(i1, _), SInt(i2, _)) => Some(Bool(*i1 > *i2)),
+        (Greater(_, _), UInt(i1, _), UInt(i2, _)) => Some(Bool(*i1 > *i2)),
+        (GreaterEq(_, _), SInt(i1, _), SInt(i2, _)) => Some(Bool(*i1 >= *i2)),
+        (GreaterEq(_, _), UInt(i1, _), UInt(i2, _)) => Some(Bool(*i1 >= *i2)),
+        (_, _, _) =>
+            panic!("ICE eval({:?}, {:?}, {:?})", op, v1, v2),
+    }
+
+}
+
 fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
     match *top_expr.content {
         tr::ExprInner::PatternMatching(_, _, _) | tr::ExprInner::TraitFun(_, _, _, _) => {
@@ -286,7 +345,7 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             typed: top_expr.typed,
         },
         tr::ExprInner::Bool(b) => llr::Expr {
-            content: Box::new(llr::ExprInner::Bool(b)),
+            content: Box::new(llr::ExprInner::Value(llr::Value::Bool(b))),
             loc: top_expr.loc,
             typed: top_expr.typed,
             size: 1,
@@ -393,14 +452,19 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             size: names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
         },
-        tr::ExprInner::Int(i) => llr::Expr {
-            content: Box::new(llr::ExprInner::Int(
-                i,
-                top_expr.typed.get_int_size().unwrap(),
-            )),
-            loc: top_expr.loc,
-            size: top_expr.typed.get_int_size().unwrap().to_byte_size(),
-            typed: top_expr.typed,
+        tr::ExprInner::Int(i) => {
+            let (signed, size) = top_expr.typed.get_int_size().unwrap();
+            let v = if signed {
+                    llr::Value::SInt(i as i64, size)
+                } else {
+                    llr::Value::UInt(i, size)
+                };
+            llr::Expr {
+                content: Box::new(llr::ExprInner::Value(v)),
+                loc: top_expr.loc,
+                size: size.to_byte_size(),
+                typed: top_expr.typed,
+            }
         },
         tr::ExprInner::Print(str) => {
             let label = names_info.insert_string(str);
@@ -509,19 +573,31 @@ fn rewrite_expr(top_expr: tr::Expr, names_info: &mut DataStruct) -> llr::Expr {
             typed: top_expr.typed,
         },
 
-        tr::ExprInner::BinOp(op, expr1, expr2) => llr::Expr {
-            content: Box::new(llr::ExprInner::BinOp(
-                op,
-                rewrite_expr(expr1, names_info),
-                rewrite_expr(expr2, names_info),
-            )),
-            loc: top_expr.loc,
-            size: names_info.compute_size(&top_expr.typed),
-            typed: top_expr.typed,
+        tr::ExprInner::BinOp(op, expr1, expr2) => {
+            let e1 = rewrite_expr(expr1, names_info);
+            let e2 = rewrite_expr(expr2, names_info);
+            let content = match (&*e1.content, &*e2.content) {
+                (llr::ExprInner::Value(v1), llr::ExprInner::Value(v2)) =>
+                    match eval(op, v1, v2) {
+                        Some(v) => llr::ExprInner::Value(v),
+                        None => llr::ExprInner::BinOp(op, e1, e2),
+                    },
+                (llr::ExprInner::Value(v1), _) if op.can_unary() =>
+                    llr::ExprInner::UnaOp(llr::UnaOp::Binary(op, *v1, llr::Pos::Left), e2),
+                (_, llr::ExprInner::Value(v2)) if op.can_unary() =>
+                    llr::ExprInner::UnaOp(llr::UnaOp::Binary(op, *v2, llr::Pos::Right), e1),
+                (_, _) => llr::ExprInner::BinOp(op, e1, e2),
+            };
+            llr::Expr {
+                content: Box::new(content),
+                loc: top_expr.loc,
+                size: names_info.compute_size(&top_expr.typed),
+                typed: top_expr.typed,
+            }
         },
 
         tr::ExprInner::UnaOp(op, expr) => llr::Expr {
-            content: Box::new(llr::ExprInner::UnaOp(op, rewrite_expr(expr, names_info))),
+            content: Box::new(llr::ExprInner::UnaOp(llr::UnaOp::Unary(op), rewrite_expr(expr, names_info))),
             loc: top_expr.loc,
             size: names_info.compute_size(&top_expr.typed),
             typed: top_expr.typed,
