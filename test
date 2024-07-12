@@ -7,7 +7,7 @@ if [[ $OSTYPE == 'darwin'* ]]; then
 fi
 
 if [[ $OSTYPE == 'linux'* ]]; then
-  GCC="gcc -no-pie"
+  GCC="gcc -no-pie -z noexecstack"
 fi
 
 

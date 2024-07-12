@@ -112,9 +112,9 @@ impl PostType {
         }
     }
 
-    pub fn get_int_size(&self) -> Option<common::Sizes> {
+    pub fn get_int_size(&self) -> Option<(bool, common::Sizes)> {
         match &self.content {
-            PostTypeInner::BuiltIn(common::BuiltinType::Int(_, size)) => Some(*size),
+            PostTypeInner::BuiltIn(common::BuiltinType::Int(b, size)) => Some((*b, *size)),
             _ => None,
         }
     }
