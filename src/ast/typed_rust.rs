@@ -1,4 +1,4 @@
-use super::common;
+use super::{common, operators};
 use std::collections::HashMap;
 
 #[derive(Debug)]
@@ -183,7 +183,7 @@ impl std::fmt::Debug for Expr {
 
 #[derive(Debug, Clone)]
 pub enum ExprInner {
-    BinOp(common::TypedBinop, Expr, Expr),
+    BinOp(operators::TBinop, Expr, Expr),
     Bloc(Bloc),
     Bool(bool),
     BuildStruct(common::PathUL<()>, Vec<(common::Ident, Expr)>),
@@ -205,7 +205,7 @@ pub enum ExprInner {
     TraitFun(common::PathUL<()>, PostType, String, Vec<Expr>),
     // usize is a padding at the end padding
     Tuple(Vec<Expr>, usize),
-    UnaOp(common::TypedUnaop, Expr),
+    UnaOp(operators::TUnaop, Expr),
     Var(common::Ident),
     VarPath(common::PathUL<()>),
     While(Expr, Bloc),

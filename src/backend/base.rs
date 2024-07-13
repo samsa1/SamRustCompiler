@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 
 use super::context::Context;
 use crate::ast::common::PathUL;
+use crate::ast::asm::Registers;
 use write_x86_64::*;
 
 pub const HEAP_SIZE: usize = 8 << 10;
@@ -175,7 +176,7 @@ fn default_vec_function(
             //    Rax length
             + imulq(immq(size as i64), reg!(RAX))
             + addq(addr!(RBP), reg!(RAX)) /* target of move */
-            + super::mov_struct(RSP, 16, RAX, 0, size as u64, (RDX, EDX, DX, DL))
+            + super::mov_struct(RSP, 16, RAX, 0, size as u64, Registers::RegD)
             + incq(addr!(8, RBP))
             + popq(RBP)
             + ret()

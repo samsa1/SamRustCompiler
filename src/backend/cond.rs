@@ -1,6 +1,7 @@
 use super::{compile_expr_val, context::Context, Location};
 use crate::ast::{
-    common::{Sizes, TypedBinop, TypedUnaop},
+    common::Sizes,
+    operators::{TBinop, TUnaop, Logic},
     low_level_repr::*,
 };
 use write_x86_64::{instr::Cond, *};
@@ -32,7 +33,7 @@ pub fn compile_cond(
     label_false: reg::Label,
 ) -> Segment<instr::Instr> {
     match *expr.content {
-        ExprInner::UnaOp(UnaOp::Unary(TypedUnaop::Not(size)), expr) => {
+        ExprInner::UnaOp(UnaOp::Unary(TUnaop::Not(size)), expr) => {
             assert_eq!(size, Sizes::S8);
             match label_true {
                 Some(label_true) => {
@@ -45,11 +46,11 @@ pub fn compile_cond(
                 }
             }
         }
-        ExprInner::BinOp(TypedBinop::LAnd, expr1, expr2) => {
+        ExprInner::BinOp(TBinop::Logic(Logic::LAnd), expr1, expr2) => {
             compile_cond(ctxt, expr1, stack_offset, None, label_false.clone())
                 + compile_cond(ctxt, expr2, stack_offset, label_true, label_false)
         }
-        ExprInner::BinOp(TypedBinop::LOr, expr1, expr2) => match label_true {
+        ExprInner::BinOp(TBinop::Logic(Logic::LOr), expr1, expr2) => match label_true {
             Some(label) => {
                 compile_cond(
                     ctxt,
@@ -71,8 +72,8 @@ pub fn compile_cond(
                     + Segment::label(label)
             }
         },
-        ExprInner::BinOp(op, expr1, expr2) if super::get_cond(false, op).is_some() => {
-            let cond = super::get_cond(false, op).unwrap();
+        ExprInner::BinOp(TBinop::Cmp(cmp), expr1, expr2) => {
+            let cond = cmp.get_cond();
             let size = expr2.size;
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
             let expr2 = match loc {

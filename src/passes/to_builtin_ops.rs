@@ -1,4 +1,4 @@
-use crate::ast::{common::*, typed_rust::*};
+use crate::ast::{common::*, typed_rust::*, operators::*};
 
 fn rewrite_patt(patt: Pattern) -> Pattern {
     Pattern {
@@ -76,62 +76,62 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "add");
-                                ExprInner::BinOp(TypedBinop::Add(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::LArith(LArith::Add(*size)), expr1, expr2)
                             }
                             ("Mul", 2, BuiltinType::Int(signed, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "mul");
-                                ExprInner::BinOp(TypedBinop::Mul(*signed, *size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::HArith(HArith::new(HArithDesc::Mul, *signed, *size)), expr1, expr2)
                             }
                             ("Mod", 2, BuiltinType::Int(signed, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "mod");
-                                ExprInner::BinOp(TypedBinop::Mod(*signed, *size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::HArith(HArith::new(HArithDesc::Mod, *signed, *size)), expr1, expr2)
                             }
                             ("Sub", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "sub");
-                                ExprInner::BinOp(TypedBinop::Sub(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::LArith(LArith::Sub(*size)), expr1, expr2)
                             }
                             ("Div", 2, BuiltinType::Int(signed, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "div");
-                                ExprInner::BinOp(TypedBinop::Div(*signed, *size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::HArith(HArith::new(HArithDesc::Div, *signed, *size)), expr1, expr2)
                             }
                             ("Shl", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "shl");
-                                ExprInner::BinOp(TypedBinop::Shl(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::Shl(*size), expr1, expr2)
                             }
                             ("Shr", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "shr");
-                                ExprInner::BinOp(TypedBinop::Shr(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::Shr(*size), expr1, expr2)
                             }
                             ("PartialEq", 2, BuiltinType::Bool) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 if fun_name == "eq" {
-                                    ExprInner::BinOp(TypedBinop::Eq(Sizes::S8), expr1, expr2)
+                                    ExprInner::BinOp(TBinop::Cmp(Cmp::eq(Sizes::S8)), expr1, expr2)
                                 } else {
                                     assert_eq!(fun_name, "ne");
-                                    ExprInner::BinOp(TypedBinop::Neq(Sizes::S8), expr1, expr2)
+                                    ExprInner::BinOp(TBinop::Cmp(Cmp::neq(Sizes::S8)), expr1, expr2)
                                 }
                             }
                             ("PartialEq", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 if fun_name == "eq" {
-                                    ExprInner::BinOp(TypedBinop::Eq(*size), expr1, expr2)
+                                    ExprInner::BinOp(TBinop::Cmp(Cmp::eq(*size)), expr1, expr2)
                                 } else {
                                     assert_eq!(fun_name, "ne");
-                                    ExprInner::BinOp(TypedBinop::Neq(*size), expr1, expr2)
+                                    ExprInner::BinOp(TBinop::Cmp(Cmp::neq(*size)), expr1, expr2)
                                 }
                             }
                             ("PartialOrd", 2, BuiltinType::Int(signed, size)) => {
@@ -139,22 +139,22 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                                 let expr1 = exprs.pop().unwrap();
                                 match fun_name.as_str() {
                                     "ge" => ExprInner::BinOp(
-                                        TypedBinop::GreaterEq(*signed, *size),
+                                        TBinop::Cmp(Cmp::new(CmpDesc::GreaterEq, *signed, *size)),
                                         expr1,
                                         expr2,
                                     ),
                                     "gr" => ExprInner::BinOp(
-                                        TypedBinop::Greater(*signed, *size),
+                                        TBinop::Cmp(Cmp::new(CmpDesc::Greater, *signed, *size)),
                                         expr1,
                                         expr2,
                                     ),
                                     "le" => ExprInner::BinOp(
-                                        TypedBinop::LowerEq(*signed, *size),
+                                        TBinop::Cmp(Cmp::new(CmpDesc::LowerEq, *signed, *size)),
                                         expr1,
                                         expr2,
                                     ),
                                     "lo" => ExprInner::BinOp(
-                                        TypedBinop::Lower(*signed, *size),
+                                        TBinop::Cmp(Cmp::new(CmpDesc::Lower, *signed, *size)),
                                         expr1,
                                         expr2,
                                     ),
@@ -164,34 +164,34 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                             ("And", 2, BuiltinType::Bool) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
-                                ExprInner::BinOp(TypedBinop::LAnd, expr1, expr2)
+                                ExprInner::BinOp(TBinop::Logic(Logic::LAnd), expr1, expr2)
                             }
                             ("Or", 2, BuiltinType::Bool) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
-                                ExprInner::BinOp(TypedBinop::LOr, expr1, expr2)
+                                ExprInner::BinOp(TBinop::Logic(Logic::LOr), expr1, expr2)
                             }
                             ("BitAnd", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "bit_and");
-                                ExprInner::BinOp(TypedBinop::And(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::LArith(LArith::And(*size)), expr1, expr2)
                             }
                             ("BitOr", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "bit_or");
-                                ExprInner::BinOp(TypedBinop::Or(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::LArith(LArith::Or(*size)), expr1, expr2)
                             }
                             ("Neg", 1, BuiltinType::Int(_, size)) => {
                                 let expr = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "neg");
-                                ExprInner::UnaOp(TypedUnaop::Neg(*size), expr)
+                                ExprInner::UnaOp(TUnaop::Neg(*size), expr)
                             }
                             ("Not", 1, BuiltinType::Bool) => {
                                 let expr = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "not");
-                                ExprInner::UnaOp(TypedUnaop::Not(Sizes::S8), expr)
+                                ExprInner::UnaOp(TUnaop::Not(Sizes::S8), expr)
                             }
                             ("Add", 2, BuiltinType::Bool) => todo!(),
                             ("Mul", 2, BuiltinType::Bool) => todo!(),

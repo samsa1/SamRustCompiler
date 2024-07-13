@@ -1,4 +1,6 @@
+
 use super::common::{self, PathUL};
+use super::operators::{TBinop, TUnaop};
 
 #[derive(Debug)]
 pub struct File {
@@ -92,6 +94,23 @@ impl Value {
             Self::UInt(u, _) => *u as i64,
         }
     }
+
+    pub fn size(&self) -> common::Sizes {
+        match self {
+            Self::Bool(_) => common::Sizes::S8,
+            Self::SInt(_, s) | Self::UInt(_, s) => *s,
+        }
+    }
+
+    pub fn valid(&self) -> bool {
+        match self {
+            Self::Bool(_) => true,
+            Self::SInt(i, s) =>
+                i.abs() < 1 << (s.max_imm_size() - 1),
+            Self::UInt(i, s) =>
+                *i < 1 << s.max_imm_size(),
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -111,13 +130,13 @@ impl Pos {
 
 #[derive(Debug)]
 pub enum UnaOp {
-    Unary(common::TypedUnaop),
-    Binary(common::TypedBinop, Value, Pos)
+    Unary(TUnaop),
+    Binary(TBinop, Value, Pos)
 }
 
 #[derive(Debug)]
 pub enum ExprInner {
-    BinOp(common::TypedBinop, Expr, Expr),
+    BinOp(TBinop, Expr, Expr),
     Bloc(Bloc),
     BuildStruct(usize /* size */, Vec<(usize, Expr)>),
     Coercion(Expr, common::BuiltinType, common::BuiltinType),
