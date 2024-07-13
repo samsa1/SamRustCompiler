@@ -1,4 +1,3 @@
-
 use super::common::{self, PathUL};
 use super::operators::{TBinop, TUnaop};
 
@@ -105,10 +104,8 @@ impl Value {
     pub fn valid(&self) -> bool {
         match self {
             Self::Bool(_) => true,
-            Self::SInt(i, s) =>
-                i.abs() < 1 << (s.max_imm_size() - 1),
-            Self::UInt(i, s) =>
-                *i < 1 << s.max_imm_size(),
+            Self::SInt(i, s) => i.abs() < 1 << (s.max_imm_size() - 1),
+            Self::UInt(i, s) => *i < 1 << s.max_imm_size(),
         }
     }
 }
@@ -131,7 +128,7 @@ impl Pos {
 #[derive(Debug)]
 pub enum UnaOp {
     Unary(TUnaop),
-    Binary(TBinop, Value, Pos)
+    Binary(TBinop, Value, Pos),
 }
 
 #[derive(Debug)]

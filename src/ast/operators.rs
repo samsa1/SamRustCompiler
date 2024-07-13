@@ -43,25 +43,23 @@ impl CmpDesc {
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct Cmp {
     pub cmp: CmpDesc,
-    pub signed : bool,
+    pub signed: bool,
     pub size: Sizes,
 }
 
 impl Cmp {
-    pub fn cond_rev(mut self, b : bool) -> Self {
+    pub fn cond_rev(mut self, b: bool) -> Self {
         if b {
             self.cmp = self.cmp.rev()
         }
         self
     }
 
-    pub fn new(cmp : CmpDesc, signed : bool, size : Sizes) -> Self {
-        Self {
-            cmp, signed, size,
-        }
+    pub fn new(cmp: CmpDesc, signed: bool, size: Sizes) -> Self {
+        Self { cmp, signed, size }
     }
 
-    pub fn eq(size : Sizes) -> Self {
+    pub fn eq(size: Sizes) -> Self {
         Self {
             cmp: CmpDesc::Eq,
             signed: false,
@@ -69,8 +67,7 @@ impl Cmp {
         }
     }
 
-
-    pub fn neq(size : Sizes) -> Self {
+    pub fn neq(size: Sizes) -> Self {
         Self {
             cmp: CmpDesc::Neq,
             signed: false,
@@ -78,7 +75,6 @@ impl Cmp {
         }
     }
 }
-
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum HArithDesc {
@@ -89,18 +85,14 @@ pub enum HArithDesc {
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub struct HArith {
-    pub dm : HArithDesc,
-    pub signed : bool,
-    pub size : Sizes,
+    pub dm: HArithDesc,
+    pub signed: bool,
+    pub size: Sizes,
 }
 
 impl HArith {
-    pub fn new(dm : HArithDesc, signed : bool, size : Sizes) -> Self {
-        Self {
-            dm,
-            signed,
-            size,
-        }
+    pub fn new(dm: HArithDesc, signed: bool, size: Sizes) -> Self {
+        Self { dm, signed, size }
     }
 }
 

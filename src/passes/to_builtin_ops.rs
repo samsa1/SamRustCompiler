@@ -1,4 +1,4 @@
-use crate::ast::{common::*, typed_rust::*, operators::*};
+use crate::ast::{common::*, operators::*, typed_rust::*};
 
 fn rewrite_patt(patt: Pattern) -> Pattern {
     Pattern {
@@ -82,13 +82,21 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "mul");
-                                ExprInner::BinOp(TBinop::HArith(HArith::new(HArithDesc::Mul, *signed, *size)), expr1, expr2)
+                                ExprInner::BinOp(
+                                    TBinop::HArith(HArith::new(HArithDesc::Mul, *signed, *size)),
+                                    expr1,
+                                    expr2,
+                                )
                             }
                             ("Mod", 2, BuiltinType::Int(signed, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "mod");
-                                ExprInner::BinOp(TBinop::HArith(HArith::new(HArithDesc::Mod, *signed, *size)), expr1, expr2)
+                                ExprInner::BinOp(
+                                    TBinop::HArith(HArith::new(HArithDesc::Mod, *signed, *size)),
+                                    expr1,
+                                    expr2,
+                                )
                             }
                             ("Sub", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
@@ -100,7 +108,11 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "div");
-                                ExprInner::BinOp(TBinop::HArith(HArith::new(HArithDesc::Div, *signed, *size)), expr1, expr2)
+                                ExprInner::BinOp(
+                                    TBinop::HArith(HArith::new(HArithDesc::Div, *signed, *size)),
+                                    expr1,
+                                    expr2,
+                                )
                             }
                             ("Shl", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();

@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 
 use super::context::Context;
-use crate::ast::common::PathUL;
 use crate::ast::asm::Registers;
+use crate::ast::common::PathUL;
 use write_x86_64::*;
 
 pub const HEAP_SIZE: usize = 8 << 10;
