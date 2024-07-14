@@ -8,4 +8,6 @@ fn main() {
     test(-5/2, -2);
     test(5%2, 1);
     test(-5%2, 1);
+    let x = 4;
+    test(13 - x, 9);
 }

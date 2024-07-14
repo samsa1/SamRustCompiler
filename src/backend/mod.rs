@@ -234,16 +234,11 @@ fn compile_op(op: TBinop, v: Value, pos: Pos) -> Segment<instr::Instr> {
         (TBinop::LArith(aop), Pos::Left) if aop.commutes() => {
             aop.to_bin(ImmOrReg::V(v), Registers::RegA)
         }
-
-        (TBinop::LArith(LArith::Sub(Sizes::S8)), Pos::Left) => todo!(),
-        // subb(immb(v.imm() as i8), reg!(AL)),
-        (TBinop::LArith(LArith::Sub(Sizes::S16)), Pos::Left) => todo!(),
-        // subw(immw(v.imm() as i16), reg!(AX)),
-        (TBinop::LArith(LArith::Sub(Sizes::S32)), Pos::Left) => todo!(),
-        // subl(imml(v.imm() as i32), reg!(EAX)),
-        (TBinop::LArith(LArith::Sub(Sizes::S64 | Sizes::SUsize)), Pos::Left) => todo!(),
-        // subq(immq(v.imm() as i64), reg!(RAX))
-        (TBinop::LArith(_), Pos::Left) => todo!(),
+        (TBinop::LArith(aop), Pos::Left) => {
+            v.size().mov(Registers::RegA, Registers::RegC)
+                + v.to_reg(Registers::RegA)
+                + aop.to_bin(ImmOrReg::R(Registers::RegC), Registers::RegA)
+        }
 
         (TBinop::HArith(dm), _) => {
             match dm.dm {

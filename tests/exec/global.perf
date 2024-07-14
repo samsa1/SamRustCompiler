@@ -1,6 +1,6 @@
   1906 tests/exec/abr_methods.s
   1906 tests/exec/abr.s
-   156 tests/exec/arith.s
+   170 tests/exec/arith.s
     99 tests/exec/bitwise_ops.s
    234 tests/exec/bool.s
    264 tests/exec/borrow.s
@@ -30,4 +30,4 @@
    174 tests/exec/swap.s
    224 tests/exec/tuple.s
   1396 tests/exec/vec.s
- 14730 total
+ 14744 total

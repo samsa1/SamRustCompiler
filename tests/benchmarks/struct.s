@@ -45,11 +45,11 @@ user_fun..crate..build1_0:
 	movb $0, %al
 	movb %al, -10(%rbp)
 	movl $4, %eax
-	movl %eax, -4(%rbp)
+	movl %eax, -8(%rbp)
 	movl $3, %eax
-	movl %eax, -9(%rbp)
+	movl %eax, -4(%rbp)
 	movb $1, %al
-	movb %al, -5(%rbp)
+	movb %al, -9(%rbp)
 	movq 0(%rsp), %rax
 	movq %rax, 16(%rbp)
 	movw 8(%rsp), %ax
@@ -82,9 +82,9 @@ user_fun..crate..build2_0:
 	movw -2(%rbp), %ax
 	movw %ax, 8(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -40(%rbp)
+	movq %rax, -30(%rbp)
 	movw 8(%rsp), %ax
-	movw %ax, -32(%rbp)
+	movw %ax, -22(%rbp)
 	addq $10, %rsp
 	subq $10, %rsp
 	movq -20(%rbp), %rax
@@ -92,9 +92,9 @@ user_fun..crate..build2_0:
 	movw -12(%rbp), %ax
 	movw %ax, 8(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -30(%rbp)
+	movq %rax, -40(%rbp)
 	movw 8(%rsp), %ax
-	movw %ax, -22(%rbp)
+	movw %ax, -32(%rbp)
 	addq $10, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, 16(%rbp)
@@ -204,8 +204,14 @@ user_fun..crate..test_0:
 	subq $0, %rsp
 	leaq 16(%rbp), %rax
 	addq $40, %rax
-	addq $10, %rax
-	movl 1(%rax), %eax
+	addq $0, %rax
+	movl 6(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $40, %rax
+	addq $0, %rax
+	movl 2(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
@@ -216,32 +222,8 @@ user_fun..crate..test_0:
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $40, %rax
-	addq $0, %rax
-	movl 1(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $40, %rax
-	addq $0, %rax
-	movl 6(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $20, %rax
 	addq $10, %rax
-	movl 1(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $20, %rax
-	addq $10, %rax
-	movl 6(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $20, %rax
-	addq $0, %rax
-	movl 1(%rax), %eax
+	movl 2(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
@@ -251,9 +233,33 @@ user_fun..crate..test_0:
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
+	addq $20, %rax
 	addq $0, %rax
+	movl 2(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
 	addq $10, %rax
-	movl 1(%rax), %eax
+	movl 6(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
+	addq $10, %rax
+	movl 2(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $0, %rax
+	addq $0, %rax
+	movl 6(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $0, %rax
+	addq $0, %rax
+	movl 2(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
@@ -264,14 +270,8 @@ user_fun..crate..test_0:
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $0, %rax
-	addq $0, %rax
-	movl 1(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $0, %rax
-	addq $0, %rax
-	movl 6(%rax), %eax
+	addq $10, %rax
+	movl 2(%rax), %eax
 	movl 0(%rsp), %ecx
 	addq $4, %rsp
 	addl %ecx, %eax
