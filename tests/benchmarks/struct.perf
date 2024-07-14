@@ -1,12 +1,11 @@
  -- rustc -O
-0.00user 0.00system 0:00.00elapsed 0%CPU (0avgtext+0avgdata 2048maxresident)k
-0inputs+0outputs (0major+89minor)pagefaults 0swaps
+0.00user 0.00system 0:00.00elapsed 50%CPU (0avgtext+0avgdata 2048maxresident)k
+0inputs+0outputs (0major+90minor)pagefaults 0swaps
  -- rustc
-7.09user 0.00system 0:07.09elapsed 100%CPU (0avgtext+0avgdata 1920maxresident)k
-0inputs+0outputs (0major+88minor)pagefaults 0swaps
+7.86user 0.00system 0:07.87elapsed 99%CPU (0avgtext+0avgdata 2048maxresident)k
+0inputs+0outputs (0major+89minor)pagefaults 0swaps
  -- SamRustCompiler
-24.61user 0.01system 0:24.62elapsed 99%CPU (0avgtext+0avgdata 1152maxresident)k
-0inputs+0outputs (0major+67minor)pagefaults 0swaps
-
-Nb lines
-409 tests/benchmarks/struct.s
+26.36user 0.00system 0:26.36elapsed 99%CPU (0avgtext+0avgdata 1152maxresident)k
+0inputs+0outputs (0major+65minor)pagefaults 0swaps
+\nNb lines
+399 tests/benchmarks/struct.s

@@ -2,9 +2,8 @@ use super::context::GlobalContext;
 use super::context::ModuleInterface;
 use super::structs::Graph;
 use crate::ast::common::ErrorReporter;
-use crate::ast::common::{
-    BinOperator, BuiltinType, NamePath, PathUL, Projector, Sizes, TypedBinop,
-};
+use crate::ast::common::{BinOperator, BuiltinType, NamePath, PathUL, Projector, Sizes};
+use crate::ast::operators::{Cmp, CmpDesc, HArith, HArithDesc, LArith, Logic, TBinop};
 use crate::ast::rust as rr;
 use crate::ast::typed_rust as tr;
 use crate::frontend::Module;
@@ -68,59 +67,132 @@ pub fn add_deps(expr: &rr::Expr, path: &PathUL<()>, graph: &mut Graph) {
     }
 }
 
-fn compute_i64(bin: TypedBinop, i1: i64, i2: i64) -> Val {
+fn compute_i64(bin: TBinop, i1: i64, i2: i64) -> Val {
     match bin {
-        TypedBinop::Add(s) => Val::Integer(i1 + i2, s),
-        TypedBinop::Mul(_, s) => Val::Integer(i1 * i2, s),
-        TypedBinop::Div(_, s) => Val::Integer(i1 / i2, s),
-        TypedBinop::Mod(_, s) => Val::Integer(i1 % i2, s),
-        TypedBinop::Sub(s) => Val::Integer(i1 - i2, s),
-        TypedBinop::Eq(_) => Val::Bool(i1 == i2),
-        TypedBinop::Neq(_) => Val::Bool(i1 != i2),
-        TypedBinop::Greater(_, _) => Val::Bool(i1 > i2),
-        TypedBinop::GreaterEq(_, _) => Val::Bool(i1 >= i2),
-        TypedBinop::Lower(_, _) => Val::Bool(i1 < i2),
-        TypedBinop::LowerEq(_, _) => Val::Bool(i1 < i2),
-        TypedBinop::And(s) => Val::Integer(i1 & i2, s),
-        TypedBinop::Or(s) => Val::Integer(i1 | i2, s),
-        TypedBinop::Shl(s) => Val::Integer(i1 << i2, s),
-        TypedBinop::Shr(s) => Val::Integer((i1 & s.max_sval()) >> i2, s),
-        TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
+        TBinop::LArith(LArith::Add(s)) => Val::Integer(i1 + i2, s),
+        TBinop::LArith(LArith::Sub(s)) => Val::Integer(i1 - i2, s),
+        TBinop::LArith(LArith::And(s)) => Val::Integer(i1 & i2, s),
+        TBinop::LArith(LArith::Or(s)) => Val::Integer(i1 | i2, s),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Eq, ..
+        }) => Val::Bool(i1 == i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Neq, ..
+        }) => Val::Bool(i1 != i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Greater,
+            ..
+        }) => Val::Bool(i1 > i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::GreaterEq,
+            ..
+        }) => Val::Bool(i1 >= i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Lower,
+            ..
+        }) => Val::Bool(i1 < i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::LowerEq,
+            ..
+        }) => Val::Bool(i1 < i2),
+        TBinop::HArith(HArith {
+            dm: HArithDesc::Mul,
+            signed: _,
+            size,
+        }) => Val::Integer(i1 * i2, size),
+        TBinop::HArith(HArith {
+            dm: HArithDesc::Div,
+            signed: _,
+            size,
+        }) => Val::Integer(i1 / i2, size),
+        TBinop::HArith(HArith {
+            dm: HArithDesc::Mod,
+            signed: _,
+            size,
+        }) => Val::Integer(i1 % i2, size),
+        TBinop::Shl(s) => Val::Integer(i1 << i2, s),
+        TBinop::Shr(s) => Val::Integer((i1 & s.max_sval()) >> i2, s),
+        TBinop::Logic(_) => panic!("ICE"),
     }
 }
 
-fn compute_u64(bin: TypedBinop, i1: u64, i2: u64) -> Val {
+fn compute_u64(bin: TBinop, i1: u64, i2: u64) -> Val {
     match bin {
-        TypedBinop::Add(s) => Val::Uinteger(i1 + i2, s),
-        TypedBinop::Mul(_, s) => Val::Uinteger(i1 * i2, s),
-        TypedBinop::Div(_, s) => Val::Uinteger(i1 / i2, s),
-        TypedBinop::Mod(_, s) => Val::Uinteger(i1 % i2, s),
-        TypedBinop::Sub(s) => Val::Uinteger(i1 - i2, s),
-        TypedBinop::Eq(_) => Val::Bool(i1 == i2),
-        TypedBinop::Neq(_) => Val::Bool(i1 != i2),
-        TypedBinop::Greater(_, _) => Val::Bool(i1 > i2),
-        TypedBinop::GreaterEq(_, _) => Val::Bool(i1 >= i2),
-        TypedBinop::Lower(_, _) => Val::Bool(i1 < i2),
-        TypedBinop::LowerEq(_, _) => Val::Bool(i1 < i2),
-        TypedBinop::And(s) => Val::Uinteger(i1 & i2, s),
-        TypedBinop::Or(s) => Val::Uinteger(i1 | i2, s),
-        TypedBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
-        TypedBinop::Shr(s) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
-        TypedBinop::LAnd | TypedBinop::LOr => panic!("ICE"),
+        TBinop::LArith(LArith::Add(s)) => Val::Uinteger(i1 + i2, s),
+        TBinop::LArith(LArith::Sub(s)) => Val::Uinteger(i1 - i2, s),
+        TBinop::LArith(LArith::And(s)) => Val::Uinteger(i1 & i2, s),
+        TBinop::LArith(LArith::Or(s)) => Val::Uinteger(i1 | i2, s),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Eq, ..
+        }) => Val::Bool(i1 == i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Neq, ..
+        }) => Val::Bool(i1 != i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Greater,
+            ..
+        }) => Val::Bool(i1 > i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::GreaterEq,
+            ..
+        }) => Val::Bool(i1 >= i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Lower,
+            ..
+        }) => Val::Bool(i1 < i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::LowerEq,
+            ..
+        }) => Val::Bool(i1 < i2),
+        TBinop::HArith(HArith {
+            dm: HArithDesc::Mul,
+            signed: _,
+            size,
+        }) => Val::Uinteger(i1 * i2, size),
+        TBinop::HArith(HArith {
+            dm: HArithDesc::Div,
+            signed: _,
+            size,
+        }) => Val::Uinteger(i1 / i2, size),
+        TBinop::HArith(HArith {
+            dm: HArithDesc::Mod,
+            signed: _,
+            size,
+        }) => Val::Uinteger(i1 % i2, size),
+        TBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
+        TBinop::Shr(s) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
+        TBinop::Logic(_) => panic!("ICE"),
     }
 }
-fn compute_bool(bin: TypedBinop, i1: bool, i2: bool) -> Val {
+
+fn compute_bool(bin: TBinop, i1: bool, i2: bool) -> Val {
     match bin {
-        TypedBinop::Eq(_) => Val::Bool(i1 == i2),
-        TypedBinop::Neq(_) => Val::Bool(i1 != i2),
-        TypedBinop::Greater(_, _) => Val::Bool(i1 > i2),
-        TypedBinop::GreaterEq(_, _) => Val::Bool(i1 >= i2),
-        TypedBinop::Lower(_, _) => Val::Bool(i1 < i2),
-        TypedBinop::LowerEq(_, _) => Val::Bool(i1 < i2),
-        TypedBinop::And(_) => Val::Bool(i1 & i2),
-        TypedBinop::Or(_) => Val::Bool(i1 | i2),
-        TypedBinop::LAnd => Val::Bool(i1 && i2),
-        TypedBinop::LOr => Val::Bool(i1 || i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Eq, ..
+        }) => Val::Bool(i1 == i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Neq, ..
+        }) => Val::Bool(i1 != i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Greater,
+            ..
+        }) => Val::Bool(i1 > i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::GreaterEq,
+            ..
+        }) => Val::Bool(i1 >= i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::Lower,
+            ..
+        }) => Val::Bool(i1 < i2),
+        TBinop::Cmp(Cmp {
+            cmp: CmpDesc::LowerEq,
+            ..
+        }) => Val::Bool(i1 < i2),
+        TBinop::LArith(LArith::And(_)) => Val::Bool(i1 & i2),
+        TBinop::LArith(LArith::Or(_)) => Val::Bool(i1 | i2),
+        TBinop::Logic(Logic::LAnd) => Val::Bool(i1 && i2),
+        TBinop::Logic(Logic::LOr) => Val::Bool(i1 || i2),
         _ => panic!("ICE, operation not handled {:?}", bin),
     }
 }

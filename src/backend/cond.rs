@@ -1,7 +1,12 @@
-use super::{compile_expr_val, context::Context, Location};
+use super::{compile_expr_val, context::Context, utils::remove_pad, Location};
 use crate::ast::{
-    common::{Sizes, TypedBinop, TypedUnaop},
+    asm::{
+        ImmOrReg,
+        Registers::{RegA, RegC},
+    },
+    common::Sizes,
     low_level_repr::*,
+    operators::{Logic, TBinop, TUnaop},
 };
 use write_x86_64::{instr::Cond, *};
 
@@ -32,7 +37,7 @@ pub fn compile_cond(
     label_false: reg::Label,
 ) -> Segment<instr::Instr> {
     match *expr.content {
-        ExprInner::UnaOp(UnaOp::Unary(TypedUnaop::Not(size)), expr) => {
+        ExprInner::UnaOp(UnaOp::Unary(TUnaop::Not(size)), expr) => {
             assert_eq!(size, Sizes::S8);
             match label_true {
                 Some(label_true) => {
@@ -45,11 +50,11 @@ pub fn compile_cond(
                 }
             }
         }
-        ExprInner::BinOp(TypedBinop::LAnd, expr1, expr2) => {
+        ExprInner::BinOp(TBinop::Logic(Logic::LAnd), expr1, expr2) => {
             compile_cond(ctxt, expr1, stack_offset, None, label_false.clone())
                 + compile_cond(ctxt, expr2, stack_offset, label_true, label_false)
         }
-        ExprInner::BinOp(TypedBinop::LOr, expr1, expr2) => match label_true {
+        ExprInner::BinOp(TBinop::Logic(Logic::LOr), expr1, expr2) => match label_true {
             Some(label) => {
                 compile_cond(
                     ctxt,
@@ -71,10 +76,22 @@ pub fn compile_cond(
                     + Segment::label(label)
             }
         },
-        ExprInner::BinOp(op, expr1, expr2) if super::get_cond(false, op).is_some() => {
-            let cond = super::get_cond(false, op).unwrap();
-            let size = expr2.size;
+        ExprInner::UnaOp(UnaOp::Binary(TBinop::Cmp(cmp), v, pos), expr) => {
+            let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
+            expr + loc.to_reg(cmp.size.to_byte_size(), RegA)
+                + cmp.size.cmp(ImmOrReg::V(v), RegA)
+                + jcc(
+                    neg_cond(cmp.cond_rev(pos.is_left()).get_cond()),
+                    label_false,
+                )
+                + match label_true {
+                    Some(label) => jmp(label),
+                    None => Text::empty(),
+                }
+        }
+        ExprInner::BinOp(TBinop::Cmp(cmp), expr1, expr2) => {
             let (loc, expr2) = compile_expr_val(ctxt, expr2, stack_offset);
+            let size = cmp.size.to_byte_size();
             let expr2 = match loc {
                 Location::Never => expr2,
                 Location::Rax => match size {
@@ -89,53 +106,44 @@ pub fn compile_cond(
                     0 => expr2,
                     1 => {
                         expr2
-                            + movb(addr!(RSP), reg!(AL))
-                            + addq(immq(pad as i64), reg!(RSP))
+                            + movb(pad.addr(), reg!(AL))
+                            + remove_pad(pad.total())
                             + movb(reg!(AL), addr!(RSP))
                     }
                     2 => {
                         expr2
-                            + movw(addr!(RSP), reg!(AX))
-                            + addq(immq(pad as i64), reg!(RSP))
+                            + movw(pad.addr(), reg!(AX))
+                            + remove_pad(pad.total())
                             + movw(reg!(AX), addr!(RSP))
                     }
                     4 => {
                         expr2
-                            + movl(addr!(RSP), reg!(EAX))
-                            + addq(immq(pad as i64), reg!(RSP))
+                            + movl(pad.addr(), reg!(EAX))
+                            + remove_pad(pad.total())
                             + movl(reg!(EAX), addr!(RSP))
                     }
                     8 => {
                         expr2
-                            + movq(addr!(RSP), reg!(RAX))
-                            + addq(immq(pad as i64), reg!(RSP))
+                            + movq(pad.addr(), reg!(RAX))
+                            + remove_pad(pad.total())
                             + movq(reg!(RAX), addr!(RSP))
                     }
                     _ => panic!("ICE"),
                 },
             };
             let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
-            let expr1 = match loc {
-                Location::Rax | Location::Never => expr1,
-                Location::StackWithPadding(pad) => expr1 + super::move_stack_to_rax(pad, size),
-            };
+            let expr1 = expr1 + loc.to_reg(size, RegA);
             let mov = match size {
                 0 => nop(),
-                1 => movb(addr!(RSP), reg!(CL)) + addq(immq(1), reg!(RSP)),
-                2 => movw(addr!(RSP), reg!(CX)) + addq(immq(2), reg!(RSP)),
-                4 => movl(addr!(RSP), reg!(ECX)) + addq(immq(4), reg!(RSP)),
+                1 => movb(addr!(RSP), reg!(CL)) + remove_pad(1),
+                2 => movw(addr!(RSP), reg!(CX)) + remove_pad(2),
+                4 => movl(addr!(RSP), reg!(ECX)) + remove_pad(4),
                 8 => popq(RCX),
                 _ => panic!("ICE"),
             };
 
-            let op = match size {
-                1 => cmpb(reg!(CL), reg!(AL)),
-                2 => cmpw(reg!(CX), reg!(AX)),
-                4 => cmpl(reg!(ECX), reg!(EAX)),
-                8 => cmpq(reg!(RCX), reg!(RAX)),
-                _ => panic!("ICE"),
-            };
-            let mut asm = expr2 + expr1 + mov + op + jcc(neg_cond(cond), label_false);
+            let op = cmp.size.cmp(ImmOrReg::R(RegC), RegA);
+            let mut asm = expr2 + expr1 + mov + op + jcc(neg_cond(cmp.get_cond()), label_false);
             if let Some(label) = label_true {
                 asm += jmp(label)
             }
@@ -144,11 +152,7 @@ pub fn compile_cond(
         _ => {
             assert_eq!(expr.size, 1);
             let (loc, mut asm) = compile_expr_val(ctxt, expr, stack_offset);
-            match loc {
-                Location::Rax | Location::Never => (),
-                Location::StackWithPadding(pad) => asm += super::move_stack_to_rax(pad, 1),
-            };
-
+            asm += loc.to_reg(1, RegA);
             asm += testb(reg!(AL), reg!(AL)) + jz(label_false);
             match label_true {
                 None => (),

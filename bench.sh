@@ -1,11 +1,22 @@
-#!/bin/sh
+#!/bin/bash
+
+shopt -s nullglob
+
+if [[ $OSTYPE == 'darwin'* ]]; then
+  GCC=gcc
+fi
+
+if [[ $OSTYPE == 'linux'* ]]; then
+  GCC="gcc -no-pie -z noexecstack"
+fi
+
 
 for f in tests/benchmarks/*.rs; do
     echo "$f"
     file=`basename $f .rs`
     
     ./target/debug/sam_rust_compiler tests/benchmarks/$file.rs >> /dev/null
-    gcc tests/benchmarks/$file.s >> /dev/null
+    $GCC tests/benchmarks/$file.s >> /dev/null
     rustc -O tests/benchmarks/$file.rs >> /dev/null 2>&1
     echo " -- $file with rustc -O"
     echo " -- rustc -O" > tests/benchmarks/$file.perf

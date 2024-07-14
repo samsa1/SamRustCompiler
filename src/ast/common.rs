@@ -369,6 +369,14 @@ impl Sizes {
         }
     }
 
+    pub fn max_imm_size(&self) -> usize {
+        match self {
+            Self::S8 => 8,
+            Self::S16 => 16,
+            Self::S32 | Self::S64 | Self::SUsize => 32,
+        }
+    }
+
     pub fn max_sval(&self) -> i64 {
         match self {
             Self::S8 => (-1i8) as i64,
@@ -616,40 +624,4 @@ impl ErrorReporter {
         }
         std::process::exit(1);
     }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum TypedBinop {
-    Add(Sizes),
-    Mul(bool, Sizes),
-    Sub(Sizes),
-    Div(bool, Sizes),
-    Mod(bool, Sizes),
-    LAnd,
-    LOr,
-    And(Sizes),
-    Or(Sizes),
-    Shl(Sizes),
-    Shr(Sizes),
-    Eq(Sizes),
-    Neq(Sizes),
-    Lower(bool, Sizes),
-    LowerEq(bool, Sizes),
-    Greater(bool, Sizes),
-    GreaterEq(bool, Sizes),
-}
-
-impl TypedBinop {
-    pub fn can_unary(&self) -> bool {
-        match self {
-            Self::LAnd | Self::LOr => false,
-            _ => true,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
-pub enum TypedUnaop {
-    Not(Sizes),
-    Neg(Sizes),
 }

@@ -1,5 +1,6 @@
 use super::consts::Val;
-use crate::ast::common::{Ident, Location, NamePath, Path, PathUL, TypedUnaop};
+use crate::ast::common::{Ident, Location, NamePath, Path, PathUL};
+use crate::ast::operators::TUnaop;
 use crate::ast::typed_rust::{Expr, ExprInner, PostType, PostTypeInner};
 use crate::frontend::Module;
 use std::collections::{HashMap, HashSet};
@@ -268,7 +269,7 @@ impl Const {
             },
             Val::Integer(i, s) => Expr {
                 content: Box::new(ExprInner::UnaOp(
-                    TypedUnaop::Neg(*s),
+                    TUnaop::Neg(*s),
                     Expr {
                         content: Box::new(ExprInner::Int((-*i) as u64)),
                         loc: Location::default(),

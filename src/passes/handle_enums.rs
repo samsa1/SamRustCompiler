@@ -1,4 +1,5 @@
 use crate::ast::common::*;
+use crate::ast::operators::*;
 use crate::ast::typed_rust::*;
 use crate::typing::context::ModuleInterface;
 
@@ -94,7 +95,7 @@ fn rewrite_expr(expr: Expr, context: &ModuleInterface) -> Expr {
                     };
                     Expr {
                         content: Box::new(ExprInner::BinOp(
-                            TypedBinop::Div(true, Sizes::S64),
+                            TBinop::HArith(HArith::new(HArithDesc::Div, true, Sizes::S64)),
                             zero.clone(),
                             zero,
                         )),
@@ -151,7 +152,7 @@ fn rewrite_expr(expr: Expr, context: &ModuleInterface) -> Expr {
                 let check = match pattern.guard {
                     None => Expr {
                         content: Box::new(ExprInner::BinOp(
-                            TypedBinop::Eq(crate::config::CONSTRUCTOR_SIZE),
+                            TBinop::Cmp(Cmp::eq(crate::config::CONSTRUCTOR_SIZE)),
                             build_proj(id_expr.clone(), 0, int_typ.clone()),
                             Expr {
                                 content: Box::new(ExprInner::Int(pattern.constructor_id)),
