@@ -1,5 +1,6 @@
 use crate::ast::asm::{ImmOrReg, Registers};
 use crate::ast::common::Sizes;
+use crate::ast::low_level_repr::Value;
 use crate::ast::operators::{Cmp, CmpDesc, LArith};
 use write_x86_64::*;
 
@@ -10,6 +11,33 @@ impl Sizes {
             Sizes::S16 => cmpw(op1.w(), reg!(r.w())),
             Sizes::S32 => cmpl(op1.l(), reg!(r.l())),
             Sizes::S64 | Sizes::SUsize => cmpq(op1.q(), reg!(r.q())),
+        }
+    }
+
+    pub fn shr_reg(&self, r: Registers) -> Text {
+        match self {
+            Sizes::S8 => shrb_reg(reg!(r.b())),
+            Sizes::S16 => shrw_reg(reg!(r.w())),
+            Sizes::S32 => shrl_reg(reg!(r.l())),
+            Sizes::S64 | Sizes::SUsize => shrq_reg(reg!(r.q())),
+        }
+    }
+
+    pub fn shl_reg(&self, r: Registers) -> Text {
+        match self {
+            Sizes::S8 => shlb_reg(reg!(r.b())),
+            Sizes::S16 => shlw_reg(reg!(r.w())),
+            Sizes::S32 => shll_reg(reg!(r.l())),
+            Sizes::S64 | Sizes::SUsize => shlq_reg(reg!(r.q())),
+        }
+    }
+
+    pub fn mov(&self, r1: Registers, r2: Registers) -> Text {
+        match self {
+            Sizes::S8 => movb(reg!(r1.b()), reg!(r2.b())),
+            Sizes::S16 => movw(reg!(r1.w()), reg!(r2.w())),
+            Sizes::S32 => movl(reg!(r1.l()), reg!(r2.l())),
+            Sizes::S64 | Sizes::SUsize => movq(reg!(r1.q()), reg!(r2.q())),
         }
     }
 }
@@ -74,6 +102,17 @@ impl LArith {
             Self::Or(Sizes::S16) => orw(v.w(), reg!(r.w())),
             Self::Or(Sizes::S32) => orl(v.l(), reg!(r.l())),
             Self::Or(Sizes::S64 | Sizes::SUsize) => orq(v.q(), reg!(r.q())),
+        }
+    }
+}
+
+impl Value {
+    pub fn to_reg(&self, reg: Registers) -> Text {
+        match self.size() {
+            Sizes::S8 => movb(self.b(), reg!(reg.b())),
+            Sizes::S16 => movw(self.w(), reg!(reg.w())),
+            Sizes::S32 => movl(self.l(), reg!(reg.l())),
+            Sizes::S64 | Sizes::SUsize => movq(self.q(), reg!(reg.q())),
         }
     }
 }

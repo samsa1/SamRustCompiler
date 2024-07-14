@@ -59,17 +59,15 @@ rust_if_else_0:
 	movq -16(%rbp), %rax
 	movq %rax, -32(%rbp)
 	call user_fun..crate..fibo_0
-	addq $8, %rsp
-	movl 0(%rsp), %eax
-	addq $4, %rsp
+	movl 8(%rsp), %eax
+	addq $12, %rsp
 	movl %eax, 0(%rsp)
 	subq $12, %rsp
 	movq -8(%rbp), %rax
 	movq %rax, -32(%rbp)
 	call user_fun..crate..fibo_0
-	addq $8, %rsp
-	movl 0(%rsp), %eax
-	addq $4, %rsp
+	movl 8(%rsp), %eax
+	addq $12, %rsp
 	movl 0(%rsp), %ecx
 	addq $4, %rsp
 	addl %ecx, %eax
@@ -87,8 +85,7 @@ user_fun..crate..main_0:
 	movq $46, %rax
 	movq %rax, -16(%rbp)
 	call user_fun..crate..fibo_0
-	addq $8, %rsp
-	addq $8, %rsp
+	addq $16, %rsp
 	movq %rbp, %rsp
 	popq %rbp
 	ret

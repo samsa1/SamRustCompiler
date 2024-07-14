@@ -43,13 +43,13 @@ user_fun..crate..build1_0:
 	subq $0, %rsp
 	subq $10, %rsp
 	movb $0, %al
-	movb %al, -1(%rbp)
+	movb %al, -10(%rbp)
 	movl $4, %eax
-	movl %eax, -5(%rbp)
+	movl %eax, -4(%rbp)
 	movl $3, %eax
-	movl %eax, -10(%rbp)
+	movl %eax, -9(%rbp)
 	movb $1, %al
-	movb %al, -6(%rbp)
+	movb %al, -5(%rbp)
 	movq 0(%rsp), %rax
 	movq %rax, 16(%rbp)
 	movw 8(%rsp), %ax
@@ -63,7 +63,6 @@ user_fun..crate..build2_0:
 	subq $20, %rsp
 	subq $12, %rsp
 	call user_fun..crate..build1_0
-	addq $0, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, -10(%rbp)
 	movw 8(%rsp), %ax
@@ -71,7 +70,6 @@ user_fun..crate..build2_0:
 	addq $12, %rsp
 	subq $12, %rsp
 	call user_fun..crate..build1_0
-	addq $0, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, -20(%rbp)
 	movw 8(%rsp), %ax
@@ -113,7 +111,6 @@ user_fun..crate..build3_0:
 	subq $60, %rsp
 	subq $20, %rsp
 	call user_fun..crate..build2_0
-	addq $0, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, -20(%rbp)
 	movq 8(%rsp), %rax
@@ -123,7 +120,6 @@ user_fun..crate..build3_0:
 	addq $20, %rsp
 	subq $20, %rsp
 	call user_fun..crate..build2_0
-	addq $0, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, -40(%rbp)
 	movq 8(%rsp), %rax
@@ -133,7 +129,6 @@ user_fun..crate..build3_0:
 	addq $20, %rsp
 	subq $20, %rsp
 	call user_fun..crate..build2_0
-	addq $0, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, -60(%rbp)
 	movq 8(%rsp), %rax
@@ -164,11 +159,11 @@ user_fun..crate..build3_0:
 	movl -24(%rbp), %eax
 	movl %eax, 16(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -80(%rbp)
+	movq %rax, -100(%rbp)
 	movq 8(%rsp), %rax
-	movq %rax, -72(%rbp)
+	movq %rax, -92(%rbp)
 	movl 16(%rsp), %eax
-	movl %eax, -64(%rbp)
+	movl %eax, -84(%rbp)
 	addq $20, %rsp
 	subq $20, %rsp
 	movq -60(%rbp), %rax
@@ -178,11 +173,11 @@ user_fun..crate..build3_0:
 	movl -44(%rbp), %eax
 	movl %eax, 16(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -100(%rbp)
+	movq %rax, -80(%rbp)
 	movq 8(%rsp), %rax
-	movq %rax, -92(%rbp)
+	movq %rax, -72(%rbp)
 	movl 16(%rsp), %eax
-	movl %eax, -84(%rbp)
+	movl %eax, -64(%rbp)
 	addq $20, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, 16(%rbp)
@@ -208,75 +203,75 @@ user_fun..crate..test_0:
 	movq %rsp, %rbp
 	subq $0, %rsp
 	leaq 16(%rbp), %rax
-	addq $20, %rax
+	addq $40, %rax
 	addq $10, %rax
-	movl 0(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $20, %rax
-	addq $10, %rax
-	movl 5(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $20, %rax
-	addq $0, %rax
-	movl 0(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $20, %rax
-	addq $0, %rax
-	movl 5(%rax), %eax
+	movl 1(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $40, %rax
 	addq $10, %rax
-	movl 0(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $40, %rax
-	addq $10, %rax
-	movl 5(%rax), %eax
+	movl 6(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $40, %rax
 	addq $0, %rax
-	movl 0(%rax), %eax
+	movl 1(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $40, %rax
 	addq $0, %rax
-	movl 5(%rax), %eax
+	movl 6(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
+	addq $10, %rax
+	movl 1(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
+	addq $10, %rax
+	movl 6(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
+	addq $0, %rax
+	movl 1(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
+	addq $0, %rax
+	movl 6(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $0, %rax
 	addq $10, %rax
-	movl 0(%rax), %eax
+	movl 1(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $0, %rax
 	addq $10, %rax
-	movl 5(%rax), %eax
+	movl 6(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $0, %rax
 	addq $0, %rax
-	movl 0(%rax), %eax
+	movl 1(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $0, %rax
 	addq $0, %rax
-	movl 5(%rax), %eax
+	movl 6(%rax), %eax
 	movl 0(%rsp), %ecx
 	addq $4, %rsp
 	addl %ecx, %eax
@@ -327,7 +322,6 @@ rust_while_cond_0:
 	subq $60, %rsp
 	subq $64, %rsp
 	call user_fun..crate..build3_0
-	addq $0, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, -64(%rbp)
 	movq 8(%rsp), %rax
@@ -381,8 +375,7 @@ rust_while_cond_0:
 	movl %eax, -72(%rbp)
 	addq $60, %rsp
 	call user_fun..crate..test_0
-	addq $60, %rsp
-	addq $4, %rsp
+	addq $64, %rsp
 	movl -4(%rbp), %eax
 	addl $1, %eax
 	movl %eax, -4(%rbp)

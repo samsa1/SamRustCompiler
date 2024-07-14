@@ -82,16 +82,15 @@ rust_while_cond_0:
 	movq -8(%rbp), %rax
 	movq %rax, -32(%rbp)
 	call user_fun..crate..arithmetic_0
+	movq 8(%rsp), %rax
 	addq $8, %rsp
-	movq 0(%rsp), %rax
 	movq %rax, 0(%rsp)
 	subq $24, %rsp
 	movq -8(%rbp), %rax
 	movq %rax, -48(%rbp)
 	call user_fun..crate..arithmetic_0
-	addq $8, %rsp
-	movq 0(%rsp), %rax
-	addq $8, %rsp
+	movq 8(%rsp), %rax
+	addq $16, %rsp
 	movq %rax, 0(%rsp)
 	movq -16(%rbp), %rax
 	popq %rcx
@@ -118,8 +117,7 @@ user_fun..crate..main_0:
 	movq $2000000000, %rax
 	movq %rax, -16(%rbp)
 	call user_fun..crate..loop_operations_0
-	addq $8, %rsp
-	addq $8, %rsp
+	addq $16, %rsp
 	movq %rbp, %rsp
 	popq %rbp
 	ret

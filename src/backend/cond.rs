@@ -78,7 +78,7 @@ pub fn compile_cond(
         },
         ExprInner::UnaOp(UnaOp::Binary(TBinop::Cmp(cmp), v, pos), expr) => {
             let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
-            expr + loc.move_to_reg(cmp.size.to_byte_size(), RegA)
+            expr + loc.to_reg(cmp.size.to_byte_size(), RegA)
                 + cmp.size.cmp(ImmOrReg::V(v), RegA)
                 + jcc(
                     neg_cond(cmp.cond_rev(pos.is_left()).get_cond()),
@@ -106,33 +106,33 @@ pub fn compile_cond(
                     0 => expr2,
                     1 => {
                         expr2
-                            + movb(addr!(RSP), reg!(AL))
-                            + remove_pad(pad)
+                            + movb(pad.addr(), reg!(AL))
+                            + remove_pad(pad.total())
                             + movb(reg!(AL), addr!(RSP))
                     }
                     2 => {
                         expr2
-                            + movw(addr!(RSP), reg!(AX))
-                            + remove_pad(pad)
+                            + movw(pad.addr(), reg!(AX))
+                            + remove_pad(pad.total())
                             + movw(reg!(AX), addr!(RSP))
                     }
                     4 => {
                         expr2
-                            + movl(addr!(RSP), reg!(EAX))
-                            + remove_pad(pad)
+                            + movl(pad.addr(), reg!(EAX))
+                            + remove_pad(pad.total())
                             + movl(reg!(EAX), addr!(RSP))
                     }
                     8 => {
                         expr2
-                            + movq(addr!(RSP), reg!(RAX))
-                            + remove_pad(pad)
+                            + movq(pad.addr(), reg!(RAX))
+                            + remove_pad(pad.total())
                             + movq(reg!(RAX), addr!(RSP))
                     }
                     _ => panic!("ICE"),
                 },
             };
             let (loc, expr1) = compile_expr_val(ctxt, expr1, stack_offset + size as u64);
-            let expr1 = expr1 + loc.move_to_reg(size, RegA);
+            let expr1 = expr1 + loc.to_reg(size, RegA);
             let mov = match size {
                 0 => nop(),
                 1 => movb(addr!(RSP), reg!(CL)) + remove_pad(1),
@@ -152,7 +152,7 @@ pub fn compile_cond(
         _ => {
             assert_eq!(expr.size, 1);
             let (loc, mut asm) = compile_expr_val(ctxt, expr, stack_offset);
-            asm += loc.move_to_reg(1, RegA);
+            asm += loc.to_reg(1, RegA);
             asm += testb(reg!(AL), reg!(AL)) + jz(label_false);
             match label_true {
                 None => (),
