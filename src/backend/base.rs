@@ -176,7 +176,7 @@ fn default_vec_function(
             //    Rax length
             + imulq(immq(size as i64), reg!(RAX))
             + addq(addr!(RBP), reg!(RAX)) /* target of move */
-            + super::mov_struct(RSP, 16, RAX, 0, size as u64, Registers::RegD)
+            + super::utils::mov_struct(RSP, 16, RAX, 0, size as u64, Registers::RegD)
             + incq(addr!(8, RBP))
             + popq(RBP)
             + ret()

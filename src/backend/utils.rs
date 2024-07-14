@@ -124,3 +124,47 @@ pub fn remove_pad(pad: u64) -> Text {
         addq(immq(pad as i64), reg!(RSP))
     }
 }
+
+pub fn mov_struct(
+    reg_in: reg::RegQ,
+    offset_in: i64,
+    reg_out: reg::RegQ,
+    offset_out: i64,
+    mut size: u64,
+    free_reg: Registers,
+) -> Segment<instr::Instr> {
+    let mut offset = 0;
+    let mut asm = Segment::empty();
+    while size >= 8 {
+        asm = asm
+            + movq(addr!(offset_in + offset, reg_in), reg!(free_reg.q()))
+            + movq(reg!(free_reg.q()), addr!(offset_out + offset, reg_out));
+        size -= 8;
+        offset += 8;
+    }
+
+    while size >= 4 {
+        asm = asm
+            + movl(addr!(offset_in + offset, reg_in), reg!(free_reg.l()))
+            + movl(reg!(free_reg.l()), addr!(offset_out + offset, reg_out));
+        size -= 4;
+        offset += 4;
+    }
+
+    while size >= 2 {
+        asm = asm
+            + movw(addr!(offset_in + offset, reg_in), reg!(free_reg.w()))
+            + movw(reg!(free_reg.w()), addr!(offset_out + offset, reg_out));
+        size -= 2;
+        offset += 2;
+    }
+
+    while size >= 1 {
+        asm = asm
+            + movb(addr!(offset_in + offset, reg_in), reg!(free_reg.b()))
+            + movb(reg!(free_reg.b()), addr!(offset_out + offset, reg_out));
+        size -= 1;
+        offset += 1;
+    }
+    asm
+}

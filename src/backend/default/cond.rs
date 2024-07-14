@@ -1,4 +1,4 @@
-use super::{compile_expr_val, context::Context, utils::remove_pad, Location};
+use super::{compile_expr_val, Location};
 use crate::ast::{
     asm::{
         ImmOrReg,
@@ -8,6 +8,7 @@ use crate::ast::{
     low_level_repr::*,
     operators::{Logic, TBinop, TUnaop},
 };
+use crate::backend::{context::Context, utils::remove_pad};
 use write_x86_64::{instr::Cond, *};
 
 pub fn neg_cond(cond: Cond) -> Cond {

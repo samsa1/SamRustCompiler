@@ -1,8 +1,6 @@
 use crate::ast::common::{NamePath, PathUL};
-
-use super::reg::Label;
-
 use std::collections::HashMap;
+use write_x86_64::reg::Label;
 
 pub struct Context {
     nb_if_labels: usize,
