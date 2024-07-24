@@ -5,6 +5,7 @@ use write_x86_64::reg::Label;
 pub struct Context {
     nb_if_labels: usize,
     nb_while_labels: usize,
+    fun_name: PathUL<()>,
     vars: Vec<HashMap<usize, i64>>,
     return_offset: i64,
 }
@@ -14,9 +15,22 @@ impl Context {
         Self {
             nb_if_labels: 0,
             nb_while_labels: 0,
+            fun_name: PathUL::new(Vec::new()),
             vars: Vec::new(),
             return_offset: 0,
         }
+    }
+
+    pub fn set_fun_name(&mut self, fun_name: PathUL<()>) {
+        self.fun_name = fun_name;
+    }
+
+    pub fn set_return_offset(&mut self, return_offset: i64) {
+        self.return_offset = return_offset;
+    }
+
+    pub fn self_label(&self) -> Label {
+        self.fun_label(&self.fun_name)
     }
 
     pub fn init(&mut self, args: Vec<(usize, usize)>) {
@@ -54,7 +68,7 @@ impl Context {
         (Label::from_str(str1), Label::from_str(str2))
     }
 
-    pub fn fun_label(&self, fun_name: &PathUL<()>) -> Label {
+    fn fun_label_inner(&self, fun_name: &PathUL<()>) -> String {
         let mut fun_name2 = String::new();
         fun_name2.push_str("user_fun");
         for el in fun_name.get_content() {
@@ -66,7 +80,23 @@ impl Context {
                 NamePath::Specialisation(_) => todo!(),
             }
         }
-        Label::from_str(fun_name2)
+        fun_name2
+    }
+
+    pub fn fun_label(&self, fun_name: &PathUL<()>) -> Label {
+        Label::from_str(self.fun_label_inner(fun_name))
+    }
+
+    pub fn bloc_label(&self, b: usize) -> Label {
+        let mut str = self.fun_label_inner(&self.fun_name);
+        str.push_str(&format!("..bloc{}", b));
+        Label::from_str(str)
+    }
+
+    pub fn ret_label(&self) -> Label {
+        let mut str = self.fun_label_inner(&self.fun_name);
+        str.push_str("..ret");
+        Label::from_str(str)
     }
 
     pub fn string_label(&self, fun_name: &PathUL<()>) -> Label {

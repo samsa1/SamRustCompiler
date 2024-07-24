@@ -6,15 +6,15 @@
    264 tests/exec/borrow.s
   1164 tests/exec/coercions.s
     77 tests/exec/constants.s
-   436 tests/exec/enum.s
-   163 tests/exec/fact_imp.s
-   187 tests/exec/fact_rec.s
+   437 tests/exec/enum.s
+   164 tests/exec/fact_imp.s
+   188 tests/exec/fact_rec.s
    123 tests/exec/fun_as_objects.s
    172 tests/exec/generic_arith.s
    164 tests/exec/generics.s
     63 tests/exec/hello_world.s
   1577 tests/exec/lists.s
-   545 tests/exec/mandelbrot.s
+   547 tests/exec/mandelbrot.s
   1499 tests/exec/pascal.s
     63 tests/exec/print1.s
     63 tests/exec/print2.s
@@ -30,4 +30,4 @@
    174 tests/exec/swap.s
    224 tests/exec/tuple.s
   1396 tests/exec/vec.s
- 14744 total
+ 14749 total

@@ -118,13 +118,13 @@ pub fn rewrite_expr(expr: Expr) -> Expr {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "shl");
-                                ExprInner::BinOp(TBinop::Shl(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::Shift(Shift::Shl(*size)), expr1, expr2)
                             }
                             ("Shr", 2, BuiltinType::Int(_, size)) => {
                                 let expr2 = exprs.pop().unwrap();
                                 let expr1 = exprs.pop().unwrap();
                                 assert_eq!(fun_name, "shr");
-                                ExprInner::BinOp(TBinop::Shr(*size), expr1, expr2)
+                                ExprInner::BinOp(TBinop::Shift(Shift::Shr(*size)), expr1, expr2)
                             }
                             ("PartialEq", 2, BuiltinType::Bool) => {
                                 let expr2 = exprs.pop().unwrap();

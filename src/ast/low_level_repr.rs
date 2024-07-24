@@ -1,12 +1,12 @@
 use super::common::{self, PathUL};
 use super::operators::{TBinop, TUnaop};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct File {
     pub funs: Vec<DeclFun>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DeclFun {
     pub name: common::PathUL<()>,
     pub args: Vec<(usize, usize)>, /* (id, size) */
@@ -14,19 +14,19 @@ pub struct DeclFun {
     pub content: Bloc,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Bloc {
     pub content: Vec<Instr>,
     pub last_type: super::typed_rust::PostType,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Instr {
     Expr(common::ComputedValue, Expr),
     Binding(usize, Expr),
 }
 
-#[derive()]
+#[derive(Clone)]
 pub struct Expr {
     pub content: Box<ExprInner>,
     pub loc: common::Location,
@@ -125,13 +125,13 @@ impl Pos {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnaOp {
     Unary(TUnaop),
     Binary(TBinop, Value, Pos),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum ExprInner {
     BinOp(TBinop, Expr, Expr),
     Bloc(Bloc),

@@ -15,6 +15,12 @@ impl LArith {
             _ => true,
         }
     }
+
+    pub fn size(&self) -> Sizes {
+        match self {
+            Self::Add(s) | Self::Sub(s) | Self::And(s) | Self::Or(s) => *s,
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
@@ -103,15 +109,27 @@ pub enum Logic {
 }
 
 #[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
+pub enum Shift {
+    Shl(Sizes),
+    Shr(Sizes),
+}
+
+impl Shift {
+    pub fn size(&self) -> Sizes {
+        match self {
+            Self::Shl(s) | Self::Shr(s) => *s,
+        }
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Hash, Copy, Clone)]
 pub enum TBinop {
     LArith(LArith),
     Cmp(Cmp),
     HArith(HArith),
     Logic(Logic),
-    Shl(Sizes),
-    Shr(Sizes),
+    Shift(Shift),
 }
-
 impl TBinop {
     pub fn can_unary(&self) -> bool {
         match self {
@@ -125,4 +143,12 @@ impl TBinop {
 pub enum TUnaop {
     Not(Sizes),
     Neg(Sizes),
+}
+
+impl TUnaop {
+    pub fn size(&self) -> Sizes {
+        match self {
+            Self::Neg(s) | Self::Not(s) => *s,
+        }
+    }
 }

@@ -16,5 +16,6 @@ Cargo.lock
 /tests/dependancies/good/main.s
 
 a.out
+a.opt.out
 out
 src/std_file.rs

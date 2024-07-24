@@ -277,6 +277,7 @@ impl DataStruct {
 fn eval(op: TBinop, v1: &llr::Value, v2: &llr::Value) -> Option<llr::Value> {
     use crate::ast::operators::LArith::*;
     use crate::ast::operators::Logic::*;
+    use crate::ast::operators::Shift::*;
     use llr::Value::*;
     match (op, v1, v2) {
         (TBinop::LArith(Add(s)), SInt(i1, _), SInt(i2, _)) => Some(SInt(i1 + i2, s)),
@@ -367,10 +368,10 @@ fn eval(op: TBinop, v1: &llr::Value, v2: &llr::Value) -> Option<llr::Value> {
         (TBinop::LArith(And(s)), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 & *i2, s)),
         (TBinop::LArith(Or(s)), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 | *i2, s)),
         (TBinop::LArith(Or(s)), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 | *i2, s)),
-        (TBinop::Shl(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 << *i2, s)),
-        (TBinop::Shl(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 << *i2, s)),
-        (TBinop::Shr(s), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 >> *i2, s)),
-        (TBinop::Shr(s), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 >> *i2, s)),
+        (TBinop::Shift(Shl(s)), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 << *i2, s)),
+        (TBinop::Shift(Shl(s)), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 << *i2, s)),
+        (TBinop::Shift(Shr(s)), SInt(i1, _), SInt(i2, _)) => Some(SInt(*i1 >> *i2, s)),
+        (TBinop::Shift(Shr(s)), UInt(i1, _), UInt(i2, _)) => Some(UInt(*i1 >> *i2, s)),
         (
             TBinop::Cmp(Cmp {
                 cmp: CmpDesc::Eq, ..

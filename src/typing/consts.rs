@@ -3,6 +3,7 @@ use super::context::ModuleInterface;
 use super::structs::Graph;
 use crate::ast::common::ErrorReporter;
 use crate::ast::common::{BinOperator, BuiltinType, NamePath, PathUL, Projector, Sizes};
+use crate::ast::operators::Shift;
 use crate::ast::operators::{Cmp, CmpDesc, HArith, HArithDesc, LArith, Logic, TBinop};
 use crate::ast::rust as rr;
 use crate::ast::typed_rust as tr;
@@ -110,8 +111,8 @@ fn compute_i64(bin: TBinop, i1: i64, i2: i64) -> Val {
             signed: _,
             size,
         }) => Val::Integer(i1 % i2, size),
-        TBinop::Shl(s) => Val::Integer(i1 << i2, s),
-        TBinop::Shr(s) => Val::Integer((i1 & s.max_sval()) >> i2, s),
+        TBinop::Shift(Shift::Shl(s)) => Val::Integer(i1 << i2, s),
+        TBinop::Shift(Shift::Shr(s)) => Val::Integer((i1 & s.max_sval()) >> i2, s),
         TBinop::Logic(_) => panic!("ICE"),
     }
 }
@@ -159,8 +160,8 @@ fn compute_u64(bin: TBinop, i1: u64, i2: u64) -> Val {
             signed: _,
             size,
         }) => Val::Uinteger(i1 % i2, size),
-        TBinop::Shl(s) => Val::Uinteger(i1 << i2, s),
-        TBinop::Shr(s) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
+        TBinop::Shift(Shift::Shl(s)) => Val::Uinteger(i1 << i2, s),
+        TBinop::Shift(Shift::Shr(s)) => Val::Uinteger((i1 & s.max_uval()) >> i2, s),
         TBinop::Logic(_) => panic!("ICE"),
     }
 }

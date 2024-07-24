@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use crate::ast::asm::{ImmOrReg, Registers};
 use crate::ast::common::{BuiltinType, ComputedValue, Sizes};
 use crate::ast::low_level_repr as llr;
-use crate::ast::operators::{HArithDesc, Logic, TBinop, TUnaop};
+use crate::ast::operators::{HArithDesc, Logic, TBinop};
 use crate::ast::typed_rust::PostType;
 use llr::{Pos, Value};
 
-use super::utils::{mov_struct, remove_pad};
+use super::utils::{coercion, mov_struct, remove_pad};
 use write_x86_64::*;
 
 use super::base;
@@ -223,18 +223,12 @@ fn compile_op(op: TBinop, v: Value, pos: Pos) -> Segment<instr::Instr> {
             }
         }
 
-        (TBinop::Shl(s), Pos::Right) => v.to_reg(Registers::RegC) + s.shl_reg(Registers::RegA),
-        (TBinop::Shr(s), Pos::Right) => v.to_reg(Registers::RegC) + s.shr_reg(Registers::RegA),
+        (TBinop::Shift(sop), Pos::Right) => v.to_reg(Registers::RegC) + sop.reg(Registers::RegA),
 
-        (TBinop::Shl(s), Pos::Left) => {
-            s.mov(Registers::RegA, Registers::RegC)
+        (TBinop::Shift(sop), Pos::Left) => {
+            sop.size().mov(Registers::RegA, Registers::RegC)
                 + v.to_reg(Registers::RegA)
-                + s.shl_reg(Registers::RegA)
-        }
-        (TBinop::Shr(s), Pos::Left) => {
-            s.mov(Registers::RegA, Registers::RegC)
-                + v.to_reg(Registers::RegA)
-                + s.shr_reg(Registers::RegA)
+                + sop.reg(Registers::RegA)
         }
 
         (TBinop::Cmp(cmp), _) => {
@@ -256,16 +250,7 @@ fn compile_expr_val(
             let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let expr = expr + loc.to_reg(size, Registers::RegA);
             let op = match op {
-                llr::UnaOp::Unary(TUnaop::Neg(Sizes::S8)) => negb(reg!(AL)),
-                llr::UnaOp::Unary(TUnaop::Neg(Sizes::S16)) => negw(reg!(AX)),
-                llr::UnaOp::Unary(TUnaop::Neg(Sizes::S32)) => negl(reg!(EAX)),
-                llr::UnaOp::Unary(TUnaop::Neg(Sizes::S64)) => negq(reg!(RAX)),
-                llr::UnaOp::Unary(TUnaop::Neg(Sizes::SUsize)) => negq(reg!(RAX)),
-                llr::UnaOp::Unary(TUnaop::Not(Sizes::S8)) => xorb(immb(1), reg!(AL)),
-                llr::UnaOp::Unary(TUnaop::Not(Sizes::S16)) => xorw(immw(1), reg!(AX)),
-                llr::UnaOp::Unary(TUnaop::Not(Sizes::S32)) => xorl(imml(1), reg!(EAX)),
-                llr::UnaOp::Unary(TUnaop::Not(Sizes::S64)) => xorq(immq(1), reg!(RAX)),
-                llr::UnaOp::Unary(TUnaop::Not(Sizes::SUsize)) => xorq(immq(1), reg!(RAX)),
+                llr::UnaOp::Unary(uno) => uno.to_bin(Registers::RegA),
                 llr::UnaOp::Binary(op, v, pos) => compile_op(op, v, pos),
             };
             (Location::Rax, expr + op)
@@ -358,88 +343,11 @@ fn compile_expr_val(
                 TBinop::LArith(aop) => aop.to_bin(ImmOrReg::R(Registers::RegC), Registers::RegA),
 
                 TBinop::HArith(haop) => {
-                    match (haop.dm, haop.size) {
-                        (_, Sizes::S8) => todo!(),
-                        (_, Sizes::S16) => todo!(),
-                        (HArithDesc::Mul, Sizes::S32) => {
-                            if haop.signed {
-                                imull(reg!(ECX), reg!(EAX))
-                            } else {
-                                // TODO use unsigned multiply
-                                imull(reg!(ECX), reg!(EAX))
-                            }
-                        }
-                        (HArithDesc::Mul, Sizes::S64 | Sizes::SUsize) => {
-                            if haop.signed {
-                                imulq(reg!(RCX), reg!(RAX))
-                            } else {
-                                // TODO use unsigned multiply
-                                imulq(reg!(RCX), reg!(RAX))
-                            }
-                        }
-                        (HArithDesc::Div, Sizes::S32) => {
-                            leaq(
-                                reg::Operand::LabRelAddr(reg::Label::from_str(
-                                    "division_by_zero_str".to_string(),
-                                )),
-                                R12,
-                            ) + testl(reg!(ECX), reg!(ECX))
-                                + jz(reg::Label::panic())
-                                + if haop.signed {
-                                    cltd() + idivl(reg!(ECX))
-                                } else {
-                                    xorl(reg!(EDX), reg!(EDX)) + divl(reg!(ECX))
-                                }
-                        }
-                        (HArithDesc::Div, Sizes::S64 | Sizes::SUsize) => {
-                            leaq(
-                                reg::Operand::LabRelAddr(reg::Label::from_str(
-                                    "division_by_zero_str".to_string(),
-                                )),
-                                R12,
-                            ) + testq(reg!(RCX), reg!(RCX))
-                                + jz(reg::Label::panic())
-                                + if haop.signed {
-                                    cqto() + idivq(reg!(RCX))
-                                } else {
-                                    xorq(reg!(RDX), reg!(RDX)) + divq(reg!(RCX))
-                                }
-                        }
-                        (HArithDesc::Mod, Sizes::S32) => {
-                            leaq(
-                                reg::Operand::LabRelAddr(reg::Label::from_str(
-                                    "division_by_zero_str".to_string(),
-                                )),
-                                R12,
-                            ) + testl(reg!(ECX), reg!(ECX))
-                                + jz(reg::Label::panic())
-                                + if haop.signed {
-                                    cltd() + idivl(reg!(ECX))
-                                } else {
-                                    xorl(reg!(EDX), reg!(EDX)) + divl(reg!(ECX))
-                                }
-                                + movl(reg!(EDX), reg!(EAX))
-                        }
-                        (HArithDesc::Mod, Sizes::S64 | Sizes::SUsize) => {
-                            leaq(
-                                reg::Operand::LabRelAddr(reg::Label::from_str(
-                                    "division_by_zero_str".to_string(),
-                                )),
-                                R12,
-                            ) + testq(reg!(RCX), reg!(RCX))
-                                + jz(reg::Label::panic())
-                                + if haop.signed {
-                                    cqto() + idivq(reg!(RCX))
-                                } else {
-                                    xorq(reg!(RDX), reg!(RDX)) + divq(reg!(RCX))
-                                }
-                                + movq(reg!(RDX), reg!(RAX))
-                        }
-                    }
+                    let (asm, reg) = haop.to_bin(Registers::RegC);
+                    asm + haop.size.mov(reg, Registers::RegA)
                 }
 
-                TBinop::Shl(s) => s.shl_reg(Registers::RegA),
-                TBinop::Shr(s) => s.shr_reg(Registers::RegA),
+                TBinop::Shift(sop) => sop.reg(Registers::RegA),
 
                 TBinop::Cmp(cmp) => cmp.to_bin(
                     ImmOrReg::R(Registers::RegC),
@@ -454,64 +362,7 @@ fn compile_expr_val(
             let size_in = expr.size;
             let (loc, expr) = compile_expr_val(ctxt, expr, stack_offset);
             let expr = expr + loc.to_reg(size_in, Registers::RegA);
-            let conversion = match (typ1, typ2) {
-                (t1, t2) if t1 == t2 => Text::empty(),
-                (BuiltinType::Int(true, s1), BuiltinType::Int(_, s2)) => match (s1, s2) {
-                    (Sizes::S8, Sizes::S8)
-                    | (Sizes::S16, Sizes::S16)
-                    | (Sizes::S32, Sizes::S32)
-                    | (Sizes::S64, Sizes::S64)
-                    | (Sizes::S64, Sizes::SUsize)
-                    | (Sizes::SUsize, Sizes::S64)
-                    | (Sizes::SUsize, Sizes::SUsize) => nop(),
-                    (Sizes::S8, Sizes::S16) => movsbw(reg!(AL), AX),
-                    (Sizes::S8, Sizes::S32) => movsbl(reg!(AL), EAX),
-                    (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => movsbq(reg!(AL), RAX),
-                    (Sizes::S16, Sizes::S32) => movswl(reg!(AX), EAX),
-                    (Sizes::S16, Sizes::S64) | (Sizes::S16, Sizes::SUsize) => movswq(reg!(AX), RAX),
-                    (Sizes::S32, Sizes::S64) | (Sizes::S32, Sizes::SUsize) => {
-                        movslq(reg!(EAX), RAX)
-                    }
-
-                    _ => {
-                        assert!(s1.to_byte_size() > s2.to_byte_size());
-                        nop()
-                    }
-                },
-                (BuiltinType::Int(false, s1), BuiltinType::Int(_, s2)) => {
-                    match (s1, s2) {
-                        (Sizes::S8, Sizes::S8)
-                        | (Sizes::S16, Sizes::S16)
-                        | (Sizes::S32, Sizes::S32)
-                        | (Sizes::S64, Sizes::S64)
-                        | (Sizes::S64, Sizes::SUsize)
-                        | (Sizes::SUsize, Sizes::S64)
-                        | (Sizes::SUsize, Sizes::SUsize) => nop(),
-                        (Sizes::S8, Sizes::S16) => movzbw(reg!(AL), AX),
-                        (Sizes::S8, Sizes::S32) => movzbl(reg!(AL), EAX),
-                        (Sizes::S8, Sizes::S64) | (Sizes::S8, Sizes::SUsize) => {
-                            movzbq(reg!(AL), RAX)
-                        }
-                        (Sizes::S16, Sizes::S32) => movzwl(reg!(AX), EAX),
-                        (Sizes::S16, Sizes::S64) | (Sizes::S16, Sizes::SUsize) => {
-                            movzwq(reg!(AX), RAX)
-                        }
-                        (Sizes::S32, Sizes::S64) | (Sizes::S32, Sizes::SUsize) => {
-                            // this instruction should fill top bytes of RAX with zeros
-                            movl(reg!(EAX), reg!(EAX))
-                        }
-                        _ => {
-                            println!("{s1:?} {s2:?}");
-                            assert!(s1.to_byte_size() > s2.to_byte_size());
-                            nop()
-                        }
-                    }
-                }
-                (t1, t2) => {
-                    println!("Coercion {:?} {:?} to do", t1, t2);
-                    todo!()
-                }
-            };
+            let conversion = coercion(Registers::RegA, typ1, Registers::RegA, typ2);
             (Location::Rax, expr + conversion)
         }
 

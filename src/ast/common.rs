@@ -356,6 +356,16 @@ pub enum Sizes {
 }
 
 impl Sizes {
+    pub fn from_int(size: usize) -> Self {
+        match size {
+            1 => Self::S8,
+            2 => Self::S16,
+            4 => Self::S32,
+            8 => Self::S64,
+            _ => panic!("ICE in Common::Sizes::from_int"),
+        }
+    }
+
     pub fn to_byte_size(&self) -> usize {
         match self {
             Self::S8 => 1,
@@ -406,6 +416,13 @@ pub enum BuiltinType {
 }
 
 impl BuiltinType {
+    pub fn size(&self) -> Sizes {
+        match self {
+            Self::Int(_, s) => *s,
+            Self::Bool => Sizes::S8,
+        }
+    }
+
     pub fn is_int(&self) -> bool {
         matches!(self, Self::Int(_, _))
     }

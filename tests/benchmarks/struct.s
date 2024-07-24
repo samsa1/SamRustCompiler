@@ -43,13 +43,13 @@ user_fun..crate..build1_0:
 	subq $0, %rsp
 	subq $10, %rsp
 	movb $0, %al
-	movb %al, -1(%rbp)
+	movb %al, -2(%rbp)
 	movl $4, %eax
-	movl %eax, -9(%rbp)
+	movl %eax, -6(%rbp)
 	movl $3, %eax
-	movl %eax, -5(%rbp)
+	movl %eax, -10(%rbp)
 	movb $1, %al
-	movb %al, -10(%rbp)
+	movb %al, -1(%rbp)
 	movq 0(%rsp), %rax
 	movq %rax, 16(%rbp)
 	movw 8(%rsp), %ax
@@ -145,11 +145,11 @@ user_fun..crate..build3_0:
 	movl -4(%rbp), %eax
 	movl %eax, 16(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -100(%rbp)
+	movq %rax, -120(%rbp)
 	movq 8(%rsp), %rax
-	movq %rax, -92(%rbp)
+	movq %rax, -112(%rbp)
 	movl 16(%rsp), %eax
-	movl %eax, -84(%rbp)
+	movl %eax, -104(%rbp)
 	addq $20, %rsp
 	subq $20, %rsp
 	movq -40(%rbp), %rax
@@ -159,11 +159,11 @@ user_fun..crate..build3_0:
 	movl -24(%rbp), %eax
 	movl %eax, 16(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -120(%rbp)
+	movq %rax, -80(%rbp)
 	movq 8(%rsp), %rax
-	movq %rax, -112(%rbp)
+	movq %rax, -72(%rbp)
 	movl 16(%rsp), %eax
-	movl %eax, -104(%rbp)
+	movl %eax, -64(%rbp)
 	addq $20, %rsp
 	subq $20, %rsp
 	movq -60(%rbp), %rax
@@ -173,11 +173,11 @@ user_fun..crate..build3_0:
 	movl -44(%rbp), %eax
 	movl %eax, 16(%rsp)
 	movq 0(%rsp), %rax
-	movq %rax, -80(%rbp)
+	movq %rax, -100(%rbp)
 	movq 8(%rsp), %rax
-	movq %rax, -72(%rbp)
+	movq %rax, -92(%rbp)
 	movl 16(%rsp), %eax
-	movl %eax, -64(%rbp)
+	movl %eax, -84(%rbp)
 	addq $20, %rsp
 	movq 0(%rsp), %rax
 	movq %rax, 16(%rbp)
@@ -203,75 +203,75 @@ user_fun..crate..test_0:
 	movq %rsp, %rbp
 	subq $0, %rsp
 	leaq 16(%rbp), %rax
-	addq $40, %rax
+	addq $20, %rax
 	addq $10, %rax
-	movl 5(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $40, %rax
-	addq $10, %rax
-	movl 1(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $40, %rax
-	addq $0, %rax
-	movl 5(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $40, %rax
-	addq $0, %rax
-	movl 1(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $0, %rax
-	addq $10, %rax
-	movl 5(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $0, %rax
-	addq $10, %rax
-	movl 1(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $0, %rax
-	addq $0, %rax
-	movl 5(%rax), %eax
-	subq $4, %rsp
-	movl %eax, 0(%rsp)
-	leaq 16(%rbp), %rax
-	addq $0, %rax
-	addq $0, %rax
-	movl 1(%rax), %eax
+	movl 0(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $20, %rax
 	addq $10, %rax
-	movl 5(%rax), %eax
+	movl 4(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
 	addq $20, %rax
+	addq $0, %rax
+	movl 0(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $20, %rax
+	addq $0, %rax
+	movl 4(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $40, %rax
 	addq $10, %rax
-	movl 1(%rax), %eax
+	movl 0(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
-	addq $20, %rax
-	addq $0, %rax
-	movl 5(%rax), %eax
+	addq $40, %rax
+	addq $10, %rax
+	movl 4(%rax), %eax
 	subq $4, %rsp
 	movl %eax, 0(%rsp)
 	leaq 16(%rbp), %rax
-	addq $20, %rax
+	addq $40, %rax
 	addq $0, %rax
-	movl 1(%rax), %eax
+	movl 0(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $40, %rax
+	addq $0, %rax
+	movl 4(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $0, %rax
+	addq $10, %rax
+	movl 0(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $0, %rax
+	addq $10, %rax
+	movl 4(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $0, %rax
+	addq $0, %rax
+	movl 0(%rax), %eax
+	subq $4, %rsp
+	movl %eax, 0(%rsp)
+	leaq 16(%rbp), %rax
+	addq $0, %rax
+	addq $0, %rax
+	movl 4(%rax), %eax
 	movl 0(%rsp), %ecx
 	addq $4, %rsp
 	addl %ecx, %eax

@@ -1,11 +1,15 @@
  -- rustc -O
-0.00user 0.00system 0:00.00elapsed 0%CPU (0avgtext+0avgdata 2048maxresident)k
-0inputs+0outputs (0major+90minor)pagefaults 0swaps
+0.00user 0.00system 0:00.00elapsed 100%CPU (0avgtext+0avgdata 2048maxresident)k
+0inputs+0outputs (0major+89minor)pagefaults 0swaps
  -- rustc
-6.86user 0.00system 0:06.86elapsed 99%CPU (0avgtext+0avgdata 2048maxresident)k
+7.12user 0.00system 0:07.13elapsed 99%CPU (0avgtext+0avgdata 2048maxresident)k
 0inputs+0outputs (0major+89minor)pagefaults 0swaps
  -- SamRustCompiler
-9.11user 0.00system 0:09.11elapsed 100%CPU (0avgtext+0avgdata 1152maxresident)k
-0inputs+0outputs (0major+65minor)pagefaults 0swaps
+9.14user 0.00system 0:09.15elapsed 99%CPU (0avgtext+0avgdata 1152maxresident)k
+0inputs+0outputs (0major+64minor)pagefaults 0swaps
 \nNb lines
 134 tests/benchmarks/arithmetic.s
+ -- SamRustCompiler
+25.74user 0.00system 0:25.76elapsed 99%CPU (0avgtext+0avgdata 1152maxresident)k
+0inputs+0outputs (0major+65minor)pagefaults 0swaps
+\nNb lines

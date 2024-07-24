@@ -14,6 +14,7 @@ fn main() {
     let mut parse_only = false;
     let mut type_only = false;
     let mut generate_std = false;
+    let mut optimized = false;
 
     let mut args = std::env::args().skip(1);
 
@@ -26,6 +27,7 @@ fn main() {
                 "--parse-only" => parse_only = true,
                 "--type-only" => type_only = true,
                 "--generate-std" => generate_std = true,
+                "-O1" => optimized = true,
                 _ => panic!("unkown option"),
             }
         } else {
@@ -108,7 +110,7 @@ fn main() {
     let llr_form = passes::concat_all::rewrite(llr_form);
 
     // Compile to asm
-    let asm = backend::compile(llr_form, strings, vec_info);
+    let asm = backend::compile(optimized, llr_form, strings, vec_info);
 
     // Printing asm
     let mut out_name = std::path::PathBuf::from(in_name);

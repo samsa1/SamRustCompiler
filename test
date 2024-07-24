@@ -93,9 +93,9 @@ done
 compile () {
 if [[ $verbose != 0 ]]; then
   echo Compile $1 $2
-  $compilo $1 $2;
+  $compilo $SRC_FLAGS $1 $2;
 else
-  $compilo $1 $2 > /dev/null 2>&1;
+  $compilo $SRC_FLAGS $1 $2 > /dev/null 2>&1;
 fi;
 }
 
